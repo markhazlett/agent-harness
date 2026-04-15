@@ -31,14 +31,14 @@ This is the most important step. Before drafting any scenes:
 1. **Audit current state.** Read the codebase to understand what already works. Don't write scenes that assume features exist when they don't.
 
 2. **Count the hours.** Every scene that requires new build work needs a gut-check effort tag:
-   - `[Exists]` — already works, just needs demo setup/data
-   - `[Extend]` — existing feature needs moderate changes (2-4 hrs)
-   - `[Build]` — new from scratch (4-8+ hrs)
+   - `[Exists]` — already works, just needs demo setup/data (0 pts)
+   - `[Extend]` — existing feature needs moderate changes (1 pt)
+   - `[Build]` — new from scratch, higher architectural risk (3 pts)
    - `[Narrate]` — not built yet, told as vision ("and then what happens is...")
 
-   Check `CLAUDE.md` for the project owner's typical weekly capacity. Apply the cut line accordingly.
+   Check `CLAUDE.md` for any override to `HARNESS_SPRINT_COMPLEXITY_MAX` (default: 9). Apply the cut line accordingly.
 
-3. **Apply the cut line.** Add up the `[Extend]` and `[Build]` hours. If they exceed the weekly capacity, cut scenes or move them to `[Narrate]`. Be ruthless. A 3-scene demo where everything works beats a 6-scene demo where half is broken.
+3. **Apply the cut line.** Sum the complexity points (`[Build]` × 3 + `[Extend]` × 1). If they exceed `HARNESS_SPRINT_COMPLEXITY_MAX`, cut scenes or move them to `[Narrate]`. Be ruthless. A 3-scene demo where everything works beats a 6-scene demo where half is broken.
 
 4. **Challenge the scope:**
    - Does this scene require building a feature from zero? Flag it.
@@ -65,7 +65,7 @@ This is the most important step. Before drafting any scenes:
 
 **Persona:** Name, role, company context, core pain point (2 sentences max)
 
-**Capacity check:** ~X hours available · Y hours of [Build] + [Extend] work · Z scenes live, N narrated
+**Complexity check:** 9 pts available · Y pts used (N×[Build] + M×[Extend]) · Z scenes live, N narrated
 
 ### The Problem (30 seconds)
 Brief setup: what does this person's day look like without the product?
@@ -90,7 +90,7 @@ What's different now? What did we prove this week?
 2. Read the North Star, Flow, and Priorities sections
 3. **Audit the codebase** — read relevant source files to understand what already works
 4. Tag each potential scene with `[Exists]`, `[Extend]`, `[Build]`, or `[Narrate]`
-5. Sum the effort. If it exceeds capacity, cut or narrate scenes until it fits
+5. Sum complexity points ([Build] × 3 + [Extend] × 1). If total exceeds `HARNESS_SPRINT_COMPLEXITY_MAX`, cut or narrate scenes until it fits
 6. Draft the demo script, clearly marking narrated sections
 7. Replace or create the `## Demo Script` section in the goals file
 8. Flag any disconnects between the demo and the P0 priorities
