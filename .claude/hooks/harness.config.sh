@@ -67,3 +67,13 @@ HARNESS_FORMATTABLE_EXTS="${HARNESS_FORMATTABLE_EXTS:-ts|tsx|js|jsx|json|css}"
 # Additional required env vars for pre-deploy checks (space-separated)
 # Example: "DATABASE_URL API_KEY AUTH_SECRET"
 HARNESS_REQUIRED_ENV_VARS="${HARNESS_REQUIRED_ENV_VARS:-}"
+
+# Sprint complexity budget — max complexity points per sprint.
+# Complexity weights: [Build] = 3 pts, [Extend] = 1 pt, [Exists] = 0 pts.
+# Default 9 = 3× [Build] items, or 9× [Extend], or any mix.
+HARNESS_SPRINT_COMPLEXITY_MAX="${HARNESS_SPRINT_COMPLEXITY_MAX:-9}"
+
+# Minimum independently-verifiable checkpoints per sprint.
+# A sprint with fewer checkpoints is flagged as a quality risk.
+# A checkpoint = one item with its own demo scene verification or its own PR.
+HARNESS_SPRINT_CHECKPOINT_MIN="${HARNESS_SPRINT_CHECKPOINT_MIN:-2}"
