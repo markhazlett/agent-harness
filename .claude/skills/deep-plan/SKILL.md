@@ -23,9 +23,9 @@ This produces a folder of plans that `build-plan` can execute individually.
 
 | Skill | Scope | Output | Time |
 |-------|-------|--------|------|
-| `/ad-hoc-plan` | Quick fix, small feature | Single `.md` file | 1-3h effort |
-| **`/deep-plan`** | Complex feature, architectural change | Folder: `00-*.md` + sub-plans | 8-20h effort |
-| `/plan-sprint` | Full week's goals breakdown | Multiple single-file plans | Full week |
+| `/ad-hoc-plan` | Quick fix, small feature | Single `.md` file | ≤3 complexity pts |
+| **`/deep-plan`** | Complex feature, architectural change | Folder: `00-*.md` + sub-plans | >9 pts or multi-sprint |
+| `/plan-sprint` | Full week's goals breakdown | Multiple single-file plans | Full sprint |
 
 **Use `/deep-plan` when:**
 - The work spans multiple systems or requires coordinated changes
@@ -122,13 +122,13 @@ Break the workstream into individually executable sub-plans.
 For each sub-plan, identify:
 - Which files it touches (non-overlapping file footprints enable parallelism)
 - Which sub-plans must complete first
-- Estimated effort
+- Estimated complexity (pts)
 - Recommended merge order
 
 Include a time budget table:
 
-| Sub-plan | Effort | Can parallel? | Dependencies |
-|----------|--------|---------------|-------------|
+| Sub-plan | Complexity | Can parallel? | Dependencies |
+|----------|------------|---------------|-------------|
 
 ## Phase 6: Write the Plan Folder
 
