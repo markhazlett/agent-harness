@@ -4,6 +4,13 @@ description: Quick plan for a one-off task that slots into the current sprint. L
 user-invocable: true
 ---
 
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Ad-Hoc Plan
 
 Create a focused implementation plan for a single task that fits into the current sprint. This is the lightweight alternative to `/plan-sprint` — no goals analysis, no demo script mapping, no breakdown table. Just a quick plan that understands the sprint context.

@@ -1,3 +1,10 @@
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # TDD Workflow
 
 Test-driven development workflow. Use when asked to "write tests first", "TDD", or when implementing new server-side logic.

@@ -1,3 +1,10 @@
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Incident
 
 Structured incident response for production issues. Takes a symptom, investigates systematically, and produces a diagnosis with remediation steps.

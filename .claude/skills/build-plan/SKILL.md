@@ -4,6 +4,13 @@ description: Execute a sprint plan end-to-end — branch, implement, test, verif
 user-invocable: true
 ---
 
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Build
 
 Execute a sprint plan from `docs/plans/` autonomously. Takes a plan document, reads it, implements each step, tests continuously, verifies in the browser, commits incrementally, and ships.

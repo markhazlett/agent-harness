@@ -4,6 +4,13 @@ description: Generate a customer-story demo script for the current week's goals.
 user-invocable: true
 ---
 
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Demo Script Generator
 
 Generate or update the Demo Script section of the current week's goals document.

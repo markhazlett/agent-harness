@@ -4,6 +4,13 @@ description: Break the current week's goals into concrete, executable projects w
 user-invocable: true
 ---
 
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Sprint Planner
 
 Break the current week's goals into discrete projects, design full implementation plans for each, and write them to the week's sprint-plans folder.

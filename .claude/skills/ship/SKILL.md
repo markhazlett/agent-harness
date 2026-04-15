@@ -1,3 +1,10 @@
+<update-check>
+Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
+- `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
+- `JUST_UPGRADED <old> <new>` → tell the user: "agent-harness upgraded <old> → <new>." Then continue.
+- No output → continue silently.
+</update-check>
+
 # Ship
 
 Run the full shipping pipeline: tests, lint, E2E verify, commit, push, and create a PR. Use when the user says "/ship", "ship it", "let's ship", or "push this up".

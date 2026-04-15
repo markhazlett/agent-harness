@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# =============================================================================
+# harness-update-check — Check if a newer version of agent-harness is available.
+#
+# Called from skill file preambles. Outputs:
+#   (nothing)                       — up to date, recently checked, or snoozed
+#   UPGRADE_AVAILABLE <old> <new>   — a newer version exists
+#   JUST_UPGRADED <old> <new>       — recently upgraded (show once, then silent)
+#
+# Smart caching: avoids a network call on every skill invocation.
+#   - "Up to date" result cached for 60 minutes
+#   - "Upgrade available" result cached for 720 minutes (but re-prompts each skill)
+#
+# Snooze: users can dismiss the prompt. Snooze resets when a new version ships.
+# =============================================================================
+
+set -uo pipefail
+
+# ── Config ──────────────────────────────────────────────────────────────────
+
+REMOTE_VERSION_URL="https://raw.githubusercontent.com/markhazlett/agent-harness/main/VERSION"
+STATE_DIR="${HOME}/.agent-harness"
+CACHE_FILE="${STATE_DIR}/last-update-check"
+SNOOZE_FILE="${STATE_DIR}/update-snoozed"
+JUST_UPGRADED_FILE="${STATE_DIR}/just-upgraded-from"
+FETCH_TIMEOUT=5
+
+# TTLs in minutes
+TTL_UP_TO_DATE=60
+TTL_UPGRADE_AVAILABLE=720
+
+# Find local VERSION file (walk up from .claude/bin to repo root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_VERSION_FILE="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)/VERSION"
+if [ ! -f "$LOCAL_VERSION_FILE" ]; then
+  exit 0  # No VERSION file — not a managed harness install
+fi
+
+LOCAL_VERSION="$(cat "$LOCAL_VERSION_FILE" | tr -d '[:space:]')"
+
+# ── State dir ────────────────────────────────────────────────────────────────
+
+mkdir -p "$STATE_DIR"
+
+# ── Just-upgraded marker ──────────────────────────────────────────────────────
+
+if [ -f "$JUST_UPGRADED_FILE" ]; then
+  OLD_VERSION="$(cat "$JUST_UPGRADED_FILE" | tr -d '[:space:]')"
+  rm -f "$JUST_UPGRADED_FILE"
+  echo "JUST_UPGRADED ${OLD_VERSION} ${LOCAL_VERSION}"
+  exit 0
+fi
+
+# ── Snooze check ─────────────────────────────────────────────────────────────
+
+if [ -f "$SNOOZE_FILE" ]; then
+  IFS='|' read -r SNOOZED_VERSION SNOOZE_LEVEL SNOOZE_UNTIL < "$SNOOZE_FILE" 2>/dev/null || true
+  NOW=$(date +%s)
+  # Snooze is active if: version hasn't changed and snooze hasn't expired
+  if [[ "${SNOOZED_VERSION:-}" == "$LOCAL_VERSION" && "${SNOOZE_UNTIL:-0}" -gt "$NOW" ]]; then
+    exit 0
+  fi
+fi
+
+# ── Cache check ───────────────────────────────────────────────────────────────
+
+if [ -f "$CACHE_FILE" ]; then
+  IFS='|' read -r CACHE_STATUS CACHE_REMOTE CACHE_TIMESTAMP < "$CACHE_FILE" 2>/dev/null || true
+  NOW=$(date +%s)
+  CACHE_AGE=$(( (NOW - ${CACHE_TIMESTAMP:-0}) / 60 ))
+
+  if [[ "${CACHE_STATUS:-}" == "UP_TO_DATE" && "$CACHE_AGE" -lt "$TTL_UP_TO_DATE" ]]; then
+    exit 0
+  fi
+
+  if [[ "${CACHE_STATUS:-}" == "UPGRADE_AVAILABLE" && "$CACHE_AGE" -lt "$TTL_UPGRADE_AVAILABLE" ]]; then
+    echo "UPGRADE_AVAILABLE ${LOCAL_VERSION} ${CACHE_REMOTE}"
+    exit 0
+  fi
+fi
+
+# ── Fetch remote version ──────────────────────────────────────────────────────
+
+REMOTE_VERSION="$(curl -fsSL --max-time "$FETCH_TIMEOUT" "$REMOTE_VERSION_URL" 2>/dev/null | tr -d '[:space:]')"
+
+# Validate — reject HTML error pages, empty strings, etc.
+if [[ ! "$REMOTE_VERSION" =~ ^[0-9]+\.[0-9.]+$ ]]; then
+  exit 0  # Network issue or invalid response — assume up to date
+fi
+
+NOW=$(date +%s)
+
+# ── Compare versions ──────────────────────────────────────────────────────────
+
+version_gt() {
+  # Returns 0 (true) if $1 > $2 using sort -V
+  [ "$(printf '%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ] && [ "$1" != "$2" ]
+}
+
+if version_gt "$REMOTE_VERSION" "$LOCAL_VERSION"; then
+  # Newer version available
+  echo "${NOW}|UPGRADE_AVAILABLE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
+  echo "UPGRADE_AVAILABLE ${LOCAL_VERSION} ${REMOTE_VERSION}"
+else
+  # Up to date
+  echo "${NOW}|UP_TO_DATE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
+fi
+
+exit 0
