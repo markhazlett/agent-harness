@@ -50,18 +50,18 @@ Present a summary table of proposed projects:
 ## Proposed Sprint Breakdown
 
 **Goals:** docs/plans/YYYY-wNN/YYYY-wNN-goals.md
-**Available capacity:** ~X hours
-**Total estimated effort:** ~Y hours
+**Complexity budget:** X / [HARNESS_SPRINT_COMPLEXITY_MAX] pts used ([Build] × 3 + [Extend] × 1)
+**Checkpoints:** N independently-verifiable items
 
 | # | Project | Effort | Type | Goal Items | Demo Scenes | Dependencies |
 |---|---------|--------|------|------------|-------------|-------------|
-| 1 | [name]  | ~N hrs | Extend | P0.1 | Scene 3 | None |
-| 2 | [name]  | ~N hrs | Build  | P0.2 | Scene 4 | Project 1 |
+| 1 | [name]  | N pts | Extend | P0.1 | Scene 3 | None |
+| 2 | [name]  | N pts | Build  | P0.2 | Scene 4 | Project 1 |
 ```
 
 ### Sizing guidelines
 
-- **Target 2-4 projects per week.** Fewer is better. Each should be 3-5 hours.
+- **Target 2-4 projects per week.** Fewer is better. Each should be 1-3 complexity points.
 - **One project = one coherent deliverable.**
 - **Each project must map to a demo scene or priority item.**
 - **Prefer [Extend] over [Build].** Extending existing code ships faster and has fewer unknowns.
@@ -92,7 +92,7 @@ For each approved project:
 
 **Depends on:** None | docs/plans/YYYY-wNN/sprint-plans/PX.N-<other-plan>.md
 
-**Estimated effort:** ~N hours
+**Estimated effort:** N pts (list [Build]/[Extend] items)
 
 ## Context
 
