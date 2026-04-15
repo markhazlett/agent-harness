@@ -21,8 +21,8 @@ This produces a folder of plans that `build-plan` can execute individually.
 
 ## When to use this vs other planning skills
 
-| Skill | Scope | Output | Time |
-|-------|-------|--------|------|
+| Skill | Scope | Output | Scale |
+|-------|-------|--------|-------|
 | `/ad-hoc-plan` | Quick fix, small feature | Single `.md` file | ≤3 complexity pts |
 | **`/deep-plan`** | Complex feature, architectural change | Folder: `00-*.md` + sub-plans | >9 pts or multi-sprint |
 | `/plan-sprint` | Full week's goals breakdown | Multiple single-file plans | Full sprint |
