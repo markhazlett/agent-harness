@@ -30,7 +30,7 @@ This is the most important step. Before drafting any scenes:
 
 1. **Audit current state.** Read the codebase to understand what already works. Don't write scenes that assume features exist when they don't.
 
-2. **Count the hours.** Every scene that requires new build work needs a gut-check effort tag:
+2. **Assess complexity.** Every scene that requires new build work needs a gut-check effort tag:
    - `[Exists]` — already works, just needs demo setup/data (0 pts)
    - `[Extend]` — existing feature needs moderate changes (1 pt)
    - `[Build]` — new from scratch, higher architectural risk (3 pts)
