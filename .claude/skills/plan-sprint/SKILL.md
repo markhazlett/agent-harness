@@ -50,7 +50,7 @@ Present a summary table of proposed projects:
 ## Proposed Sprint Breakdown
 
 **Goals:** docs/plans/YYYY-wNN/YYYY-wNN-goals.md
-**Complexity budget:** X / [HARNESS_SPRINT_COMPLEXITY_MAX] pts used ([Build] × 3 + [Extend] × 1)
+**Complexity budget:** X / 9 pts used ([Build] × 3 + [Extend] × 1)
 **Checkpoints:** N independently-verifiable items
 
 | # | Project | Effort | Type | Goal Items | Demo Scenes | Dependencies |

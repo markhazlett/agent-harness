@@ -65,7 +65,7 @@ This is the most important step. Before drafting any scenes:
 
 **Persona:** Name, role, company context, core pain point (2 sentences max)
 
-**Complexity check:** [HARNESS_SPRINT_COMPLEXITY_MAX] pts available · Y pts used (N×[Build] + M×[Extend]) · Z scenes live, N narrated
+**Complexity check:** 9 pts available · Y pts used (N×[Build] + M×[Extend]) · Z scenes live, N narrated
 
 ### The Problem (30 seconds)
 Brief setup: what does this person's day look like without the product?
