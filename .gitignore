@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Environment files — never commit these
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Agent harness — ephemeral files (gitignored in every project)
+.claude/logs/
+.claude/handoff/
+.claude/transcripts/
+.claude/worktrees/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
