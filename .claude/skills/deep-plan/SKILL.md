@@ -1,6 +1,6 @@
 ---
 name: deep-plan
-description: Plan complex features or workstreams that need architecture analysis, sub-plan decomposition, and security review. Produces folder-based plans with an entry point document plus individually executable sub-plans. Use when the user describes work that spans multiple files/systems, involves architectural decisions, would take >8 hours, or when they say "deep plan", "plan this feature", "let's plan [complex thing]".
+description: Plan complex features or workstreams that need architecture analysis, sub-plan decomposition, and security review. Produces folder-based plans with an entry point document plus individually executable sub-plans. Use when the user describes work that spans multiple files/systems, involves architectural decisions, would exceed 9 complexity pts or span multiple sprints, or when they say "deep plan", "plan this feature", "let's plan [complex thing]".
 user-invocable: true
 ---
 

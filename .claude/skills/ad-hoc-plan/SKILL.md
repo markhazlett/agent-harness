@@ -86,7 +86,7 @@ Keep it concise. Ad-hoc plans should be scannable in under 2 minutes.
 
 **Depends on:** [other plan or "None"]
 
-**Estimated effort:** ~N hours
+**Estimated effort:** N pts (list [Build]/[Extend] items)
 
 ## Context
 
