@@ -23,7 +23,7 @@ Create a focused implementation plan for a single task that fits into the curren
 |---|---|
 | Single task or small feature | Full week's goals breakdown |
 | Found something mid-sprint | Start of a new week |
-| 1-3 hour effort | Multi-day planning |
+| ≤3 complexity pts (1-2 `[Extend]` items) | Multi-item sprint |
 | "I noticed we need X" | "Let's plan the whole sprint" |
 
 ## Workflow
@@ -137,5 +137,5 @@ Only include if there are genuine choices to make. Skip for straightforward task
 
 - **Keep it short.** An ad-hoc plan should be 50-100 lines, not 200+. If it's growing beyond that, use `/plan-sprint`.
 - **Context from existing plans.** Reference what's already planned — this task might overlap or depend on something.
-- **Don't over-plan.** If the task is < 1 hour, you probably don't need a plan file at all.
+- **Don't over-plan.** If the task is 0 complexity points (a single `[Exists]` task), you probably don't need a plan file at all.
 - **Priority ordering.** Use the next available slot at the right priority level.
