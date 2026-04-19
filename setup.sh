@@ -143,7 +143,7 @@ if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
   SETUP_SCRIPT="${SETUP_SCRIPT% && }"
 
   # Archive script: stop dev server on configured port + clean build artifacts.
-  ARCHIVE_SCRIPT="lsof -ti:${DEV_PORT} | xargs -r kill -TERM 2>/dev/null; rm -rf node_modules .next .turbo dist build .cache"
+  ARCHIVE_SCRIPT="PIDS=\$(lsof -ti:${DEV_PORT} 2>/dev/null || true); [ -n \"\$PIDS\" ] && kill -TERM \$PIDS 2>/dev/null || true; rm -rf node_modules .next .turbo dist build .cache"
 
   # Write conductor.json via jq for safe quoting.
   jq -n \

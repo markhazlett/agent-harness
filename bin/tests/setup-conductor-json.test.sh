@@ -57,5 +57,11 @@ archive_val=$(jq -r '.scripts.archive' "$TEST_DIR/conductor.json")
 [[ -n "$archive_val" ]] || fail "archive script is non-empty" "got empty"
 pass "archive script is non-empty"
 
+# ── Test: archive uses portable lsof/kill pattern (not xargs -r) ──
+echo "$archive_val" | grep -q "lsof -ti:3000" || fail "archive contains lsof -ti:3000" "got: $archive_val"
+pass "archive contains lsof -ti:3000"
+echo "$archive_val" | grep -qv "xargs -r" || fail "archive does not contain xargs -r" "got: $archive_val"
+pass "archive does not contain xargs -r"
+
 echo ""
 echo "ALL PASSED"
