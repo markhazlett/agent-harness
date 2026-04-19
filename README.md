@@ -25,30 +25,33 @@ setup.sh              # Interactive configuration wizard
 
 ## Quick start
 
-```bash
-# 1. Copy the .claude/ directory into your project
-cp -r /path/to/agent-harness/.claude /your/project/
+Open Claude Code in the repo you want to set up and paste this prompt:
 
-# 2. Run the setup wizard (configures harness.config.sh for your project)
-cd /your/project
-chmod +x setup.sh && ./setup.sh
+```
+Install the agent harness from https://github.com/markhazlett/agent-harness into this repo.
 
-# 3. Verify everything is wired up
-claude /harness-health
+Steps:
+1. Clone the harness to a temp dir: `git clone --depth 1 https://github.com/markhazlett/agent-harness /tmp/agent-harness-install`
+2. Copy into the current repo root: `.claude/`, `bin/`, `setup.sh`, `VERSION`
+3. Run `./setup.sh` — ask me each prompt it shows (package manager, dev port, DB commands, conductor.json, etc.) and relay my answers
+4. Clean up: `rm -rf /tmp/agent-harness-install`
+5. Run `/harness-health` and report the result
 ```
 
-That's it. Open Claude Code in your project and the hooks activate automatically.
+That's it. The agent clones the latest harness, copies the files in, walks you through setup interactively, and verifies the install.
 
 ---
 
-## How to install
+## Alternative install paths
 
-### Option A: Copy the directory
+### Option A: Manual copy
 
 ```bash
-cp -r agent-harness/.claude /path/to/your-project/
-cp agent-harness/setup.sh /path/to/your-project/
-cp -r agent-harness/docs /path/to/your-project/
+git clone --depth 1 https://github.com/markhazlett/agent-harness /tmp/agent-harness
+cp -r /tmp/agent-harness/.claude /path/to/your-project/
+cp -r /tmp/agent-harness/bin /path/to/your-project/
+cp /tmp/agent-harness/setup.sh /path/to/your-project/
+cp /tmp/agent-harness/VERSION /path/to/your-project/
 cd /path/to/your-project && ./setup.sh
 ```
 
@@ -58,7 +61,8 @@ cd /path/to/your-project && ./setup.sh
 git clone https://github.com/markhazlett/agent-harness ~/.agent-harness
 cd /path/to/your-project
 ln -s ~/.agent-harness/.claude .claude
-./setup.sh
+ln -s ~/.agent-harness/bin bin
+~/.agent-harness/setup.sh
 ```
 
 ### What setup.sh does
