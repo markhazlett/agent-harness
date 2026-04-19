@@ -58,10 +58,25 @@ archive_val=$(jq -r '.scripts.archive' "$TEST_DIR/conductor.json")
 pass "archive script is non-empty"
 
 # ── Test: archive uses portable lsof/kill pattern (not xargs -r) ──
-echo "$archive_val" | grep -q "lsof -ti:3000" || fail "archive contains lsof -ti:3000" "got: $archive_val"
-pass "archive contains lsof -ti:3000"
+echo "$archive_val" | grep -q 'lsof -ti:${CONDUCTOR_PORT:-3000}' || fail "archive uses \${CONDUCTOR_PORT:-3000}" "got: $archive_val"
+pass "archive uses \${CONDUCTOR_PORT:-3000} for per-workspace port"
 echo "$archive_val" | grep -qv "xargs -r" || fail "archive does not contain xargs -r" "got: $archive_val"
 pass "archive does not contain xargs -r"
+
+# ── Test: archive script expands CONDUCTOR_PORT at runtime ──
+# Simulate what Conductor would run: set CONDUCTOR_PORT to 3042 and check that
+# the archive script targets that port (via a stubbed lsof that logs its args).
+stub_dir=$(mktemp -d)
+stub_log="$stub_dir/lsof.log"
+cat > "$stub_dir/lsof" <<STUB
+#!/usr/bin/env bash
+echo "lsof-called-with: \$*" >> "$stub_log"
+STUB
+chmod +x "$stub_dir/lsof"
+PATH="$stub_dir:$PATH" CONDUCTOR_PORT=3042 bash -c "$archive_val" >/dev/null 2>&1 || true
+grep -q 'lsof-called-with: -ti:3042' "$stub_log" || fail "archive expands CONDUCTOR_PORT at runtime" "stub log: $(cat "$stub_log" 2>/dev/null)"
+pass "archive expands CONDUCTOR_PORT at runtime"
+rm -rf "$stub_dir"
 
 echo ""
 echo "ALL PASSED"

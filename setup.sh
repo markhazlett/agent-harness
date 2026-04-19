@@ -142,8 +142,11 @@ if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
   SETUP_SCRIPT=$(printf "%s && " "${SETUP_LINES[@]}")
   SETUP_SCRIPT="${SETUP_SCRIPT% && }"
 
-  # Archive script: stop dev server on configured port + clean build artifacts.
-  ARCHIVE_SCRIPT="PIDS=\$(lsof -ti:${DEV_PORT} 2>/dev/null || true); [ -n \"\$PIDS\" ] && kill -TERM \$PIDS 2>/dev/null || true; rm -rf node_modules .next .turbo dist build .cache"
+  # Archive script: stop dev server on the workspace's assigned port + clean
+  # build artifacts. CONDUCTOR_PORT is expanded at archive time so each
+  # workspace kills its own dev server; falls back to the configured default
+  # when running outside a Conductor workspace.
+  ARCHIVE_SCRIPT="PIDS=\$(lsof -ti:\${CONDUCTOR_PORT:-${DEV_PORT}} 2>/dev/null || true); [ -n \"\$PIDS\" ] && kill -TERM \$PIDS 2>/dev/null || true; rm -rf node_modules .next .turbo dist build .cache"
 
   # Write conductor.json via jq for safe quoting.
   jq -n \
