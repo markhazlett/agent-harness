@@ -15,12 +15,13 @@ cat > "$TMP/repo/bali/.context/conductor-status.json" <<'EOF'
 {"schema_version":1,"workspace":"bali","repo":"repo","plan":"docs/plans/2026-w16/sprint-plans/P0.2-feat-y.md","branch":"feat/y","phase":"verifying","done_criteria":[],"dev_server_port":null,"pr_url":null,"last_error":null,"started_at":"2026-04-19T10:00:00Z","updated_at":"2026-04-19T11:00:00Z"}
 EOF
 
-# ── Test: hook prints sibling rollup when inside a workspace dir ──
+# ── Test: hook prints self-identity + sibling rollup when inside a workspace dir ──
 out=$(cd "$TMP/repo/accra" && CONDUCTOR_WORKSPACES_ROOT="$TMP" CONDUCTOR_REPO_NAME=repo bash "$HOOK")
 echo "$out" | grep -q "Conductor workspace state" || fail "header present" "out: $out"
+echo "$out" | grep -q "You are: accra" || fail "self-identity line" "out: $out"
 echo "$out" | grep -q "bali" || fail "shows sibling bali" "out: $out"
 echo "$out" | grep -q "verifying" || fail "shows sibling phase" "out: $out"
-echo "$out" | grep -q "accra" && fail "excludes self" "unexpected self: $out"
+echo "$out" | grep -E "^  - " | grep -q "accra" && fail "excludes self from siblings" "unexpected self row: $out"
 pass "prints sibling rollup"
 
 # ── Test: hook silently no-ops when outside a Conductor workspace tree ──

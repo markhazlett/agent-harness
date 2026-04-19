@@ -66,9 +66,10 @@ echo "$out" | grep -q "verifying" || fail "list shows phase" "output: $out"
 echo "$out" | grep -q "shipped" || fail "list shows shipped" "output: $out"
 pass "list prints rollup"
 
-# ── Test: `list` excludes the current workspace when run from inside one ──
+# ── Test: `list --exclude-self` prints self-identity line + excludes self from siblings ──
 out=$(cd "$ROOT/repo/alpha" && CONDUCTOR_WORKSPACES_ROOT="$ROOT" CONDUCTOR_REPO_NAME=repo "$BIN" list --exclude-self)
-echo "$out" | grep -q "alpha" && fail "list --exclude-self omits self" "alpha unexpectedly present: $out" || true
+echo "$out" | grep -q "You are: alpha" || fail "list --exclude-self self-identity" "output: $out"
+echo "$out" | grep -E "^  - " | grep -q "alpha" && fail "list --exclude-self omits self from siblings" "alpha in siblings rows: $out"
 echo "$out" | grep -q "bravo" || fail "list --exclude-self still shows bravo" "output: $out"
 pass "list --exclude-self omits current workspace"
 

@@ -89,6 +89,19 @@ cmd_list() {
   echo "## Conductor workspace state"
   echo ""
 
+  if (( exclude_self )); then
+    local self_f; self_f="$(status_file)"
+    if [ -f "$self_f" ]; then
+      local self_phase self_branch
+      self_phase=$(jq -r '.phase // "unknown"' "$self_f" 2>/dev/null) || self_phase="unknown"
+      self_branch=$(jq -r '.branch // "-"' "$self_f" 2>/dev/null) || self_branch="-"
+      echo "You are: $self (branch: $self_branch, phase: $self_phase)"
+    else
+      echo "You are: $self (no status yet)"
+    fi
+    echo ""
+  fi
+
   local printed_header=0
   local d
   for d in "$root"/*/; do

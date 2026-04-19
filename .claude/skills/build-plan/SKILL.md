@@ -78,7 +78,8 @@ bin/conductor-status update \
   repo="$(basename "$(dirname "$(pwd)")")" \
   plan="<the-plan-path-you-read>" \
   branch="$(git symbolic-ref --short HEAD)" \
-  phase=implementing
+  phase=implementing \
+  dev_server_port="${CONDUCTOR_PORT:-${HARNESS_DEV_PORT:-3000}}"
 ```
 
 Also write the Done Criteria array. Parse each `- [ ] ...` line out of the plan's "Done Criteria" section and build a JSON array of `{item, status}` objects, then pass it as a single value:
