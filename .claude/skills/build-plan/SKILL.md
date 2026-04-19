@@ -66,6 +66,42 @@ Break the plan's Implementation Steps into tasks. Include:
 
 If anything in the plan is ambiguous or contradicts what you see in the codebase, ask **now**. Not mid-implementation.
 
+### 7. Initialize the status manifest
+
+Write the initial status file so sibling workspaces can see this work starting:
+
+```bash
+bin/conductor-status update \
+  workspace="$(basename "$PWD")" \
+  repo="$(basename "$(dirname "$(pwd)")")" \
+  plan="<the-plan-path-you-read>" \
+  branch="$(git symbolic-ref --short HEAD)" \
+  phase=implementing
+```
+
+Also write the Done Criteria array. Parse each `- [ ] ...` line out of the plan's "Done Criteria" section and build a JSON array of `{item, status}` objects, then pass it as a single value:
+
+```bash
+# Example: plan has these criteria
+#   - [ ] Unit tests passing
+#   - [ ] E2E browser verification passing
+criteria_json=$(jq -nc '[
+  {"item":"Unit tests passing","status":"pending"},
+  {"item":"E2E browser verification passing","status":"pending"}
+]')
+bin/conductor-status update done_criteria="$criteria_json"
+```
+
+One update call, one JSON string value. As criteria pass during Phases 3 and 4, re-serialize with the updated statuses and call `update done_criteria="$criteria_json"` again.
+
+### 8. Mirror Done Criteria to Conductor Todos (best effort)
+
+Conductor has a native "Todos" feature that gates merge-readiness. The public docs don't document a scriptable interface at time of writing (2026-04-19); the OpenAPI spec at `https://docs.conductor.build/openapi.json` may expose one.
+
+During implementation, read the OpenAPI spec. If it contains a Todos endpoint, add a shell call here that POSTs each Done Criterion as a todo. If it doesn't, skip this step entirely — the status file and sibling rollup are sufficient.
+
+No placeholder code ships in the skill file. This note exists so a future iteration knows where to add the integration when the API stabilizes.
+
 ## Phase 2: Implement
 
 ### Execution loop
@@ -127,6 +163,25 @@ After completing 2-3 related steps, review for:
 Don't over-engineer. Three similar lines is better than a premature abstraction.
 
 ## Phase 3: Verify
+
+### Quality-skill decision rules
+
+Before running the test suite, evaluate which quality skills to invoke for this plan. Apply these rules in order:
+
+| Plan characteristic | Skill to invoke |
+|---|---|
+| Implementation step creates a new function, class, or service | Use `/tdd` cadence during Phase 2 (write failing test → implement → run test) |
+| Plan's Test Plan includes an "E2E Browser Verification" section | Run `/e2e-verify` during Phase 3 before `Check done criteria` |
+| Plan's File Footprint touches auth/session/credential files, external HTTP handlers, data-access files, or file-upload handlers | Run `/security-review` during Phase 3 before `Check done criteria` |
+| About to create the PR (Phase 4 step 2) | Run `/pre-deploy` as the final gate |
+
+Invoke each skill via the Skill tool with its name as the argument. Each skill returns pass/fail; on fail, fix the issue before proceeding. On pass, continue down the checklist.
+
+### 0. Update status to verifying
+
+```bash
+bin/conductor-status update phase=verifying
+```
 
 ### 1. Run full test suite
 
@@ -191,6 +246,14 @@ Mark completed items in the plan's Done Criteria, then rename with `.DONE` suffi
 ### 4. Report to user
 
 Summarize: what was built, PR link, any follow-up work or issues discovered.
+
+### 5. Update status to shipped
+
+After the PR is created and pushed:
+
+```bash
+bin/conductor-status update phase=shipped pr_url="<pr-url>"
+```
 
 ## Rules (Non-Negotiable)
 
