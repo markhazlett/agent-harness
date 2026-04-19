@@ -22,11 +22,21 @@ if [ -n "${CONDUCTOR_REPO_NAME:-}" ]; then
   repo="$CONDUCTOR_REPO_NAME"
 else
   root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  repo="$(basename "$(dirname "$root")")"
+  parent="$(dirname "$root")"
+  # Conductor layout: ~/conductor/workspaces/<repo>/<workspace>. If parent is
+  # under a "workspaces" dir, the repo name is one level up. Otherwise fall
+  # back to the directory name of the git root itself.
+  if [[ "$(basename "$parent")" != "workspaces" && "$parent" != *"/conductor/workspaces/"* ]]; then
+    repo="$(basename "$root")"
+  else
+    repo="$(basename "$parent")"
+  fi
 fi
 
 b64=$(base64 < "$plan" | tr -d '\n')
-url="conductor://async?repo=${repo}&plan=${b64}"
+# URL-percent-encode $repo so special chars don't corrupt the query string.
+repo_enc=$(jq -rn --arg v "$repo" '$v|@uri')
+url="conductor://async?repo=${repo_enc}&plan=${b64}"
 
 case "$mode" in
   --print) echo "$url" ;;

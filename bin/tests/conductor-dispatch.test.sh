@@ -36,7 +36,7 @@ pass "--print emits conductor:// URL"
 
 # ── Test: the plan= value decodes back to the plan body ──
 b64=$(echo "$out" | sed -E 's|^.*plan=([^&]+).*|\1|')
-decoded=$(echo "$b64" | base64 -d)
+decoded=$(echo "$b64" | (base64 -d 2>/dev/null || base64 -D))
 echo "$decoded" | grep -q "This is the plan body." || fail "plan= decodes to body" "decoded: $decoded"
 pass "plan= decodes to body"
 
