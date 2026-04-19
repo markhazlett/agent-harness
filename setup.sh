@@ -142,6 +142,12 @@ if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
   SETUP_SCRIPT=$(printf "%s && " "${SETUP_LINES[@]}")
   SETUP_SCRIPT="${SETUP_SCRIPT% && }"
 
+  # Run script: bind the dev server to the workspace's assigned port.
+  # CONDUCTOR_PORT is expanded at runtime so each workspace gets its own port;
+  # falls back to the configured default when running outside a Conductor
+  # workspace. Most modern dev servers (Next.js, Vite) honor PORT env var.
+  RUN_SCRIPT="PORT=\${CONDUCTOR_PORT:-${DEV_PORT}} ${DEV_CMD}"
+
   # Archive script: stop dev server on the workspace's assigned port + clean
   # build artifacts. CONDUCTOR_PORT is expanded at archive time so each
   # workspace kills its own dev server; falls back to the configured default
@@ -151,14 +157,14 @@ if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
   # Write conductor.json via jq for safe quoting.
   jq -n \
     --arg setup "$SETUP_SCRIPT" \
-    --arg run "$DEV_CMD" \
+    --arg run "$RUN_SCRIPT" \
     --arg archive "$ARCHIVE_SCRIPT" \
     '{scripts: {setup: $setup, run: $run, archive: $archive}}' > "$CONDUCTOR_JSON"
 
   echo "Wrote $CONDUCTOR_JSON"
   echo ""
   echo "  setup:   $SETUP_SCRIPT"
-  echo "  run:     $DEV_CMD"
+  echo "  run:     $RUN_SCRIPT"
   echo "  archive: $ARCHIVE_SCRIPT"
   echo ""
   echo "Review and edit conductor.json before committing — the archive script"
