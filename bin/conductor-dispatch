@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# =============================================================================
+# conductor-dispatch — spawn a new Conductor workspace via deep link, with a
+# plan markdown file attached.
+#
+# Usage:
+#   conductor-dispatch <path-to-plan.md>          # open + print
+#   conductor-dispatch <path-to-plan.md> --open   # open only
+#   conductor-dispatch <path-to-plan.md> --print  # print URL, don't open
+#
+# Env overrides (used by tests):
+#   CONDUCTOR_REPO_NAME — override repo-name detection
+# =============================================================================
+set -euo pipefail
+
+plan="${1:?usage: conductor-dispatch <plan.md> [--open|--print]}"
+mode="${2:-both}"
+
+[ -f "$plan" ] || { echo "error: plan not found: $plan" >&2; exit 1; }
+
+if [ -n "${CONDUCTOR_REPO_NAME:-}" ]; then
+  repo="$CONDUCTOR_REPO_NAME"
+else
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  repo="$(basename "$(dirname "$root")")"
+fi
+
+b64=$(base64 < "$plan" | tr -d '\n')
+url="conductor://async?repo=${repo}&plan=${b64}"
+
+case "$mode" in
+  --print) echo "$url" ;;
+  --open)
+    if command -v open >/dev/null 2>&1; then
+      open "$url"
+    else
+      echo "error: 'open' not found; run with --print and open manually" >&2
+      echo "$url"
+      exit 1
+    fi
+    ;;
+  both|"")
+    if command -v open >/dev/null 2>&1; then
+      open "$url"
+    else
+      echo "warning: 'open' not found; here is the URL to open manually:" >&2
+    fi
+    echo "$url"
+    ;;
+  *) echo "error: unknown mode '$mode'" >&2; exit 2 ;;
+esac
