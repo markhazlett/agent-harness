@@ -94,7 +94,7 @@ For each approved project:
 
 **Estimated effort:** N pts (list [Build]/[Extend] items)
 
-**Parallel-safe:** yes | no (populated by wave detection in Phase 3.5)
+**Parallel-safe:** TBD — populated by Phase 3.5
 
 ## Context
 
@@ -161,7 +161,7 @@ After all plans are written (Phase 3 complete), compute execution waves using ea
 3. Within each candidate wave, compute file-footprint overlap:
    - Union the `Creates` and `Modifies` file paths from each plan.
    - Any pair with overlapping paths cannot run in parallel. Keep the earlier-priority plan in the current wave; move the lower-priority plan to the next wave.
-4. For each plan, set `Parallel-safe: yes` iff it shares its wave with at least one other plan; `no` otherwise. Update the plan's header with `sed` or re-write the frontmatter section.
+4. For each plan, set `Parallel-safe: yes` iff it shares its wave with at least one other plan; `no` otherwise. Use the `Edit` tool to update the `Parallel-safe:` line in each plan's header.
 
 **Output:**
 
@@ -189,9 +189,13 @@ After all plans are written:
 
 ## Phase 5: Dispatch Wave 1 to Conductor workspaces (optional)
 
+**Precondition:** Skip this phase entirely if `bin/conductor-dispatch` is not executable in the repo. Check with: `[ -x bin/conductor-dispatch ]`. If absent, note "Conductor dispatch helper not installed — skipping" and stop Phase 5.
+
 After Phase 4 (goals doc updated and committed), offer to dispatch the Wave-1 plans as new Conductor workspaces.
 
-Prompt the user:
+1. Count the Wave 1 plans from Phase 3.5 output — call this N.
+
+Substitute the actual count for N in the prompt below:
 
 ```
 ## Dispatch Wave 1
@@ -216,7 +220,7 @@ Each invocation opens a new Conductor workspace with the plan attached as a mark
 
 **On `n`:** skip; the user can dispatch manually later.
 
-**Wave 2+** is NOT auto-dispatched. After Wave 1 ships, re-run `/plan-sprint` (it will detect that Wave 1 is done and propose Wave 2 for dispatch) or run `bin/conductor-dispatch <plan>` directly.
+**Wave 2+** is NOT auto-dispatched. When Wave 1 plans are complete, dispatch Wave 2 manually: run `bin/conductor-dispatch docs/plans/YYYY-wNN/sprint-plans/<plan>.md` for each Wave 2 plan.
 
 ## Naming conventions
 
