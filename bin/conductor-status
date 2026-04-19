@@ -101,10 +101,10 @@ cmd_list() {
       printed_header=1
     fi
     local phase branch plan pr
-    phase=$(jq -r '.phase // "unknown"' "$f")
-    branch=$(jq -r '.branch // "-"' "$f")
-    plan=$(jq -r '.plan // "-"' "$f")
-    pr=$(jq -r '.pr_url // ""' "$f")
+    phase=$(jq -r '.phase // "unknown"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    branch=$(jq -r '.branch // "-"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    plan=$(jq -r '.plan // "-"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    pr=$(jq -r '.pr_url // ""' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
     local plan_short="${plan##*/}"
     plan_short="${plan_short%.md}"
     local extra=""

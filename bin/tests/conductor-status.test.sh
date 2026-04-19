@@ -72,5 +72,17 @@ echo "$out" | grep -q "alpha" && fail "list --exclude-self omits self" "alpha un
 echo "$out" | grep -q "bravo" || fail "list --exclude-self still shows bravo" "output: $out"
 pass "list --exclude-self omits current workspace"
 
+# ── Test: `list` tolerates a malformed status file and continues ──
+mkdir -p "$ROOT/repo/delta/.context" "$ROOT/repo/echo/.context"
+printf 'NOT_VALID_JSON' > "$ROOT/repo/delta/.context/conductor-status.json"
+cat > "$ROOT/repo/echo/.context/conductor-status.json" <<'EOF'
+{"schema_version":1,"workspace":"echo","repo":"repo","plan":"docs/plans/2026-w16/sprint-plans/P0.9.md","branch":"feat/e","phase":"implementing","done_criteria":[],"dev_server_port":null,"pr_url":null,"last_error":null,"started_at":"2026-04-19T10:00:00Z","updated_at":"2026-04-19T10:05:00Z"}
+EOF
+out=$(CONDUCTOR_WORKSPACES_ROOT="$ROOT" CONDUCTOR_REPO_NAME=repo "$BIN" list)
+echo "$out" | grep -q "delta" || fail "list shows malformed sibling name" "output: $out"
+echo "$out" | grep -q "\[malformed status file\]" || fail "list prints [malformed status file] marker" "output: $out"
+echo "$out" | grep -q "echo" || fail "list still shows valid sibling after malformed" "output: $out"
+pass "list tolerates malformed status file"
+
 echo ""
 echo "ALL PASSED"
