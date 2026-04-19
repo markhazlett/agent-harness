@@ -116,6 +116,53 @@ EOF
 echo "Wrote $CONFIG"
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Generate conductor.json
+# ──────────────────────────────────────────────────────────────────────────────
+
+echo ""
+read -p "Generate conductor.json for Conductor workspace scripts? [Y/n]: " GEN_CONDUCTOR
+GEN_CONDUCTOR="${GEN_CONDUCTOR:-Y}"
+
+if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
+  CONDUCTOR_JSON="$REPO_ROOT/conductor.json"
+
+  # Compose setup script: install deps, then copy .env.example if present,
+  # then run DB generate + push if configured.
+  SETUP_LINES=("${PKG_MGR} install")
+  if [ -f "$REPO_ROOT/.env.example" ]; then
+    SETUP_LINES+=("if [ ! -f .env ]; then cp .env.example .env; fi")
+  fi
+  if [ -n "${DB_GENERATE:-}" ]; then
+    SETUP_LINES+=("${DB_GENERATE}")
+  fi
+  if [ -n "${DB_PUSH:-}" ]; then
+    SETUP_LINES+=("${DB_PUSH}")
+  fi
+  # Join with &&
+  SETUP_SCRIPT=$(printf "%s && " "${SETUP_LINES[@]}")
+  SETUP_SCRIPT="${SETUP_SCRIPT% && }"
+
+  # Archive script: stop dev server on configured port + clean build artifacts.
+  ARCHIVE_SCRIPT="lsof -ti:${DEV_PORT} | xargs -r kill -TERM 2>/dev/null; rm -rf node_modules .next .turbo dist build .cache"
+
+  # Write conductor.json via jq for safe quoting.
+  jq -n \
+    --arg setup "$SETUP_SCRIPT" \
+    --arg run "$DEV_CMD" \
+    --arg archive "$ARCHIVE_SCRIPT" \
+    '{scripts: {setup: $setup, run: $run, archive: $archive}}' > "$CONDUCTOR_JSON"
+
+  echo "Wrote $CONDUCTOR_JSON"
+  echo ""
+  echo "  setup:   $SETUP_SCRIPT"
+  echo "  run:     $DEV_CMD"
+  echo "  archive: $ARCHIVE_SCRIPT"
+  echo ""
+  echo "Review and edit conductor.json before committing — the archive script"
+  echo "removes build artifacts aggressively. Adjust for your stack."
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Make hooks executable
 # ──────────────────────────────────────────────────────────────────────────────
 
