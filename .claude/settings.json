@@ -9,6 +9,11 @@
             "type": "command",
             "command": ".claude/hooks/init.sh",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/conductor-context.sh",
+            "timeout": 10
           }
         ]
       },
