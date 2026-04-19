@@ -20,7 +20,7 @@ out=$(cd "$TMP/repo/accra" && CONDUCTOR_WORKSPACES_ROOT="$TMP" CONDUCTOR_REPO_NA
 echo "$out" | grep -q "Conductor workspace state" || fail "header present" "out: $out"
 echo "$out" | grep -q "bali" || fail "shows sibling bali" "out: $out"
 echo "$out" | grep -q "verifying" || fail "shows sibling phase" "out: $out"
-echo "$out" | grep -q "accra" && fail "excludes self" "unexpected self: $out" || true
+echo "$out" | grep -q "accra" && fail "excludes self" "unexpected self: $out"
 pass "prints sibling rollup"
 
 # ── Test: hook silently no-ops when outside a Conductor workspace tree ──
