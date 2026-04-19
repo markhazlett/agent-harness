@@ -13,9 +13,11 @@ Start, stop, and monitor the local development server. Use when the user says "s
 
 Read `.claude/hooks/harness.config.sh` for:
 - `HARNESS_DEV_CMD` — command to start the dev server (e.g., `pnpm dev`)
-- `HARNESS_DEV_PORT` — port the server runs on (default: 3000)
+- `HARNESS_DEV_PORT` — fallback port when not in a Conductor workspace (default: 3000)
 - `HARNESS_DEV_PROCESS` — process name pattern for pkill
 - `HARNESS_APP_NAME` — used for log file naming
+
+**Port resolution:** When determining which port the dev server is actually bound to, prefer `${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}`. Inside a Conductor workspace, `conductor.json`'s `run` script starts the server on `$CONDUCTOR_PORT`. Outside Conductor, it's `$HARNESS_DEV_PORT`.
 
 ## Starting the Server
 

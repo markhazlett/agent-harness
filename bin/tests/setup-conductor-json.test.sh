@@ -47,10 +47,26 @@ pass "setup script includes pnpm install"
 echo "$setup_val" | grep -q "cp .env.example .env" || fail "setup includes .env copy" "got: $setup_val"
 pass "setup script includes .env copy"
 
-# ── Test: scripts.run is the dev command ──
+# ── Test: scripts.run is the dev command and binds to workspace port ──
 run_val=$(jq -r '.scripts.run' "$TEST_DIR/conductor.json")
 echo "$run_val" | grep -q "pnpm run dev" || fail "run is dev cmd" "got: $run_val"
 pass "run script is pnpm run dev"
+echo "$run_val" | grep -q 'PORT=${CONDUCTOR_PORT:-3000}' || fail "run binds to \${CONDUCTOR_PORT:-3000}" "got: $run_val"
+pass "run script binds to \${CONDUCTOR_PORT:-3000}"
+
+# ── Test: run script exports CONDUCTOR_PORT to the dev server at runtime ──
+# Stub the dev command: record PORT into a file, exit 0.
+run_stub_dir=$(mktemp -d)
+run_stub_log="$run_stub_dir/pnpm.log"
+cat > "$run_stub_dir/pnpm" <<STUB
+#!/usr/bin/env bash
+echo "PORT=\$PORT args=\$*" >> "$run_stub_log"
+STUB
+chmod +x "$run_stub_dir/pnpm"
+PATH="$run_stub_dir:$PATH" CONDUCTOR_PORT=3042 bash -c "$run_val" >/dev/null 2>&1 || true
+grep -q 'PORT=3042 args=run dev' "$run_stub_log" || fail "run passes CONDUCTOR_PORT to dev cmd" "stub log: $(cat "$run_stub_log" 2>/dev/null)"
+pass "run script passes CONDUCTOR_PORT to dev cmd"
+rm -rf "$run_stub_dir"
 
 # ── Test: scripts.archive is present and non-empty ──
 archive_val=$(jq -r '.scripts.archive' "$TEST_DIR/conductor.json")

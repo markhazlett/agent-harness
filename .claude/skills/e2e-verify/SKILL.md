@@ -15,8 +15,9 @@ Trigger: after completing UI or API changes, or when the user says "verify", "ch
 
 1. **Ensure dev server is running** — check with:
    ```bash
-   # Read HARNESS_DEV_PORT from .claude/hooks/harness.config.sh (default: 3000)
-   lsof -i :3000
+   # Inside a Conductor workspace the dev server binds to $CONDUCTOR_PORT;
+   # outside it falls back to $HARNESS_DEV_PORT from .claude/hooks/harness.config.sh.
+   lsof -i :${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}
    ```
 2. **Load Chrome tools** — use `ToolSearch` to load `mcp__claude-in-chrome__tabs_context_mcp` first, then other tools as needed
 3. **Get tab context** — call `tabs_context_mcp` with `createIfEmpty: true`

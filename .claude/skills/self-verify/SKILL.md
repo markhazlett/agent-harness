@@ -11,8 +11,8 @@ Visually verify UI changes using the browser. Use when the user says "check the 
 
 ## Steps
 
-1. **Ensure dev server is running** — reference the `dev-server` skill if needed. Check port with `lsof -i :$HARNESS_DEV_PORT`
-2. **Navigate** to the relevant page (default: `http://localhost:$HARNESS_DEV_PORT`)
+1. **Ensure dev server is running** — reference the `dev-server` skill if needed. Check port with `lsof -i :${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}` (inside a Conductor workspace the dev server binds to `CONDUCTOR_PORT`; outside it uses `HARNESS_DEV_PORT`)
+2. **Navigate** to the relevant page (default: `http://localhost:${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}`)
 3. **Check browser console** for errors or warnings
 4. **Visually verify** that changes render correctly
 5. **Test basic interactions** — click buttons, fill forms, navigate links

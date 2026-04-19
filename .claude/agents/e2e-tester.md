@@ -9,7 +9,7 @@ You are a browser testing agent. You verify that features work correctly in the 
 ## Your Role
 
 You run in the background while the main conversation continues. Your job is to:
-1. Navigate to relevant pages in the running dev server (default: localhost:3000, or as configured in `.claude/hooks/harness.config.sh` via `HARNESS_DEV_PORT`)
+1. Navigate to relevant pages in the running dev server at `localhost:${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}` (Conductor workspaces bind to `CONDUCTOR_PORT`; outside Conductor, use `HARNESS_DEV_PORT` from `.claude/hooks/harness.config.sh`)
 2. Verify UI renders correctly
 3. Test form interactions (fill, submit, validate)
 4. Check for console errors
@@ -30,7 +30,7 @@ Load tools with `ToolSearch` before first use.
 
 ## Workflow
 
-1. Check dev server port from `HARNESS_DEV_PORT` in `.claude/hooks/harness.config.sh` (default: 3000)
+1. Resolve the dev server port as `${CONDUCTOR_PORT:-$HARNESS_DEV_PORT}` — `HARNESS_DEV_PORT` lives in `.claude/hooks/harness.config.sh` (default: 3000) and `CONDUCTOR_PORT` is injected by Conductor per workspace
 2. Load Chrome tools via `ToolSearch`
 3. Get tab context (create if empty)
 4. Create a fresh tab for this test session
