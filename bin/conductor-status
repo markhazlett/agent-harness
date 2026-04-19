@@ -71,6 +71,7 @@ cmd_update() {
   jq_expr="$jq_expr | .updated_at = \$tsnow | .started_at = (.started_at // \$tsnow) | .schema_version = 1"
 
   local tmp; tmp=$(mktemp)
+  trap 'rm -f "$tmp"' RETURN
   jq "${jq_args[@]}" "$jq_expr" "$f" > "$tmp" && mv "$tmp" "$f"
 }
 
