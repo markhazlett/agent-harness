@@ -59,7 +59,7 @@ BUILD_CMD="${BUILD_CMD:-${PKG_MGR} run build}"
 read -p "Dev server command [${PKG_MGR} run dev]: " DEV_CMD
 DEV_CMD="${DEV_CMD:-${PKG_MGR} run dev}"
 
-read -p "Dev server port [3000]: " DEV_PORT
+read -p "Dev server port (project default; \$CONDUCTOR_PORT overrides at runtime inside Conductor) [3000]: " DEV_PORT
 DEV_PORT="${DEV_PORT:-3000}"
 
 read -p "Lockfile name [${PKG_MGR}-lock.yaml]: " LOCK_FILE
