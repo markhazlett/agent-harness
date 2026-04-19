@@ -68,7 +68,9 @@ If anything in the plan is ambiguous or contradicts what you see in the codebase
 
 ### 7. Initialize the status manifest
 
-Write the initial status file so sibling workspaces can see this work starting:
+**Conductor status precondition (applies to all status updates below):** If `bin/conductor-status` is not executable, skip every status-update step in this skill silently. Check with `[ -x bin/conductor-status ]` at Phase 1 start.
+
+Write the initial status file so sibling workspaces can see this work starting (skip if the precondition at Phase 1 was not met):
 
 ```bash
 bin/conductor-status update \
@@ -96,11 +98,7 @@ One update call, one JSON string value. As criteria pass during Phases 3 and 4, 
 
 ### 8. Mirror Done Criteria to Conductor Todos (best effort)
 
-Conductor has a native "Todos" feature that gates merge-readiness. The public docs don't document a scriptable interface at time of writing (2026-04-19); the OpenAPI spec at `https://docs.conductor.build/openapi.json` may expose one.
-
-During implementation, read the OpenAPI spec. If it contains a Todos endpoint, add a shell call here that POSTs each Done Criterion as a todo. If it doesn't, skip this step entirely — the status file and sibling rollup are sufficient.
-
-No placeholder code ships in the skill file. This note exists so a future iteration knows where to add the integration when the API stabilizes.
+If the Conductor API exposes a Todos endpoint (check `https://docs.conductor.build/` for current API reference), POST each Done Criteria item as a todo so it appears in the Conductor UI for this workspace. This is best-effort — if the endpoint is not documented or the request fails, skip silently. Ship no placeholder code for unverified endpoints.
 
 ## Phase 2: Implement
 
@@ -166,7 +164,7 @@ Don't over-engineer. Three similar lines is better than a premature abstraction.
 
 ### Quality-skill decision rules
 
-Before running the test suite, evaluate which quality skills to invoke for this plan. Apply these rules in order:
+Before running the test suite, evaluate which quality skills to invoke for this plan. Apply **all** matching rules — each row whose trigger matches the plan fires its skill. A plan can fire multiple quality skills.
 
 | Plan characteristic | Skill to invoke |
 |---|---|
@@ -179,9 +177,21 @@ Invoke each skill via the Skill tool with its name as the argument. Each skill r
 
 ### 0. Update status to verifying
 
+(skip if the precondition at Phase 1 was not met)
+
 ```bash
 bin/conductor-status update phase=verifying
 ```
+
+### Failure path
+
+If verification fails and cannot be resolved in this session (e.g., test suite broken, build errors, E2E browser verification failing on fundamental feature gaps), before stopping run:
+
+```bash
+bin/conductor-status update phase=failed last_error="<one-line summary>"
+```
+
+Then halt and report to the user. Do not proceed to Phase 4.
 
 ### 1. Run full test suite
 
@@ -249,7 +259,7 @@ Summarize: what was built, PR link, any follow-up work or issues discovered.
 
 ### 5. Update status to shipped
 
-After the PR is created and pushed:
+After the PR is created and pushed (skip if the precondition at Phase 1 was not met):
 
 ```bash
 bin/conductor-status update phase=shipped pr_url="<pr-url>"
