@@ -184,6 +184,43 @@ Skills are invokable prompts that implement specific workflows. Use them with `/
 
 ---
 
+## Conductor integration
+
+The harness auto-integrates with [Conductor](https://conductor.build) — when you run it inside a Conductor workspace (i.e. under `~/conductor/workspaces/<repo>/`), extra capabilities activate:
+
+### What activates automatically
+
+- **Sibling workspace awareness.** On SessionStart, `conductor-context.sh` injects a rollup of sibling workspaces into Claude's context: who's working on what, which branch, what phase.
+- **Per-workspace status manifest.** `/build` writes `.context/conductor-status.json` at each phase (implementing → verifying → shipped). Siblings read it for the rollup; the file is `.gitignored`-per-workspace, so it never pollutes branches.
+
+### Sprint dispatch flow
+
+Inside `/plan-sprint`:
+
+1. Plans get written as usual.
+2. **Phase 3.5** detects parallel-safe waves by topologically sorting `Depends on` and eliminating pairs with overlapping `File Footprint`s.
+3. **Phase 5** offers to dispatch Wave 1 — one `conductor://async` deep link per plan, opening new Conductor workspaces with the plan file pre-attached. Type `/build <plan-path>` in each child to execute.
+
+### Bootstrapping a new project
+
+Run `./setup.sh` in a fresh clone. The wizard generates both `.claude/hooks/harness.config.sh` and `conductor.json` (with `setup`/`run`/`archive` scripts tailored to your detected stack). Commit `conductor.json` to share Conductor setup across your team.
+
+### Helpers
+
+| Helper | What it does |
+|---|---|
+| `bin/conductor-status get/update/list` | Read/write the per-workspace manifest; used by `/build` and the SessionStart hook |
+| `bin/conductor-dispatch <plan.md>` | Base64-encode a plan and `open` a `conductor://async` deep link |
+| `.claude/hooks/conductor-context.sh` | SessionStart hook that prints the sibling rollup |
+
+### Verifying
+
+```bash
+claude /harness-health  # includes Conductor integration checks
+```
+
+---
+
 ## Planning workflow
 
 The harness ships with a sprint planning system. Plans live in `docs/plans/`:

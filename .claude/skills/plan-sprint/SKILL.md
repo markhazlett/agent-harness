@@ -94,6 +94,8 @@ For each approved project:
 
 **Estimated effort:** N pts (list [Build]/[Extend] items)
 
+**Parallel-safe:** TBD — populated by Phase 3.5
+
 ## Context
 
 Why this work matters. What exists today. What's missing. 2-3 paragraphs max.
@@ -148,12 +150,77 @@ Step-by-step browser walkthrough to verify the feature works end-to-end.
 - [ ] Committed on feature branch with conventional commit
 ```
 
+## Phase 3.5: Detect parallel execution waves
+
+After all plans are written (Phase 3 complete), compute execution waves using each plan's `Depends on` field AND `File Footprint` section.
+
+**Algorithm:**
+
+1. Build a dependency graph: each plan is a node; edges point from a plan to the plans listed in its `Depends on` field.
+2. Topologically sort into candidate waves (plans with no unmet deps are candidate Wave 1, plans whose deps are all in Wave 1 are candidate Wave 2, etc.).
+3. Within each candidate wave, compute file-footprint overlap:
+   - Union the `Creates` and `Modifies` file paths from each plan.
+   - Any pair with overlapping paths cannot run in parallel. Keep the earlier-priority plan in the current wave; move the lower-priority plan to the next wave.
+4. For each plan, set `Parallel-safe: yes` iff it shares its wave with at least one other plan; `no` otherwise. Use the `Edit` tool to update the `Parallel-safe:` line in each plan's header.
+
+**Output:**
+
+Print the wave summary to the user:
+
+```
+## Parallel Execution Plan
+
+Wave 1 (parallel-safe, no unmet dependencies + no file overlap):
+  - P0.1 feat-some-feature   (Parallel-safe: yes)
+  - P0.2 feat-another-feature (Parallel-safe: yes)
+
+Wave 2 (after Wave 1 ships):
+  - P0.3 feat-builds-on-P0.1 (depends on P0.1)
+```
+
+If a wave has only one plan, mark it `Parallel-safe: no` — there's no one to run alongside.
+
 ## Phase 4: Update goals document
 
 After all plans are written:
 
 1. Add a `## Sprint Plan` section to the goals document listing all project plans with links, effort estimates, and execution order.
 2. Commit all plan files and the updated goals doc together.
+
+## Phase 5: Dispatch Wave 1 to Conductor workspaces (optional)
+
+**Precondition:** Skip this phase entirely if `bin/conductor-dispatch` is not executable in the repo. Check with: `[ -x bin/conductor-dispatch ]`. If absent, note "Conductor dispatch helper not installed — skipping" and stop Phase 5.
+
+After Phase 4 (goals doc updated and committed), offer to dispatch the Wave-1 plans as new Conductor workspaces.
+
+1. Count the Wave 1 plans from Phase 3.5 output — call this N.
+
+Substitute the actual count for N in the prompt below:
+
+```
+## Dispatch Wave 1
+
+Open N Conductor workspaces now? Each will boot with its plan file
+attached so you can type `/build <plan-path>` to start.
+
+  [y] Open all N
+  [s] Show deep links only (I'll open manually)
+  [n] Skip
+```
+
+**On `y`:** for each Wave-1 plan, run:
+
+```bash
+bin/conductor-dispatch docs/plans/YYYY-wNN/sprint-plans/<plan>.md
+```
+
+Each invocation opens a new Conductor workspace with the plan attached as a markdown file. Print the URL so the user can see what was dispatched.
+
+**On `s`:** for each Wave-1 plan, run the same command with `--print` and list the URLs.
+
+**On `n`:** skip; the user can dispatch manually later.
+
+**Wave 2+** is NOT auto-dispatched. When Wave 1 plans are complete, dispatch Wave 2 manually: run `bin/conductor-dispatch docs/plans/YYYY-wNN/sprint-plans/<plan>.md` for each Wave 2 plan.
 
 ## Naming conventions
 

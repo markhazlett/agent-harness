@@ -9,6 +9,11 @@
             "type": "command",
             "command": ".claude/hooks/init.sh",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/conductor-context.sh",
+            "timeout": 10
           }
         ]
       },
@@ -71,11 +76,17 @@
     ],
     "PreCompact": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "command",
             "command": ".claude/hooks/pre-compact.sh",
             "async": true
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/conductor-context.sh",
+            "timeout": 10
           }
         ]
       }

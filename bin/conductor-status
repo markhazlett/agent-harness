@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# =============================================================================
+# conductor-status — per-workspace status manifest CLI.
+#
+# Subcommands:
+#   get <key>                            — print a field from current workspace
+#   update <key>=<val> [<key>=<val>...]  — merge fields into current workspace's status
+#   list [--exclude-self]                — print a rollup of sibling workspaces
+#
+# Resolves the workspace root (current dir by default). The manifest lives at
+# <workspace>/.context/conductor-status.json.
+#
+# Env overrides (used by tests):
+#   CONDUCTOR_WORKSPACES_ROOT — override ~/conductor/workspaces
+#   CONDUCTOR_REPO_NAME       — override repo-name detection
+#
+# NOTE: When running inside Conductor, the following env vars are also available:
+#   CONDUCTOR_WORKSPACE_NAME, CONDUCTOR_WORKSPACE_PATH, CONDUCTOR_ROOT_PATH,
+#   CONDUCTOR_DEFAULT_BRANCH, CONDUCTOR_PORT
+# =============================================================================
+set -euo pipefail
+
+workspace_root() { pwd; }
+
+status_file() { echo "$(workspace_root)/.context/conductor-status.json"; }
+
+ensure_context_dir() { mkdir -p "$(workspace_root)/.context"; }
+
+repo_name() {
+  if [ -n "${CONDUCTOR_REPO_NAME:-}" ]; then
+    echo "$CONDUCTOR_REPO_NAME"
+    return
+  fi
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  basename "$(dirname "$root")"  # ~/conductor/workspaces/<repo>/<workspace>/ → repo
+}
+
+workspaces_root() {
+  if [ -n "${CONDUCTOR_WORKSPACES_ROOT:-}" ]; then
+    echo "$CONDUCTOR_WORKSPACES_ROOT"
+  else
+    echo "$HOME/conductor/workspaces"
+  fi
+}
+
+cmd_get() {
+  local key="${1:?usage: conductor-status get <key>}"
+  local f; f="$(status_file)"
+  [ -f "$f" ] || { echo ""; return 0; }
+  jq -r --arg k "$key" '.[$k] // ""' "$f"
+}
+
+cmd_update() {
+  (( $# > 0 )) || { echo "usage: conductor-status update <key>=<val> [...]" >&2; exit 2; }
+  ensure_context_dir
+  local f; f="$(status_file)"
+  [ -f "$f" ] || echo '{"schema_version":1}' > "$f"
+
+  local jq_args=() jq_expr='.'
+  local i=0
+  for kv in "$@"; do
+    local key="${kv%%=*}" val="${kv#*=}"
+    [[ "$kv" == *=* ]] || { echo "bad arg '$kv'" >&2; exit 2; }
+    jq_args+=(--arg "k$i" "$key" --arg "v$i" "$val")
+    jq_expr="$jq_expr | .[\$k$i] = \$v$i"
+    i=$((i+1))
+  done
+  local now; now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  jq_args+=(--arg "tsnow" "$now")
+  jq_expr="$jq_expr | .updated_at = \$tsnow | .started_at = (.started_at // \$tsnow) | .schema_version = 1"
+
+  local tmp; tmp=$(mktemp)
+  trap 'rm -f "$tmp"' RETURN
+  jq "${jq_args[@]}" "$jq_expr" "$f" > "$tmp" && mv "$tmp" "$f"
+}
+
+cmd_list() {
+  local exclude_self=0
+  [[ "${1:-}" == "--exclude-self" ]] && exclude_self=1
+
+  local repo; repo="$(repo_name)"
+  local root; root="$(workspaces_root)/$repo"
+  [ -d "$root" ] || { echo "(no workspaces under $root)"; return 0; }
+
+  local self=""
+  (( exclude_self )) && self="$(basename "$(workspace_root)")"
+
+  echo "## Conductor workspace state"
+  echo ""
+
+  if (( exclude_self )); then
+    local self_f; self_f="$(status_file)"
+    if [ -f "$self_f" ]; then
+      local self_phase self_branch
+      self_phase=$(jq -r '.phase // "unknown"' "$self_f" 2>/dev/null) || self_phase="unknown"
+      self_branch=$(jq -r '.branch // "-"' "$self_f" 2>/dev/null) || self_branch="-"
+      echo "You are: $self (branch: $self_branch, phase: $self_phase)"
+    else
+      echo "You are: $self (no status yet)"
+    fi
+    echo ""
+  fi
+
+  local printed_header=0
+  local d
+  for d in "$root"/*/; do
+    local name; name=$(basename "$d")
+    (( exclude_self )) && [ "$name" = "$self" ] && continue
+    local f="$d/.context/conductor-status.json"
+    [ -f "$f" ] || continue
+    if (( ! printed_header )); then
+      (( exclude_self )) && echo "Siblings:" || echo "Workspaces:"
+      printed_header=1
+    fi
+    local phase branch plan pr
+    phase=$(jq -r '.phase // "unknown"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    branch=$(jq -r '.branch // "-"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    plan=$(jq -r '.plan // "-"' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    pr=$(jq -r '.pr_url // ""' "$f" 2>/dev/null) || { printf "  - %-12s [malformed status file]\n" "$name"; continue; }
+    local plan_short="${plan##*/}"
+    plan_short="${plan_short%.md}"
+    local extra=""
+    [ -n "$pr" ] && extra=" — $pr"
+    printf "  - %-12s [%s]  %-13s — %s%s\n" "$name" "$plan_short" "$phase" "$branch" "$extra"
+  done
+}
+
+case "${1:-}" in
+  get)    shift; cmd_get "$@" ;;
+  update) shift; cmd_update "$@" ;;
+  list)   shift; cmd_list "$@" ;;
+  ""|-h|--help)
+    sed -n '3,13p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+  *) echo "unknown subcommand: $1" >&2; exit 2 ;;
+esac

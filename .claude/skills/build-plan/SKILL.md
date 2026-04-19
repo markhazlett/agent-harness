@@ -66,6 +66,41 @@ Break the plan's Implementation Steps into tasks. Include:
 
 If anything in the plan is ambiguous or contradicts what you see in the codebase, ask **now**. Not mid-implementation.
 
+### 7. Initialize the status manifest
+
+**Conductor status precondition (applies to all status updates below):** If `bin/conductor-status` is not executable, skip every status-update step in this skill silently. Check with `[ -x bin/conductor-status ]` at Phase 1 start.
+
+Write the initial status file so sibling workspaces can see this work starting (skip if the precondition at Phase 1 was not met):
+
+```bash
+bin/conductor-status update \
+  workspace="$(basename "$PWD")" \
+  repo="$(basename "$(dirname "$(pwd)")")" \
+  plan="<the-plan-path-you-read>" \
+  branch="$(git symbolic-ref --short HEAD)" \
+  phase=implementing \
+  dev_server_port="${CONDUCTOR_PORT:-${HARNESS_DEV_PORT:-3000}}"
+```
+
+Also write the Done Criteria array. Parse each `- [ ] ...` line out of the plan's "Done Criteria" section and build a JSON array of `{item, status}` objects, then pass it as a single value:
+
+```bash
+# Example: plan has these criteria
+#   - [ ] Unit tests passing
+#   - [ ] E2E browser verification passing
+criteria_json=$(jq -nc '[
+  {"item":"Unit tests passing","status":"pending"},
+  {"item":"E2E browser verification passing","status":"pending"}
+]')
+bin/conductor-status update done_criteria="$criteria_json"
+```
+
+One update call, one JSON string value. As criteria pass during Phases 3 and 4, re-serialize with the updated statuses and call `update done_criteria="$criteria_json"` again.
+
+### 8. Mirror Done Criteria to Conductor Todos (best effort)
+
+If the Conductor API exposes a Todos endpoint (check `https://docs.conductor.build/` for current API reference), POST each Done Criteria item as a todo so it appears in the Conductor UI for this workspace. This is best-effort — if the endpoint is not documented or the request fails, skip silently. Ship no placeholder code for unverified endpoints.
+
 ## Phase 2: Implement
 
 ### Execution loop
@@ -127,6 +162,37 @@ After completing 2-3 related steps, review for:
 Don't over-engineer. Three similar lines is better than a premature abstraction.
 
 ## Phase 3: Verify
+
+### Quality-skill decision rules
+
+Before running the test suite, evaluate which quality skills to invoke for this plan. Apply **all** matching rules — each row whose trigger matches the plan fires its skill. A plan can fire multiple quality skills.
+
+| Plan characteristic | Skill to invoke |
+|---|---|
+| Implementation step creates a new function, class, or service | Use `/tdd` cadence during Phase 2 (write failing test → implement → run test) |
+| Plan's Test Plan includes an "E2E Browser Verification" section | Run `/e2e-verify` during Phase 3 before `Check done criteria` |
+| Plan's File Footprint touches auth/session/credential files, external HTTP handlers, data-access files, or file-upload handlers | Run `/security-review` during Phase 3 before `Check done criteria` |
+| About to create the PR (Phase 4 step 2) | Run `/pre-deploy` as the final gate |
+
+Invoke each skill via the Skill tool with its name as the argument. Each skill returns pass/fail; on fail, fix the issue before proceeding. On pass, continue down the checklist.
+
+### 0. Update status to verifying
+
+(skip if the precondition at Phase 1 was not met)
+
+```bash
+bin/conductor-status update phase=verifying
+```
+
+### Failure path
+
+If verification fails and cannot be resolved in this session (e.g., test suite broken, build errors, E2E browser verification failing on fundamental feature gaps), before stopping run:
+
+```bash
+bin/conductor-status update phase=failed last_error="<one-line summary>"
+```
+
+Then halt and report to the user. Do not proceed to Phase 4.
 
 ### 1. Run full test suite
 
@@ -191,6 +257,14 @@ Mark completed items in the plan's Done Criteria, then rename with `.DONE` suffi
 ### 4. Report to user
 
 Summarize: what was built, PR link, any follow-up work or issues discovered.
+
+### 5. Update status to shipped
+
+After the PR is created and pushed (skip if the precondition at Phase 1 was not met):
+
+```bash
+bin/conductor-status update phase=shipped pr_url="<pr-url>"
+```
 
 ## Rules (Non-Negotiable)
 
