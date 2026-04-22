@@ -20,6 +20,20 @@
 # =============================================================================
 set -euo pipefail
 
+# ── Mode gate: skip entirely when host is not Conductor ──────────────────────
+# Sources harness.config.sh (if present) to read HARNESS_HOST. Env overrides
+# config so tests can force a mode. Unset/empty = conductor for backward compat.
+_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+_HARNESS_CONFIG="$_SCRIPT_DIR/../.claude/hooks/harness.config.sh"
+if [ -z "${HARNESS_HOST:-}" ] && [ -f "$_HARNESS_CONFIG" ]; then
+  # shellcheck source=../.claude/hooks/harness.config.sh
+  source "$_HARNESS_CONFIG" 2>/dev/null || true
+fi
+if [ "${HARNESS_HOST:-conductor}" != "conductor" ]; then
+  exit 0
+fi
+unset _SCRIPT_DIR _HARNESS_CONFIG
+
 workspace_root() { pwd; }
 
 status_file() { echo "$(workspace_root)/.context/conductor-status.json"; }

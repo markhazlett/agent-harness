@@ -78,7 +78,29 @@ Read `.claude/hooks/harness.config.sh` and verify key values are set:
 
 ## Conductor integration checks
 
-Run:
+First, read `HARNESS_HOST` from `.claude/hooks/harness.config.sh`:
+
+```bash
+HARNESS_HOST=$(grep -E '^HARNESS_HOST=' .claude/hooks/harness.config.sh 2>/dev/null | head -1 | sed -E 's/^HARNESS_HOST="?([^"]*)"?$/\1/')
+HARNESS_HOST="${HARNESS_HOST:-conductor}"   # unset = conductor (backward compat)
+```
+
+If `HARNESS_HOST="claude-code"`, print one line per probe:
+
+```
+SKIP: conductor-status (host = claude-code)
+SKIP: conductor-dispatch (host = claude-code)
+SKIP: conductor-context hook (host = claude-code)
+SKIP: conductor-context hook wired in settings.json (host = claude-code)
+SKIP: conductor.json (host = claude-code)
+SKIP: conductor-status tests (host = claude-code)
+SKIP: conductor-dispatch tests (host = claude-code)
+SKIP: conductor-context tests (host = claude-code)
+```
+
+No probes run. `SKIP` is not a failure — this is expected health for a Claude Code install.
+
+If `HARNESS_HOST="conductor"` (or unset, for backward-compat installs), run:
 
 ```bash
 test -x bin/conductor-status && echo "OK: conductor-status executable" || echo "FAIL: bin/conductor-status missing or not executable"
@@ -91,4 +113,6 @@ bash bin/tests/conductor-dispatch.test.sh >/dev/null 2>&1 && echo "OK: conductor
 bash bin/tests/conductor-context.test.sh >/dev/null 2>&1 && echo "OK: conductor-context tests pass" || echo "FAIL: conductor-context tests failing"
 ```
 
-All four `OK:` lines for the helpers + hook wiring, and `WARN: conductor.json not present` is acceptable in the harness repo itself (we don't ship one). `FAIL` for any test invocation typically indicates a regression, but on a fresh clone where `bin/conductor-*` helpers are missing, probes 6-8 will also FAIL — the first three `FAIL:` lines from the existence checks are the authoritative signal in that case.
+**Conductor mode expected output:** all four `OK:` lines for the helpers + hook wiring. `WARN: conductor.json not present` is acceptable in the harness repo itself (we don't ship one). `FAIL` for any test invocation typically indicates a regression, but on a fresh clone where `bin/conductor-*` helpers are missing, probes 6–8 will also FAIL — the first three `FAIL:` lines from the existence checks are the authoritative signal in that case.
+
+**Claude Code mode expected output:** eight `SKIP:` lines. No `FAIL:`, no `WARN:`.
