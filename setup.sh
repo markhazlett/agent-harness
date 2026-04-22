@@ -32,6 +32,36 @@ echo ""
 # Gather inputs
 # ──────────────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Workspace host: Conductor (default inside a Conductor workspace) or plain
+# Claude Code. Controls whether we generate conductor.json and chmod Conductor
+# helpers, and is written to harness.config.sh for runtime mode detection.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Auto-detect default: Conductor if workspaces dir exists or env var set, else claude-code.
+if [ -n "${CONDUCTOR_WORKSPACES_ROOT:-}" ] || [ -d "$HOME/conductor/workspaces" ]; then
+  HOST_DEFAULT=1
+  HOST_DEFAULT_LABEL="Conductor"
+else
+  HOST_DEFAULT=2
+  HOST_DEFAULT_LABEL="Claude Code"
+fi
+
+echo "Workspace host:"
+echo "  [1] Conductor"
+echo "  [2] Claude Code only"
+read -p "Choice [${HOST_DEFAULT} = ${HOST_DEFAULT_LABEL}]: " HOST_CHOICE
+HOST_CHOICE="${HOST_CHOICE:-$HOST_DEFAULT}"
+
+case "$HOST_CHOICE" in
+  1) HARNESS_HOST="conductor" ;;
+  2) HARNESS_HOST="claude-code" ;;
+  *) echo "error: invalid choice '$HOST_CHOICE' — expected 1 or 2" >&2; exit 1 ;;
+esac
+
+echo "Selected host: $HARNESS_HOST"
+echo ""
+
 read -p "App / project name [My Project]: " APP_NAME
 APP_NAME="${APP_NAME:-My Project}"
 
@@ -93,6 +123,7 @@ cat > "$CONFIG" <<EOF
 # Edit directly to update values.
 # =============================================================================
 
+HARNESS_HOST="${HARNESS_HOST}"
 HARNESS_PKG_MGR="${PKG_MGR}"
 HARNESS_SRC_DIRS="${SRC_DIRS}"
 HARNESS_TEST_CMD="${TEST_CMD}"
@@ -116,59 +147,61 @@ EOF
 echo "Wrote $CONFIG"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Generate conductor.json
+# Generate conductor.json (Conductor mode only)
 # ──────────────────────────────────────────────────────────────────────────────
 
-echo ""
-read -p "Generate conductor.json for Conductor workspace scripts? [Y/n]: " GEN_CONDUCTOR
-GEN_CONDUCTOR="${GEN_CONDUCTOR:-Y}"
-
-if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
-  CONDUCTOR_JSON="$REPO_ROOT/conductor.json"
-
-  # Compose setup script: install deps, then copy .env.example if present,
-  # then run DB generate + push if configured.
-  SETUP_LINES=("${PKG_MGR} install")
-  if [ -f "$REPO_ROOT/.env.example" ]; then
-    SETUP_LINES+=("if [ ! -f .env ]; then cp .env.example .env; fi")
-  fi
-  if [ -n "${DB_GENERATE:-}" ]; then
-    SETUP_LINES+=("${DB_GENERATE}")
-  fi
-  if [ -n "${DB_PUSH:-}" ]; then
-    SETUP_LINES+=("${DB_PUSH}")
-  fi
-  # Join with &&
-  SETUP_SCRIPT=$(printf "%s && " "${SETUP_LINES[@]}")
-  SETUP_SCRIPT="${SETUP_SCRIPT% && }"
-
-  # Run script: bind the dev server to the workspace's assigned port.
-  # CONDUCTOR_PORT is expanded at runtime so each workspace gets its own port;
-  # falls back to the configured default when running outside a Conductor
-  # workspace. Most modern dev servers (Next.js, Vite) honor PORT env var.
-  RUN_SCRIPT="PORT=\${CONDUCTOR_PORT:-${DEV_PORT}} ${DEV_CMD}"
-
-  # Archive script: stop dev server on the workspace's assigned port + clean
-  # build artifacts. CONDUCTOR_PORT is expanded at archive time so each
-  # workspace kills its own dev server; falls back to the configured default
-  # when running outside a Conductor workspace.
-  ARCHIVE_SCRIPT="PIDS=\$(lsof -ti:\${CONDUCTOR_PORT:-${DEV_PORT}} 2>/dev/null || true); [ -n \"\$PIDS\" ] && kill -TERM \$PIDS 2>/dev/null || true; rm -rf node_modules .next .turbo dist build .cache"
-
-  # Write conductor.json via jq for safe quoting.
-  jq -n \
-    --arg setup "$SETUP_SCRIPT" \
-    --arg run "$RUN_SCRIPT" \
-    --arg archive "$ARCHIVE_SCRIPT" \
-    '{scripts: {setup: $setup, run: $run, archive: $archive}}' > "$CONDUCTOR_JSON"
-
-  echo "Wrote $CONDUCTOR_JSON"
+if [ "$HARNESS_HOST" = "conductor" ]; then
   echo ""
-  echo "  setup:   $SETUP_SCRIPT"
-  echo "  run:     $RUN_SCRIPT"
-  echo "  archive: $ARCHIVE_SCRIPT"
-  echo ""
-  echo "Review and edit conductor.json before committing — the archive script"
-  echo "removes build artifacts aggressively. Adjust for your stack."
+  read -p "Generate conductor.json for Conductor workspace scripts? [Y/n]: " GEN_CONDUCTOR
+  GEN_CONDUCTOR="${GEN_CONDUCTOR:-Y}"
+
+  if [[ "$GEN_CONDUCTOR" =~ ^[Yy]$ ]]; then
+    CONDUCTOR_JSON="$REPO_ROOT/conductor.json"
+
+    # Compose setup script: install deps, then copy .env.example if present,
+    # then run DB generate + push if configured.
+    SETUP_LINES=("${PKG_MGR} install")
+    if [ -f "$REPO_ROOT/.env.example" ]; then
+      SETUP_LINES+=("if [ ! -f .env ]; then cp .env.example .env; fi")
+    fi
+    if [ -n "${DB_GENERATE:-}" ]; then
+      SETUP_LINES+=("${DB_GENERATE}")
+    fi
+    if [ -n "${DB_PUSH:-}" ]; then
+      SETUP_LINES+=("${DB_PUSH}")
+    fi
+    # Join with &&
+    SETUP_SCRIPT=$(printf "%s && " "${SETUP_LINES[@]}")
+    SETUP_SCRIPT="${SETUP_SCRIPT% && }"
+
+    # Run script: bind the dev server to the workspace's assigned port.
+    # CONDUCTOR_PORT is expanded at runtime so each workspace gets its own port;
+    # falls back to the configured default when running outside a Conductor
+    # workspace. Most modern dev servers (Next.js, Vite) honor PORT env var.
+    RUN_SCRIPT="PORT=\${CONDUCTOR_PORT:-${DEV_PORT}} ${DEV_CMD}"
+
+    # Archive script: stop dev server on the workspace's assigned port + clean
+    # build artifacts. CONDUCTOR_PORT is expanded at archive time so each
+    # workspace kills its own dev server; falls back to the configured default
+    # when running outside a Conductor workspace.
+    ARCHIVE_SCRIPT="PIDS=\$(lsof -ti:\${CONDUCTOR_PORT:-${DEV_PORT}} 2>/dev/null || true); [ -n \"\$PIDS\" ] && kill -TERM \$PIDS 2>/dev/null || true; rm -rf node_modules .next .turbo dist build .cache"
+
+    # Write conductor.json via jq for safe quoting.
+    jq -n \
+      --arg setup "$SETUP_SCRIPT" \
+      --arg run "$RUN_SCRIPT" \
+      --arg archive "$ARCHIVE_SCRIPT" \
+      '{scripts: {setup: $setup, run: $run, archive: $archive}}' > "$CONDUCTOR_JSON"
+
+    echo "Wrote $CONDUCTOR_JSON"
+    echo ""
+    echo "  setup:   $SETUP_SCRIPT"
+    echo "  run:     $RUN_SCRIPT"
+    echo "  archive: $ARCHIVE_SCRIPT"
+    echo ""
+    echo "Review and edit conductor.json before committing — the archive script"
+    echo "removes build artifacts aggressively. Adjust for your stack."
+  fi
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -226,6 +259,11 @@ echo "  3. Add a CLAUDE.md to your project documenting conventions"
 echo "  4. Run: claude /harness-health"
 echo "     to verify everything is wired up correctly"
 echo ""
+if [ "$HARNESS_HOST" = "conductor" ]; then
+  echo "Conductor workspace scripts written to: conductor.json"
+  echo "Review and edit conductor.json before committing."
+  echo ""
+fi
 echo "Workflow:"
 echo "  /weekly-goals  → /demo-script → /plan-sprint → /build → /sync"
 echo ""
