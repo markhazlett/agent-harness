@@ -63,5 +63,36 @@ echo "HARNESS_PKG_MGR=pnpm" > "$TMP/ws3/.claude/hooks/harness.config.sh"
   || fail "unset HARNESS_HOST defaults to conductor (backward compat)" "no file written"
 pass "unset HARNESS_HOST defaults to conductor (backward compat)"
 
+# ── Test: conductor-dispatch is a silent no-op in Claude Code mode ──
+# Create a dummy plan file and a fake `open` that would record a URL if called.
+echo "# plan" > "$TMP/plan.md"
+mkdir -p "$TMP/fakebin"
+cat > "$TMP/fakebin/open" <<'EOF'
+#!/usr/bin/env bash
+echo "open-called-with: $*" >> "$OPEN_LOG"
+EOF
+chmod +x "$TMP/fakebin/open"
+OPEN_LOG="$TMP/open.log"
+: > "$OPEN_LOG"
+
+out=$(PATH="$TMP/fakebin:$PATH" OPEN_LOG="$OPEN_LOG" HARNESS_HOST=claude-code \
+  "$DISPATCH_BIN" "$TMP/plan.md" --print 2>&1)
+[[ -z "$out" ]] || fail "dispatch silent in claude-code mode" "got output: $out"
+[[ ! -s "$OPEN_LOG" ]] || fail "dispatch does not call open in claude-code mode" "log: $(cat "$OPEN_LOG")"
+pass "dispatch is silent no-op in claude-code mode"
+
+# ── Test: dispatch exits 0 in Claude Code mode ──
+PATH="$TMP/fakebin:$PATH" OPEN_LOG="$OPEN_LOG" HARNESS_HOST=claude-code \
+  "$DISPATCH_BIN" "$TMP/plan.md" --print \
+  || fail "dispatch exits 0 in claude-code mode" "non-zero exit"
+pass "dispatch exits 0 in claude-code mode"
+
+# ── Test: HARNESS_HOST=conductor runs dispatch normally ──
+out=$(CONDUCTOR_REPO_NAME=testrepo HARNESS_HOST=conductor \
+  "$DISPATCH_BIN" "$TMP/plan.md" --print)
+echo "$out" | grep -q '^conductor://async?' \
+  || fail "dispatch runs normally with host=conductor" "got: $out"
+pass "dispatch runs normally with host=conductor"
+
 echo ""
 echo "ALL PASSED"
