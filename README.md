@@ -23,6 +23,18 @@ setup.sh              # Interactive configuration wizard
 
 ---
 
+## Choose your host
+
+The harness runs in two modes, selected during `./setup.sh` (defaults to the one it detects).
+
+**Conductor mode** — select this if you use [Conductor](https://conductor.build) to run parallel agents. `setup.sh` generates a `conductor.json` with setup/run/archive scripts tailored to your stack, and the `bin/conductor-*` helpers activate sibling-workspace awareness, status manifests, and the sprint-dispatch deep links described under "Conductor integration" below. This is the default when `~/conductor/workspaces` is detected.
+
+**Claude Code mode** — select this for plain Claude Code with no multi-workspace orchestrator. `setup.sh` skips the `conductor.json` generation, and the Conductor helpers self-gate to no-ops so `/plan-sprint` and `/build` run cleanly without trying to dispatch URLs or write status files. Everything else in the harness — hooks, agents, skills, commands — works identically to Conductor mode. This is the default when Conductor is not detected on the machine.
+
+The mode is recorded in `.claude/hooks/harness.config.sh` as `HARNESS_HOST="conductor"` or `HARNESS_HOST="claude-code"`. Re-run `./setup.sh` to switch.
+
+---
+
 ## Quick start
 
 Open Claude Code in the repo you want to set up and paste this prompt:
@@ -33,7 +45,7 @@ Install the agent harness from https://github.com/markhazlett/agent-harness into
 Steps:
 1. Clone the harness to a temp dir: `git clone --depth 1 https://github.com/markhazlett/agent-harness /tmp/agent-harness-install`
 2. Copy into the current repo root: `.claude/`, `bin/`, `setup.sh`, `VERSION`
-3. Run `./setup.sh` — ask me each prompt it shows (package manager, dev port, DB commands, conductor.json, etc.) and relay my answers
+3. Run `./setup.sh` — ask me each prompt it shows (workspace host, package manager, dev port, DB commands, etc.) and relay my answers
 4. Clean up: `rm -rf /tmp/agent-harness-install`
 5. Run `/harness-health` and report the result
 ```
@@ -189,6 +201,8 @@ Skills are invokable prompts that implement specific workflows. Use them with `/
 ---
 
 ## Conductor integration
+
+> Only activates when `HARNESS_HOST="conductor"` (default in a Conductor workspace).
 
 The harness auto-integrates with [Conductor](https://conductor.build) — when you run it inside a Conductor workspace (i.e. under `~/conductor/workspaces/<repo>/`), extra capabilities activate:
 
