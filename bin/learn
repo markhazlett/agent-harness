@@ -67,7 +67,28 @@ fi
 
 CREATED="$TODAY"
 if [ "$EXISTING_NAME" = "$NAME" ] && [ -n "$EXISTING_CREATED" ]; then
+  # Same slug + same name → in-place update; preserve created.
   CREATED="$EXISTING_CREATED"
+elif [ -n "$EXISTING_NAME" ]; then
+  # Slug collision (different name): pick first available -N suffix.
+  N=2
+  while [ -f "docs/learnings/${SLUG}-${N}.md" ]; do
+    EXISTING_N_NAME=$(awk '
+      /^---$/ { in_fm = !in_fm; next }
+      in_fm && /^name:/ { sub(/^name:[ ]*/, ""); print; exit }
+    ' "docs/learnings/${SLUG}-${N}.md")
+    if [ "$EXISTING_N_NAME" = "$NAME" ]; then
+      EXISTING_N_CREATED=$(awk '
+        /^---$/ { in_fm = !in_fm; next }
+        in_fm && /^created:/ { sub(/^created:[ ]*/, ""); print; exit }
+      ' "docs/learnings/${SLUG}-${N}.md")
+      CREATED="${EXISTING_N_CREATED:-$TODAY}"
+      break
+    fi
+    N=$((N + 1))
+  done
+  SLUG="${SLUG}-${N}"
+  TARGET="docs/learnings/${SLUG}.md"
 fi
 
 {

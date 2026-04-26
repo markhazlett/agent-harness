@@ -209,6 +209,46 @@ EOF
 
 test_index_update_does_not_clobber_prose
 
+test_slug_collision_different_name() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  cat > body1.md <<'EOF'
+**Rule:** First learning.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Foo bar" --summary "first" \
+    --body-file body1.md > /dev/null
+
+  cat > body2.md <<'EOF'
+**Rule:** Second learning.
+EOF
+  # "Foo-bar" slugifies to "foo-bar" same as "Foo bar", but the names differ
+  local out
+  out=$("$LEARN_BIN" write-project \
+    --name "Foo-bar" --summary "second" \
+    --body-file body2.md)
+
+  if [ "$out" != "docs/learnings/foo-bar-2.md" ]; then
+    fail "collision returns suffixed path" "got: $out"
+    return
+  fi
+  assert_file_exists "docs/learnings/foo-bar.md" "original kept" || return
+  assert_file_exists "docs/learnings/foo-bar-2.md" "suffixed file created" || return
+  assert_file_contains "docs/learnings/foo-bar.md" "First learning" "original body untouched" || return
+  assert_file_not_contains "docs/learnings/foo-bar.md" "Second learning" "original not overwritten" || return
+  assert_file_contains "docs/learnings/foo-bar-2.md" "Second learning" "new body in suffixed file" || return
+  # Both entries in index
+  local count
+  count=$(grep -cE '^- \[Foo' CLAUDE.md)
+  if [ "$count" != "2" ]; then
+    fail "two index entries" "expected 2 entries, got $count"
+    return
+  fi
+  pass "slug collision with different name applies numeric suffix"
+}
+
+test_slug_collision_different_name
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
