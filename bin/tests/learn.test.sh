@@ -249,6 +249,62 @@ EOF
 
 test_slug_collision_different_name
 
+test_slug_collision_idempotent_rewrite() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  cat > body1.md <<'EOF'
+**Rule:** First.
+EOF
+  "$LEARN_BIN" write-project --name "Foo bar" --summary "first" --body-file body1.md > /dev/null
+
+  cat > body2.md <<'EOF'
+**Rule:** Second.
+EOF
+  "$LEARN_BIN" write-project --name "Foo-bar" --summary "second" --body-file body2.md > /dev/null
+
+  # Capture original 'created' on the -2 file
+  local original_created
+  original_created=$(grep '^created:' docs/learnings/foo-bar-2.md)
+
+  # Re-write the same "Foo-bar" name — should update foo-bar-2.md in place,
+  # NOT create foo-bar-3.md.
+  cat > body3.md <<'EOF'
+**Rule:** Third.
+EOF
+  local out
+  out=$("$LEARN_BIN" write-project --name "Foo-bar" --summary "third" --body-file body3.md)
+
+  if [ "$out" != "docs/learnings/foo-bar-2.md" ]; then
+    fail "idempotent re-write returns existing -2 path" "got: $out"
+    return
+  fi
+  if [ -f "docs/learnings/foo-bar-3.md" ]; then
+    fail "no -3 file on idempotent re-write" "foo-bar-3.md should not exist"
+    return
+  fi
+  # Body updated in place
+  assert_file_contains "docs/learnings/foo-bar-2.md" "Third" "body updated to third version" || return
+  assert_file_not_contains "docs/learnings/foo-bar-2.md" "Second" "old body replaced" || return
+  # 'created' on the -2 file is preserved
+  if ! grep -qF "$original_created" docs/learnings/foo-bar-2.md; then
+    fail "created date on -2 file preserved" "expected '$original_created' to still be present"
+    return
+  fi
+  # CLAUDE.md still has exactly two entries (one for Foo bar, one for Foo-bar)
+  local count
+  count=$(grep -cE '^- \[Foo' CLAUDE.md)
+  if [ "$count" != "2" ]; then
+    fail "two index entries after idempotent re-write" "expected 2, got $count"
+    return
+  fi
+  # The Foo-bar entry shows the latest summary
+  assert_file_contains "CLAUDE.md" "— third" "index reflects latest summary" || return
+  assert_file_not_contains "CLAUDE.md" "— second" "old summary replaced" || return
+  pass "slug collision idempotent re-write updates -N file in place"
+}
+
+test_slug_collision_idempotent_rewrite
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

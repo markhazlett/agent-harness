@@ -22,6 +22,21 @@ slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//'
 }
 
+# read_frontmatter_field <file> <field-name>
+# Prints the value of the YAML frontmatter field, or empty string if absent.
+# Frontmatter is the first --- ... --- block in the file.
+read_frontmatter_field() {
+  local file="$1" field="$2"
+  awk -v f="$field" '
+    /^---$/ { in_fm = !in_fm; next }
+    in_fm && index($0, f ":") == 1 {
+      sub("^" f ":[ ]*", "")
+      print
+      exit
+    }
+  ' "$file"
+}
+
 cmd="${1:-}"; shift || true
 case "$cmd" in
   write-project) ;;
@@ -55,14 +70,8 @@ TODAY=$(date -u +"%Y-%m-%d")
 EXISTING_NAME=""
 EXISTING_CREATED=""
 if [ -f "$TARGET" ]; then
-  EXISTING_NAME=$(awk '
-    /^---$/ { in_fm = !in_fm; next }
-    in_fm && /^name:/ { sub(/^name:[ ]*/, ""); print; exit }
-  ' "$TARGET")
-  EXISTING_CREATED=$(awk '
-    /^---$/ { in_fm = !in_fm; next }
-    in_fm && /^created:/ { sub(/^created:[ ]*/, ""); print; exit }
-  ' "$TARGET")
+  EXISTING_NAME=$(read_frontmatter_field "$TARGET" "name")
+  EXISTING_CREATED=$(read_frontmatter_field "$TARGET" "created")
 fi
 
 CREATED="$TODAY"
@@ -73,15 +82,9 @@ elif [ -n "$EXISTING_NAME" ]; then
   # Slug collision (different name): pick first available -N suffix.
   N=2
   while [ -f "docs/learnings/${SLUG}-${N}.md" ]; do
-    EXISTING_N_NAME=$(awk '
-      /^---$/ { in_fm = !in_fm; next }
-      in_fm && /^name:/ { sub(/^name:[ ]*/, ""); print; exit }
-    ' "docs/learnings/${SLUG}-${N}.md")
+    EXISTING_N_NAME=$(read_frontmatter_field "docs/learnings/${SLUG}-${N}.md" "name")
     if [ "$EXISTING_N_NAME" = "$NAME" ]; then
-      EXISTING_N_CREATED=$(awk '
-        /^---$/ { in_fm = !in_fm; next }
-        in_fm && /^created:/ { sub(/^created:[ ]*/, ""); print; exit }
-      ' "docs/learnings/${SLUG}-${N}.md")
+      EXISTING_N_CREATED=$(read_frontmatter_field "docs/learnings/${SLUG}-${N}.md" "created")
       CREATED="${EXISTING_N_CREATED:-$TODAY}"
       break
     fi
