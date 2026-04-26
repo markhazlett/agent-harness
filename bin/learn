@@ -102,7 +102,7 @@ fi
   printf 'tags: []\n'
   printf -- '---\n\n'
   cat "$BODY_FILE"
-} > "$TARGET"
+} > "${TARGET}.tmp" && mv "${TARGET}.tmp" "$TARGET"
 
 # Ensure CLAUDE.md and ## Learnings section
 if [ ! -f CLAUDE.md ]; then

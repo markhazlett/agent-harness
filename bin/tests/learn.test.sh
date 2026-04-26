@@ -305,6 +305,26 @@ EOF
 
 test_slug_collision_idempotent_rewrite
 
+test_write_user_subcommand_rejected() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  echo "test body" > body.md
+  # write-user is not a subcommand; helper should reject it.
+  local out exit_code
+  out=$("$LEARN_BIN" write-user --name x --summary y --body-file body.md 2>&1) || exit_code=$?
+  if [ "${exit_code:-0}" -eq 0 ]; then
+    fail "write-user should be rejected" "helper exited 0 on unknown subcommand"
+    return
+  fi
+  if ! echo "$out" | grep -qF "Unknown command: write-user"; then
+    fail "write-user rejection message" "got: $out"
+    return
+  fi
+  pass "helper rejects write-user (boundary check)"
+}
+
+test_write_user_subcommand_rejected
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
