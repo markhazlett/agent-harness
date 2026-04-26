@@ -8,7 +8,7 @@ user-invocable: true
 
 Strategic, YC-style conversation about a product idea. Two modes — Startup (rigorous diagnostic) and Builder (generative design partner). Saves a design doc to `docs/office-hours/` at the end.
 
-Adapted from [Garry Tan's Office Hours skill](https://github.com/garrytan/gstack/blob/main/office-hours/SKILL.md) — content credit Garry Tan.
+Adapted from the office-hours skill in [Garry Tan's gstack](https://github.com/garrytan/gstack) — content credit Garry Tan, MIT-licensed.
 
 ## What this skill produces
 

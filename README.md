@@ -261,6 +261,10 @@ setup.sh              interactive configuration wizard
 
 Claude Code · git · `bash` · `jq` · optional: `gh` (for `/ship`) · optional: `npx` (for auto-format in `post-edit.sh`)
 
+## Credits
+
+The `/office-hours` skill is adapted from the office-hours skill in [Garry Tan's gstack](https://github.com/garrytan/gstack), with the gstack-specific harness scaffolding stripped out. Original content by Garry Tan, used under MIT.
+
 ## License
 
 MIT
