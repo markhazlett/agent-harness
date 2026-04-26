@@ -17,7 +17,7 @@ The `VERSION` file at the repo root is the source of truth that `bin/harness-upd
 Skip the bump for: docs-only edits that don't change skill content, internal refactors with no behavior change, fixes to this CLAUDE.md.
 
 **Versioning convention** (semver-ish):
-- **Minor** (`0.X.0`) for new features — new skill, new hook category, new integration. Past examples: `0.2.0` added the update-check pattern, `0.3.0` added Conductor integration, `0.4.0` added `/office-hours`.
+- **Minor** (`0.X.0`) for new features — new skill, new hook category, new integration. Past examples: `0.2.0` added the update-check pattern, `0.3.0` added Conductor integration, `0.4.0` added `/office-hours`, `0.5.0` added `/learn`.
 - **Patch** (`0.X.Y`) for fixes and small tweaks to existing behavior.
 
 Do the bump as part of the feature commit (or a `chore: bump version to X.Y.Z` commit in the same PR). Don't ship the feature and the bump in separate PRs — that defeats the point of update-check.

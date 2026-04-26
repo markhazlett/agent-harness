@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# bin/learn — helper for the /learn skill.
+# Subcommand: write-project — atomically write a project-scoped learning
+# into docs/learnings/<slug>.md and update CLAUDE.md ## Learnings index.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bin/learn write-project --name <NAME> --summary <SUMMARY> --body-file <FILE>
+
+Writes a project-scoped learning into:
+  - docs/learnings/<slug>.md  (full body with frontmatter)
+  - CLAUDE.md ## Learnings    (one-liner index entry)
+
+Creates docs/learnings/, CLAUDE.md, and the ## Learnings section as
+needed. Prints the path of the written body file to stdout.
+EOF
+}
+
+slugify() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//'
+}
+
+# read_frontmatter_field <file> <field-name>
+# Prints the value of the YAML frontmatter field, or empty string if absent.
+# Frontmatter is the first --- ... --- block in the file.
+read_frontmatter_field() {
+  local file="$1" field="$2"
+  awk -v f="$field" '
+    /^---$/ { in_fm = !in_fm; next }
+    in_fm && index($0, f ":") == 1 {
+      sub("^" f ":[ ]*", "")
+      print
+      exit
+    }
+  ' "$file"
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  write-project) ;;
+  ""|-h|--help|help) usage; exit 0 ;;
+  *) echo "Unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac
+
+NAME="" SUMMARY="" BODY_FILE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name) NAME="$2"; shift 2 ;;
+    --summary) SUMMARY="$2"; shift 2 ;;
+    --body-file) BODY_FILE="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$NAME" ] && [ -n "$SUMMARY" ] && [ -n "$BODY_FILE" ] || {
+  echo "Missing required args" >&2; usage >&2; exit 2
+}
+[ -f "$BODY_FILE" ] || { echo "Body file not found: $BODY_FILE" >&2; exit 2; }
+
+SLUG=$(slugify "$NAME")
+[ -n "$SLUG" ] || { echo "Could not derive slug from --name" >&2; exit 2; }
+
+mkdir -p docs/learnings
+TARGET="docs/learnings/${SLUG}.md"
+TODAY=$(date -u +"%Y-%m-%d")
+
+# Detect existing file: same slug + same name → update; same slug + different name → collision (Task 4)
+EXISTING_NAME=""
+EXISTING_CREATED=""
+if [ -f "$TARGET" ]; then
+  EXISTING_NAME=$(read_frontmatter_field "$TARGET" "name")
+  EXISTING_CREATED=$(read_frontmatter_field "$TARGET" "created")
+fi
+
+CREATED="$TODAY"
+if [ "$EXISTING_NAME" = "$NAME" ] && [ -n "$EXISTING_CREATED" ]; then
+  # Same slug + same name → in-place update; preserve created.
+  CREATED="$EXISTING_CREATED"
+elif [ -n "$EXISTING_NAME" ]; then
+  # Slug collision (different name): pick first available -N suffix.
+  N=2
+  while [ -f "docs/learnings/${SLUG}-${N}.md" ]; do
+    EXISTING_N_NAME=$(read_frontmatter_field "docs/learnings/${SLUG}-${N}.md" "name")
+    if [ "$EXISTING_N_NAME" = "$NAME" ]; then
+      EXISTING_N_CREATED=$(read_frontmatter_field "docs/learnings/${SLUG}-${N}.md" "created")
+      CREATED="${EXISTING_N_CREATED:-$TODAY}"
+      break
+    fi
+    N=$((N + 1))
+  done
+  SLUG="${SLUG}-${N}"
+  TARGET="docs/learnings/${SLUG}.md"
+fi
+
+{
+  printf -- '---\n'
+  printf 'name: %s\n' "$NAME"
+  printf 'created: %s\n' "$CREATED"
+  printf 'updated: %s\n' "$TODAY"
+  printf 'tags: []\n'
+  printf -- '---\n\n'
+  cat "$BODY_FILE"
+} > "${TARGET}.tmp" && mv "${TARGET}.tmp" "$TARGET"
+
+# Ensure CLAUDE.md and ## Learnings section
+if [ ! -f CLAUDE.md ]; then
+  printf '## Learnings\n\n' > CLAUDE.md
+elif ! grep -q '^## Learnings$' CLAUDE.md; then
+  # Append section. Leading newline guards against files that don't end in one.
+  printf '\n## Learnings\n\n' >> CLAUDE.md
+fi
+
+# Insert or replace the index entry under ## Learnings
+ENTRY="- [$NAME]($TARGET) — $SUMMARY"
+awk -v entry="$ENTRY" -v target="]($TARGET)" '
+  BEGIN { in_section = 0; inserted = 0 }
+  /^## Learnings$/ { print; in_section = 1; next }
+  in_section && /^## / {
+    if (!inserted) { print entry; inserted = 1 }
+    in_section = 0; print; next
+  }
+  in_section && index($0, "- [") == 1 && index($0, target) > 0 { print entry; inserted = 1; next }
+  { print }
+  END { if (in_section && !inserted) print entry }
+' CLAUDE.md > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+
+echo "$TARGET"

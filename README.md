@@ -46,6 +46,8 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 **Specialized agents for the hard parts.** A read-only `validator` (Opus) that runs tests / lint / format / security checks. An `e2e-tester` (Sonnet) that drives a real Chrome browser. A `migration-validator` (Haiku) for schema changes. Dispatch them with `/orchestrate` or the `Agent` tool.
 
+**A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into `CLAUDE.md` (project) or your memory (user). Run it after a tough session — next time, the agent already knows.
+
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
 ---
@@ -125,6 +127,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 | `/ad-hoc-plan` | Mid-sprint | Quick plan for a one-off task |
 | `/build <plan>` | Execution | Run a sprint plan end-to-end |
 | `/ship` | Shipping | Test → lint → commit → push → PR |
+| `/learn` | After a session | Capture corrections from the session into project + user learnings |
 | `/sync` | Reset | Switch to main and pull |
 
 **Quality**

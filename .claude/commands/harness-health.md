@@ -30,7 +30,16 @@ Read `.claude/hooks/harness.config.sh` for `HARNESS_LINT_CMD` and run it.
 
 Read `.claude/hooks/harness.config.sh` for `HARNESS_TEST_CMD` and run it.
 
-### 5. Settings Wiring
+### 5. Learn Helper
+
+Verify `bin/learn` exists and is executable, then run its test suite:
+
+```bash
+test -x bin/learn && echo "PASS bin/learn" || echo "FAIL bin/learn (missing or not executable)"
+bash bin/tests/learn.test.sh >/dev/null 2>&1 && echo "PASS learn tests" || echo "FAIL learn tests"
+```
+
+### 6. Settings Wiring
 
 Verify `.claude/settings.json` has all hooks wired:
 - `SessionStart` → `init.sh` (startup) and `context-reinject.sh` (resume|compact)
@@ -40,7 +49,7 @@ Verify `.claude/settings.json` has all hooks wired:
 - `PreCompact` → `pre-compact.sh`
 - `Stop` → `stop.sh`
 
-### 6. Agent Files
+### 7. Agent Files
 
 Verify each agent file exists:
 - `.claude/agents/builder.md`
@@ -48,7 +57,7 @@ Verify each agent file exists:
 - `.claude/agents/e2e-tester.md`
 - `.claude/agents/migration-validator.md`
 
-### 7. Config Populated
+### 8. Config Populated
 
 Read `.claude/hooks/harness.config.sh` and verify key values are set:
 - `HARNESS_PKG_MGR` is set
