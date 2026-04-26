@@ -28,8 +28,9 @@ cd "$TEST_DIR" && git init -q && git add . && git commit -q -m init
 #   lockfile: Enter
 #   DB schema/generate/push/migrations: all Enter (blank)
 #   required env: Enter (blank)
+#   LangGraph opt-in: Enter (defaults to N — disabled)
 #   Generate conductor.json: Y
-printf '1\nTestApp\npnpm\nsrc\n\n\n\n\n\n\n3000\n\n\n\n\n\n\nY\n' | bash "$TEST_DIR/setup.sh"
+printf '1\nTestApp\npnpm\nsrc\n\n\n\n\n\n\n3000\n\n\n\n\n\n\n\nY\n' | bash "$TEST_DIR/setup.sh"
 
 # ── Test: conductor.json was created ──
 [[ -f "$TEST_DIR/conductor.json" ]] || fail "conductor.json created" "file not found"
