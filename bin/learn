@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# bin/learn — helper for the /learn skill.
+# Subcommand: write-project — atomically write a project-scoped learning
+# into docs/learnings/<slug>.md and update CLAUDE.md ## Learnings index.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bin/learn write-project --name <NAME> --summary <SUMMARY> --body-file <FILE>
+
+Writes a project-scoped learning into:
+  - docs/learnings/<slug>.md  (full body with frontmatter)
+  - CLAUDE.md ## Learnings    (one-liner index entry)
+
+Creates docs/learnings/, CLAUDE.md, and the ## Learnings section as
+needed. Prints the path of the written body file to stdout.
+EOF
+}
+
+slugify() {
+  echo "$1" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' '-' | sed -E 's/-+/-/g; s/^-//; s/-$//'
+}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  write-project) ;;
+  ""|-h|--help|help) usage; exit 0 ;;
+  *) echo "Unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac
+
+NAME="" SUMMARY="" BODY_FILE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --name) NAME="$2"; shift 2 ;;
+    --summary) SUMMARY="$2"; shift 2 ;;
+    --body-file) BODY_FILE="$2"; shift 2 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$NAME" ] && [ -n "$SUMMARY" ] && [ -n "$BODY_FILE" ] || {
+  echo "Missing required args" >&2; usage >&2; exit 2
+}
+[ -f "$BODY_FILE" ] || { echo "Body file not found: $BODY_FILE" >&2; exit 2; }
+
+SLUG=$(slugify "$NAME")
+[ -n "$SLUG" ] || { echo "Could not derive slug from --name" >&2; exit 2; }
+
+mkdir -p docs/learnings
+TARGET="docs/learnings/${SLUG}.md"
+TODAY=$(date -u +"%Y-%m-%d")
+
+# Write body file (fresh-repo path: always create new)
+{
+  printf -- '---\n'
+  printf 'name: %s\n' "$NAME"
+  printf 'created: %s\n' "$TODAY"
+  printf 'updated: %s\n' "$TODAY"
+  printf 'tags: []\n'
+  printf -- '---\n\n'
+  cat "$BODY_FILE"
+} > "$TARGET"
+
+# Ensure CLAUDE.md and ## Learnings section
+if [ ! -f CLAUDE.md ]; then
+  printf '## Learnings\n\n' > CLAUDE.md
+elif ! grep -q '^## Learnings$' CLAUDE.md; then
+  # Append section. Leading newline guards against files that don't end in one.
+  printf '\n## Learnings\n\n' >> CLAUDE.md
+fi
+
+# Append the index entry under ## Learnings
+ENTRY="- [$NAME]($TARGET) — $SUMMARY"
+awk -v entry="$ENTRY" '
+  BEGIN { in_section = 0; inserted = 0 }
+  /^## Learnings$/ { print; in_section = 1; next }
+  in_section && /^## / { if (!inserted) { print entry; inserted = 1 } in_section = 0; print; next }
+  { print }
+  END { if (in_section && !inserted) print entry }
+' CLAUDE.md > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+
+echo "$TARGET"
