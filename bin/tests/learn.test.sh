@@ -112,6 +112,58 @@ EOF
 
 test_existing_claude_md_no_learnings_section
 
+test_update_existing_entry() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  cat > body1.md <<'EOF'
+**Rule:** Always use pnpm.
+
+**Why:** Initial reason.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Use pnpm" --summary "never npm" \
+    --body-file body1.md > /dev/null
+
+  local original_created
+  original_created=$(grep '^created:' docs/learnings/use-pnpm.md)
+
+  cat > body2.md <<'EOF'
+**Rule:** Always use pnpm.
+
+**Why:** Updated reason — pnpm workspaces are required.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Use pnpm" --summary "pnpm workspaces required" \
+    --body-file body2.md > /dev/null
+
+  # Same file (no -2 suffix)
+  assert_file_exists "docs/learnings/use-pnpm.md" "file kept" || return
+  if [ -f "docs/learnings/use-pnpm-2.md" ]; then
+    fail "no suffixed file for same-name update" "docs/learnings/use-pnpm-2.md should not exist"
+    return
+  fi
+  # Body replaced (not merged blindly)
+  assert_file_contains "docs/learnings/use-pnpm.md" "Updated reason" "new body present" || return
+  assert_file_not_contains "docs/learnings/use-pnpm.md" "Initial reason" "old body replaced" || return
+  # 'created' preserved
+  if ! grep -qF "$original_created" docs/learnings/use-pnpm.md; then
+    fail "created date preserved" "expected '$original_created' to still be present"
+    return
+  fi
+  # Index entry updated, not duplicated
+  local count
+  count=$(grep -cF "[Use pnpm]" CLAUDE.md)
+  if [ "$count" != "1" ]; then
+    fail "single index entry" "expected 1 occurrence, got $count"
+    return
+  fi
+  assert_file_contains "CLAUDE.md" "pnpm workspaces required" "index summary updated" || return
+  assert_file_not_contains "CLAUDE.md" "never npm" "old index summary replaced" || return
+  pass "update existing entry preserves created, replaces body and index"
+}
+
+test_update_existing_entry
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
