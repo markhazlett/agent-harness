@@ -26,9 +26,21 @@ assert_file_not_contains() {
   fi
 }
 
+_TEST_DIR_LIST=$(mktemp)
+cleanup_test_dirs() {
+  if [ -f "$_TEST_DIR_LIST" ]; then
+    while IFS= read -r d; do
+      [ -d "$d" ] && rm -rf "$d"
+    done < "$_TEST_DIR_LIST"
+    rm -f "$_TEST_DIR_LIST"
+  fi
+}
+trap cleanup_test_dirs EXIT
+
 setup_temp_repo() {
   local repo
   repo=$(mktemp -d)
+  echo "$repo" >> "$_TEST_DIR_LIST"
   (cd "$repo" && git init -q)
   echo "$repo"
 }
@@ -60,6 +72,45 @@ EOF
 }
 
 test_fresh_repo_creates_files
+
+test_existing_claude_md_no_learnings_section() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  cat > CLAUDE.md <<'EOF'
+# My Project
+
+Some intro text.
+
+## Conventions
+
+- Indent with 2 spaces.
+EOF
+  cat > body.md <<'EOF'
+**Rule:** Always run typecheck before commit.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Run typecheck before commit" \
+    --summary "catch type errors before push" \
+    --body-file body.md > /dev/null
+  # Existing content preserved
+  assert_file_contains "CLAUDE.md" "# My Project" "preserves heading" || return
+  assert_file_contains "CLAUDE.md" "## Conventions" "preserves existing section" || return
+  assert_file_contains "CLAUDE.md" "Indent with 2 spaces" "preserves existing content" || return
+  # New section appended
+  assert_file_contains "CLAUDE.md" "## Learnings" "appends Learnings section" || return
+  assert_file_contains "CLAUDE.md" "[Run typecheck before commit]" "appends index entry" || return
+  # Section is at the bottom
+  local conv_line learn_line
+  conv_line=$(grep -n '^## Conventions$' CLAUDE.md | cut -d: -f1)
+  learn_line=$(grep -n '^## Learnings$' CLAUDE.md | cut -d: -f1)
+  if [ "$learn_line" -le "$conv_line" ]; then
+    fail "Learnings appears at bottom" "## Learnings line=$learn_line should be > ## Conventions line=$conv_line"
+    return
+  fi
+  pass "preserves existing CLAUDE.md and appends Learnings section"
+}
+
+test_existing_claude_md_no_learnings_section
 
 # ---- summary ----
 echo ""
