@@ -111,6 +111,17 @@ read -p "DB migrations directory (e.g. prisma/migrations) [blank]: " DB_MIGRATIO
 echo ""
 read -p "Required env vars for pre-deploy check (space-separated, e.g. DATABASE_URL API_KEY) [blank]: " REQUIRED_ENV
 
+echo ""
+echo "LangGraph skill set (opt-in):"
+echo "  Adds /lg-design, /lg-scaffold, /lg-add, /lg-eval, /lg-review,"
+echo "  and /lg-cheatsheet for building LangChain/LangGraph agents."
+read -p "Enable? [y/N]: " LG_CHOICE
+LG_CHOICE="${LG_CHOICE:-N}"
+case "$LG_CHOICE" in
+  [Yy]*) HARNESS_LANGGRAPH="true" ;;
+  *)     HARNESS_LANGGRAPH="false" ;;
+esac
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Write harness.config.sh
 # ──────────────────────────────────────────────────────────────────────────────
@@ -142,6 +153,7 @@ HARNESS_DB_PUSH_CMD="${DB_PUSH:-}"
 HARNESS_DB_MIGRATIONS_DIR="${DB_MIGRATIONS:-}"
 HARNESS_FORMATTABLE_EXTS="ts|tsx|js|jsx|json|css"
 HARNESS_REQUIRED_ENV_VARS="${REQUIRED_ENV:-}"
+HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH}"
 EOF
 
 echo "Wrote $CONFIG"
