@@ -59,38 +59,33 @@ Key v1 changes:
 - **`message.contentBlocks`** — provider-agnostic typed view of message content (replaces `.content` string hacks for multi-modal).
 - **Stream event node name** — node renamed `"agent"` → `"model"` in `streamEvents`. Update any FE consumers.
 - **`context` parameter** — replaces `config.configurable` for passing app-level state through to nodes.
-- **Middleware is the extensibility surface** — don't monkey-patch nodes; use `wrapModelCall`, `wrapToolCall`, `beforeAgent`, `afterAgent` hooks.
+- **Middleware is the extensibility surface** — don't monkey-patch nodes; use the full hook set: `beforeAgent`, `beforeModel`, `wrapModelCall`, `wrapToolCall`, `afterModel`, `afterAgent`. `beforeModel` and `afterModel` fire around every LLM call inside the agent loop.
 
 ## 3. State + Reducers
 
-State is defined via `Annotation.Root`. Every channel needs an explicit reducer or it silently overwrites on parallel node execution.
+State is defined via `StateSchema` (v1-current). Every channel needs an explicit reducer or it silently overwrites on parallel node execution.
 
-```typescript
-import { Annotation, MessagesAnnotation } from "@langchain/langgraph";
+```ts
+import { StateSchema, MessagesValue, ReducedValue } from "@langchain/langgraph";
+import { z } from "zod";
 
-const State = Annotation.Root({
-  // Spread MessagesAnnotation.spec for the standard append+dedup message channel
-  ...MessagesAnnotation.spec,
-  // Custom channels — always declare a reducer for anything that can be written concurrently
-  urls: Annotation<string[]>({
-    reducer: (existing, incoming) => [...new Set([...existing, ...incoming])],
-    default: () => [],
-  }),
-  status: Annotation<string>({
-    reducer: (_, incoming) => incoming,  // explicit last-write-wins
-    default: () => "idle",
-  }),
+const State = new StateSchema({
+  messages: MessagesValue,                    // append + dedup messages channel
+  retries: new ReducedValue(
+    z.number().default(() => 0),
+    { reducer: (cur, next) => cur + next }
+  ),
 });
 
-// Use these types for node signatures — don't use `any`
-type StateType = typeof State.State;
-type UpdateType = typeof State.Update;
+type S = typeof State.State;
+type U = typeof State.Update;
 ```
 
 - **Default reducer = overwrite** — if you omit the reducer, the channel takes the last write. Fatal for arrays and sets in parallel subgraphs.
-- **`MessagesAnnotation.spec`** — provides append semantics + message ID deduplication for the `messages` channel. Spread it, don't reimplement it.
+- **`MessagesValue`** — provides append semantics + message ID deduplication for the `messages` channel. Use `MessagesValue` directly; don't reimplement it.
 - **`typeof State.State`** — full state shape for node inputs.
 - **`typeof State.Update`** — partial update shape for node return values.
+- **`Annotation.Root` is a legacy alias** — still works, but prefer `StateSchema`. Legacy shape: `Annotation.Root({ ...MessagesAnnotation.spec, ... })`.
 
 ## 4. Streaming Map
 
@@ -207,7 +202,7 @@ Trims the messages channel before it hits the context window limit. Applied as m
 `interrupt()` pauses graph execution at a node boundary and waits for a `Command` resume.
 
 ```typescript
-import { interrupt, Command } from "@langchain/langgraph";
+import { interrupt, Command, INTERRUPT, isInterrupted } from "@langchain/langgraph";
 
 // In a node — pause execution and surface a value to the caller
 async function reviewNode(state: StateType) {
@@ -226,7 +221,25 @@ const result = await graph.invoke(
 );
 ```
 
-**Multi-interrupt** — if multiple `interrupt()` calls fire, resume with a map keyed by interrupt ID.
+**Multi-interrupt** — if multiple `interrupt()` calls fire, use the `INTERRUPT` symbol + `isInterrupted()` helper to collect responses, then resume with a map keyed by auto-generated interrupt IDs:
+
+```ts
+import { interrupt, Command, INTERRUPT, isInterrupted } from "@langchain/langgraph";
+
+const result = await graph.invoke(input, config);
+
+const resumeMap: Record<string, string> = {};
+if (isInterrupted(result)) {
+  for (const i of result[INTERRUPT]) {
+    if (i.id != null) {
+      resumeMap[i.id] = await getHumanResponse(i.value);
+    }
+  }
+}
+await graph.invoke(new Command({ resume: resumeMap }), config);
+```
+
+Note: the keys are auto-generated `i.id` values from the framework — the user does not name them.
 
 **Node-restart footgun** — when resuming, the node that contained `interrupt()` re-executes from the top. Any side effects (API calls, writes) before the `interrupt()` call will fire again. Guard them:
 
@@ -238,6 +251,14 @@ async function reviewNode(state: StateType) {
   const decision = interrupt({ question: "Approve?" });
   return { approved: decision === "yes" };
 }
+```
+
+```ts
+import {
+  humanInTheLoopMiddleware,
+  summarizationMiddleware,
+  todoListMiddleware,
+} from "langchain";
 ```
 
 `humanInTheLoopMiddleware` from `langchain` is the `createAgent`-compatible shortcut — adds interrupt at tool-call boundaries without dropping to raw `StateGraph`.
@@ -323,20 +344,17 @@ const forkedResult = await graph.invoke(null, replayConfig);
 
 `deepagents` is an opinionated harness for long-horizon agents. Use it when you need planning loops, sub-agents, and virtual FS — not for simple tool-using agents.
 
-```typescript
-import { createDeepAgent } from "deepagents";
+```ts
+import { createDeepAgent, StoreBackend } from "deepagents";
+import { InMemoryStore } from "@langchain/langgraph";
 
 const agent = createDeepAgent({
-  model: chatModel,
-  tools: [searchTool, codeTool],
-  systemPrompt: mySystemPrompt,
-  subAgents: [
-    { name: "researcher", agent: researcherAgent },
-    { name: "validator", agent: validatorAgent },  // v0.5: async sub-agents
-  ],
-  middleware: [todoListMiddleware(), summarizationMiddleware({ maxTokens: 8000 })],
-  recursionLimit: 200,  // ALWAYS set explicitly — default is 10000
-  fsBackend: new StoreBackend(store),  // cross-thread; use Filesystem or Sandbox for true FS
+  model: "claude-sonnet-4-5-20250929",
+  tools: [/* ... */],
+  backend: new StoreBackend(),     // correct param name; constructor takes no args
+  store: new InMemoryStore(),      // store passed at top level
+  recursionLimit: 50,              // explicit budget; framework default 25 is too low
+  // ...
 });
 ```
 
@@ -352,7 +370,7 @@ const agent = createDeepAgent({
 - `Filesystem` — real local FS. Fine for local dev.
 - `Sandbox` — Daytona / Deno Deploy / Modal for isolated execution.
 
-**`recursionLimit`** — leave at default (10000) and a runaway agent will exhaust your budget before hitting the limit. Set it to a real budget (50-500 depending on task complexity).
+**`recursionLimit`** — LangGraph framework default is 25 — too low for Deep Agents. The Deep Agents customization guide uses 50; for long-horizon planning, pass an explicit budget (typically 50–500) — high enough not to crash, low enough not to bankrupt you.
 
 ## 12. LangSmith Setup
 
@@ -435,9 +453,9 @@ These are the mistakes that waste hours. Memorize them.
 - **`Send` payload ≠ parent state.** `Send("node", payload)` delivers payload as the node's input — it must match the target node's expected state shape, not the parent's.
 - **Pre-binding tools breaks structured output.** Calling `model.bindTools(tools)` then passing the bound model to `createAgent` collides with `createAgent`'s own tool binding. Pass raw tools only.
 - **Missing `subgraphs: true` on `getState()`.** `graph.getState(config)` without `{ subgraphs: true }` returns parent state only — child checkpoint state invisible.
-- **Unbounded `recursionLimit` in Deep Agents.** Default is 10000. A planning loop bug will burn your entire LLM budget before hitting the limit. Set explicitly (50-500).
+- **`recursionLimit` not raised in Deep Agents.** Framework default is 25 — Deep Agent planning loops will hit `GraphRecursionError` quickly. Pass `recursionLimit: 50` or higher explicitly.
 - **Deep Agent FS persistence — `StateBackend` is ephemeral.** `StateBackend` stores files in graph state — lost on cold start. Use `StoreBackend` (Postgres-backed) or `Filesystem` for anything that must survive.
-- **Message ID dedup in `MessagesAnnotation`.** Re-sending a message with the same `id` replaces the existing message rather than appending. Use unique IDs or let the framework generate them.
+- **Message ID dedup in `MessagesValue` / `MessagesAnnotation`.** Both `MessagesValue` (current API) and `MessagesAnnotation` (legacy) provide the same dedup semantics: re-sending a message with the same `id` replaces the existing message rather than appending. Use unique IDs or let the framework generate them.
 - **Serverless `LANGCHAIN_CALLBACKS_BACKGROUND=true` losing traces.** The default (`true`) uploads traces async — the process exits before upload completes. Set `LANGCHAIN_CALLBACKS_BACKGROUND=false` in any serverless environment.
 
 ## 15. Deprecation List
@@ -460,7 +478,7 @@ Wire these from day 1, not as an afterthought before launch.
 **Resilience:**
 - [ ] Retry config on all tool calls that hit external systems (`RetryOptions` in tool config).
 - [ ] Fallback model for production LLM calls (`model.withFallbacks([cheaperModel])`).
-- [ ] Rate-limit middleware if tools share an API key.
+- [ ] Rate-limit middleware if tools share an API key (`beforeModel` is the right hook — fires before every LLM call).
 - [ ] Error handling: `ToolNode` error mode set to `"continue"` unless you want throws.
 
 **Persistence:**
@@ -484,7 +502,7 @@ Wire these from day 1, not as an afterthought before launch.
 - [ ] Timeout / expiry strategy for long-running interrupt waits.
 
 **Deep Agents (if applicable):**
-- [ ] `recursionLimit` set to a real budget (not left at 10000).
+- [ ] `recursionLimit` set to an explicit budget (50–500); framework default 25 is too low for Deep Agents.
 - [ ] FS backend chosen deliberately (`StoreBackend` for durability, not `StateBackend`).
 - [ ] Async sub-agents configured if tasks can parallelize (v0.5+).
 
