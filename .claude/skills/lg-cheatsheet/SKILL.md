@@ -77,14 +77,14 @@ const State = new StateSchema({
   ),
 });
 
-type S = typeof State.State;
-type U = typeof State.Update;
+type StateType = typeof State.State;
+type UpdateType = typeof State.Update;
 ```
 
 - **Default reducer = overwrite** — if you omit the reducer, the channel takes the last write. Fatal for arrays and sets in parallel subgraphs.
 - **`MessagesValue`** — provides append semantics + message ID deduplication for the `messages` channel. Use `MessagesValue` directly; don't reimplement it.
-- **`typeof State.State`** — full state shape for node inputs.
-- **`typeof State.Update`** — partial update shape for node return values.
+- **`typeof State.State`** (`StateType`) — full state shape for node inputs.
+- **`typeof State.Update`** (`UpdateType`) — partial update shape for node return values.
 - **`Annotation.Root` is a legacy alias** — still works, but prefer `StateSchema`. Legacy shape: `Annotation.Root({ ...MessagesAnnotation.spec, ... })`.
 
 ## 4. Streaming Map
@@ -253,6 +253,8 @@ async function reviewNode(state: StateType) {
 }
 ```
 
+These three middlewares ship from the `langchain` entrypoint:
+
 ```ts
 import {
   humanInTheLoopMiddleware,
@@ -261,7 +263,7 @@ import {
 } from "langchain";
 ```
 
-`humanInTheLoopMiddleware` from `langchain` is the `createAgent`-compatible shortcut — adds interrupt at tool-call boundaries without dropping to raw `StateGraph`.
+`humanInTheLoopMiddleware` is the `createAgent`-compatible shortcut — adds interrupt at tool-call boundaries without dropping to raw `StateGraph`.
 
 ## 8. Multi-Agent Patterns
 
@@ -353,9 +355,11 @@ const agent = createDeepAgent({
   tools: [/* ... */],
   backend: new StoreBackend(),     // correct param name; constructor takes no args
   store: new InMemoryStore(),      // store passed at top level
-  recursionLimit: 50,              // explicit budget; framework default 25 is too low
-  // ...
 });
+
+// Pass recursionLimit at invoke time (not at construction).
+// Framework default is 25 — too low for Deep Agents.
+await agent.invoke(input, { recursionLimit: 50 });
 ```
 
 **Four pillars of Deep Agents:**
@@ -453,7 +457,7 @@ These are the mistakes that waste hours. Memorize them.
 - **`Send` payload ≠ parent state.** `Send("node", payload)` delivers payload as the node's input — it must match the target node's expected state shape, not the parent's.
 - **Pre-binding tools breaks structured output.** Calling `model.bindTools(tools)` then passing the bound model to `createAgent` collides with `createAgent`'s own tool binding. Pass raw tools only.
 - **Missing `subgraphs: true` on `getState()`.** `graph.getState(config)` without `{ subgraphs: true }` returns parent state only — child checkpoint state invisible.
-- **`recursionLimit` not raised in Deep Agents.** Framework default is 25 — Deep Agent planning loops will hit `GraphRecursionError` quickly. Pass `recursionLimit: 50` or higher explicitly.
+- **`recursionLimit` not raised in Deep Agents.** Framework default is 25 — Deep Agent planning loops will hit `GraphRecursionError` quickly. Pass `recursionLimit: 50` (or higher) in the `.invoke()` config, not on `createDeepAgent`.
 - **Deep Agent FS persistence — `StateBackend` is ephemeral.** `StateBackend` stores files in graph state — lost on cold start. Use `StoreBackend` (Postgres-backed) or `Filesystem` for anything that must survive.
 - **Message ID dedup in `MessagesValue` / `MessagesAnnotation`.** Both `MessagesValue` (current API) and `MessagesAnnotation` (legacy) provide the same dedup semantics: re-sending a message with the same `id` replaces the existing message rather than appending. Use unique IDs or let the framework generate them.
 - **Serverless `LANGCHAIN_CALLBACKS_BACKGROUND=true` losing traces.** The default (`true`) uploads traces async — the process exits before upload completes. Set `LANGCHAIN_CALLBACKS_BACKGROUND=false` in any serverless environment.
