@@ -99,11 +99,11 @@ version_gt() {
 
 if version_gt "$REMOTE_VERSION" "$LOCAL_VERSION"; then
   # Newer version available
-  echo "${NOW}|UPGRADE_AVAILABLE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
+  echo "UPGRADE_AVAILABLE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
   echo "UPGRADE_AVAILABLE ${LOCAL_VERSION} ${REMOTE_VERSION}"
 else
   # Up to date
-  echo "${NOW}|UP_TO_DATE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
+  echo "UP_TO_DATE|${REMOTE_VERSION}|${NOW}" > "$CACHE_FILE"
 fi
 
 exit 0
