@@ -48,6 +48,8 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 **A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into `CLAUDE.md` (project) or your memory (user). Run it after a tough session — next time, the agent already knows.
 
+**LangGraph track (opt-in).** Six `/lg-*` skills for building LangChain v1 / LangGraph v1 / Deep Agents work in TS — design (`/lg-design`), scaffold (`/lg-scaffold`), capability adds (`/lg-add`), evals (`/lg-eval`), audit (`/lg-review`), and a v1-current cheatsheet (`/lg-cheatsheet`). Default off; enable during `./setup.sh`.
+
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
 ---
@@ -149,6 +151,17 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 | `/incident` | Production issues | Structured incident response |
 | `/worktree` | Parallel work | Git worktree management |
 | `/harness-overview` | Reference | Full harness documentation |
+
+**LangGraph (opt-in via `./setup.sh`)**
+
+| Skill | When | Purpose |
+|---|---|---|
+| `/lg-design` | Before agent code | Design conversation, picks pattern, produces design doc |
+| `/lg-scaffold` | New agent | Generates runnable v1 code (createAgent / StateGraph / Deep Agent) |
+| `/lg-add` | Existing agent | Adds HITL / persistence / streaming / sub-agent / tool / middleware / store |
+| `/lg-eval` | After scaffold | LangSmith or local-only eval harness with trajectory checks |
+| `/lg-review` | Anytime | Audits for v1 best practices, deprecated patterns, footguns |
+| `/lg-cheatsheet` | Reference | v1 API, footgun list, deprecation list |
 
 </details>
 
