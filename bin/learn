@@ -90,14 +90,14 @@ fi
 
 # Insert or replace the index entry under ## Learnings
 ENTRY="- [$NAME]($TARGET) — $SUMMARY"
-awk -v entry="$ENTRY" -v target="($TARGET)" '
+awk -v entry="$ENTRY" -v target="]($TARGET)" '
   BEGIN { in_section = 0; inserted = 0 }
   /^## Learnings$/ { print; in_section = 1; next }
   in_section && /^## / {
     if (!inserted) { print entry; inserted = 1 }
     in_section = 0; print; next
   }
-  in_section && index($0, target) > 0 { print entry; inserted = 1; next }
+  in_section && index($0, "- [") == 1 && index($0, target) > 0 { print entry; inserted = 1; next }
   { print }
   END { if (in_section && !inserted) print entry }
 ' CLAUDE.md > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md

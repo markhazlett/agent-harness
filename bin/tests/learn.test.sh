@@ -164,6 +164,51 @@ EOF
 
 test_update_existing_entry
 
+test_index_update_does_not_clobber_prose() {
+  local repo; repo=$(setup_temp_repo)
+  cd "$repo"
+  cat > body1.md <<'EOF'
+**Rule:** Always X.
+
+**Why:** Initial.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Always X" --summary "v1" \
+    --body-file body1.md > /dev/null
+
+  # Manually add prose under ## Learnings that mentions the path in parens.
+  # This simulates a human-edited CLAUDE.md.
+  cat >> CLAUDE.md <<'EOF'
+  - See also notes referencing (docs/learnings/always-x.md) for related context.
+EOF
+
+  cat > body2.md <<'EOF'
+**Rule:** Always X.
+
+**Why:** Updated.
+EOF
+  "$LEARN_BIN" write-project \
+    --name "Always X" --summary "v2" \
+    --body-file body2.md > /dev/null
+
+  # The prose line should still exist verbatim.
+  assert_file_contains "CLAUDE.md" "See also notes referencing (docs/learnings/always-x.md) for related context." "prose preserved" || return
+  # The actual index line is updated to v2.
+  assert_file_contains "CLAUDE.md" "[Always X](docs/learnings/always-x.md) — v2" "index entry updated" || return
+  # Old summary gone.
+  assert_file_not_contains "CLAUDE.md" "— v1" "old index summary replaced" || return
+  # Exactly one canonical index line for this learning.
+  local count
+  count=$(grep -cE '^- \[Always X\]' CLAUDE.md)
+  if [ "$count" != "1" ]; then
+    fail "single canonical index entry" "expected 1, got $count"
+    return
+  fi
+  pass "index update does not clobber prose lines that mention the path"
+}
+
+test_index_update_does_not_clobber_prose
+
 # ---- summary ----
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
