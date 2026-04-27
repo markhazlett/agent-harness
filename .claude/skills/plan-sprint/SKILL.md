@@ -42,6 +42,24 @@ Before proposing any projects:
 
 4. **Inventory the demo script.** Map each demo scene to the work required. Scenes tagged `[Exists]` need no project. Scenes tagged `[Extend]` or `[Build]` each become a candidate project.
 
+## Phase 1.5: LangGraph awareness (skip if no agent work)
+
+For each goal/project, check whether it involves LangChain/LangGraph agent work. Match against this regex (case-insensitive):
+
+```
+/(langgraph|langchain|deep ?agent|\b(ai|llm|chat) ?agent\b|tool ?calling|HITL|interrupt\(\)|checkpointer|state ?graph|create ?agent)/i
+```
+
+(Bare `\bagent\b` is intentionally excluded — the harness uses "agent" for sub-agents like validator/builder. Require an LLM-context qualifier or LangGraph-specific term to avoid false positives.)
+
+If the goal matches:
+
+1. **Recommend pre-planning architecture.** Tell the user: *"This goal involves agent work. Recommend running /lg-design first to produce a graph design before the plan locks. Run now?"* Use AskUserQuestion: Yes / No / Skip.
+
+2. **If yes**, invoke `/lg-design` via the `Skill` tool. The skill detects the open sprint dir and writes its design doc to `docs/plans/YYYY-wNN/sprint-plans/<slug>-graph-design.md`. Wait for it to complete, then resume here with the design doc path.
+
+3. **When generating the per-goal plan in Phase 3**, populate the `## Skills` section (see updated plan template) with `lg-*` skill references for each capability the goal needs. The graph design doc, if produced, gets linked from the goal's plan body.
+
 ## Phase 2: Propose the breakdown
 
 Present a summary table of proposed projects:
@@ -126,6 +144,16 @@ Description of what to do, with code scaffolding where it reduces ambiguity.
 
 ### Step 2: [Title]
 ...
+
+## Skills
+
+(For LangGraph/agent work only — omit if not applicable.)
+
+- `/lg-scaffold` — generate v1 code from the design doc
+- `/lg-add <capability>` — for each capability listed below
+- `/lg-eval` — set up the eval harness referenced in success criteria
+
+Design doc: <path to graph-design.md, if produced by /lg-design>
 
 ## Test Plan
 

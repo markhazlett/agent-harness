@@ -1,6 +1,6 @@
 ---
 name: build
-description: Execute a sprint plan end-to-end — branch, implement, test, verify in browser, commit incrementally, and prepare for PR. Pass it a sprint plan document path.
+description: Execute a sprint plan end-to-end — branch, implement, test, verify in browser, commit incrementally, and prepare for PR. Pass it a sprint plan document path. When plan steps involve LangGraph/LangChain agent work, /lg-* skills auto-fire (lg-scaffold, lg-add, lg-eval, lg-review).
 user-invocable: true
 ---
 

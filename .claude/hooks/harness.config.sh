@@ -68,6 +68,11 @@ HARNESS_FORMATTABLE_EXTS="${HARNESS_FORMATTABLE_EXTS:-ts|tsx|js|jsx|json|css}"
 # Example: "DATABASE_URL API_KEY AUTH_SECRET"
 HARNESS_REQUIRED_ENV_VARS="${HARNESS_REQUIRED_ENV_VARS:-}"
 
+# Opt-in: enable the LangGraph skill set (/lg-design, /lg-scaffold, /lg-add,
+# /lg-eval, /lg-review, /lg-cheatsheet). Skills are visible in the slash menu
+# either way; with this set to "false" they print an opt-in hint and exit.
+HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH:-false}"
+
 # Sprint complexity budget — max complexity points per sprint.
 # Complexity weights: [Build] = 3 pts, [Extend] = 1 pt, [Exists] = 0 pts.
 # Default 9 = 3× [Build] items, or 9× [Extend], or any mix.

@@ -28,10 +28,11 @@ cd "$TEST_DIR" && git init -q && git add . && git commit -q -m init
 #   12. lockfile: Enter
 #   13-16. DB schema/generate/push/migrations: all Enter (blank)
 #   17. required env: Enter (blank)
+#   18. LangGraph opt-in: Enter (defaults to N — disabled)
 #
 # Note: the "Generate conductor.json?" prompt must NOT appear in Claude Code
 # mode, so no answer for it is provided.
-printf '2\nTestApp\npnpm\nsrc\n\n\n\n\n\n\n3000\n\n\n\n\n\n\n' | bash "$TEST_DIR/setup.sh"
+printf '2\nTestApp\npnpm\nsrc\n\n\n\n\n\n\n3000\n\n\n\n\n\n\n\n' | bash "$TEST_DIR/setup.sh"
 
 # Test: harness.config.sh contains HARNESS_HOST="claude-code"
 grep -q '^HARNESS_HOST="claude-code"$' "$TEST_DIR/.claude/hooks/harness.config.sh" \
