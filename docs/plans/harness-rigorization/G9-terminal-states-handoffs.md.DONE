@@ -123,14 +123,16 @@ The `incident → fix-skill` handoff is partially deferred: `/incident` hands of
 
 ## Done criteria
 
-- [ ] `/lg-scaffold`, `/lg-design`, `/build-plan`, `/tdd` have explicit Terminal State sections.
-- [ ] `/tdd` handoff to `/e2e-verify` is conditional on UI-touching changes and clearly defined.
-- [ ] `/build-plan` requires quality skills when their conditions are met (no silent skips).
-- [ ] `/ship`'s risk-check is well-formed and references `/pre-deploy`.
-- [ ] `/incident → /debug` handoff is well-formed and verified.
-- [ ] `bin/test-terminal-states` exists and passes.
-- [ ] `/harness-health` invokes the validator.
-- [ ] All terminal-state phrasings are visually consistent across the 4 modified skills.
+- [x] `/lg-scaffold`, `/lg-design`, `/build-plan`, `/tdd` have explicit Terminal State sections.
+- [x] `/tdd` handoff to `/e2e-verify` is conditional on UI-touching changes (extensions `.tsx`/`.jsx`/`.vue`/`.svelte` and paths under `src/components/`/`apps/web/`).
+- [x] `/build-plan` Terminal State enumerates mandatory quality skill triggers (TDD on new functions, /debug on bugs, /e2e-verify on UI, /security-review on auth/data, /db-review on schema, /pre-deploy as final gate) — silent skips explicitly forbidden.
+- [x] `/ship`'s risk-check (added in G6) references `/pre-deploy`, asks once, respects user override per `CLAUDE.md` § Instruction precedence.
+- [x] `/incident → /debug` handoff (added in G8) is well-formed and verified — `/incident` doesn't write fixes; terminal state is "handoff to /debug completed."
+- [x] `bin/test-terminal-states` exists, exit codes documented, regression test in `bin/tests/test-terminal-states.test.sh` (2/2 PASS).
+- [x] `/harness-health` invokes the validator (section 5c).
+- [x] All four Terminal State phrasings use the same canonical template ("The next skill in the chain is `/X`. Do NOT invoke `/Y`, `/Z`, ..., or other implementation skills until `/X` completes — or the user explicitly overrides per `CLAUDE.md` § Instruction precedence.").
+
+VERSION 0.7.5 → 0.8.0 — workstream-final per the sub-plan's "after this lands" note. All 9 sub-plans (G1–G9) of the harness-rigorization workstream are now `.DONE`.
 
 ## Skills
 

@@ -408,6 +408,10 @@ Final message to the user:
 
 If scaffolded from a design doc, also note: "Design doc is linked in `graph.ts` header comment for traceability."
 
+## Terminal State
+
+The next skill in the chain is `/lg-add` (capability additions like HITL, persistence, streaming, sub-agents). Do NOT invoke `/lg-eval` (run after capabilities, not before scaffold), `/lg-review` (audit, not authoring), or other implementation skills until `/lg-add` completes — or the user explicitly overrides (per `CLAUDE.md` § Instruction precedence).
+
 ---
 
 ## Tone and approach

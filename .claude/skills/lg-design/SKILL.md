@@ -275,3 +275,7 @@ Tell the user:
 > "Design saved to `<path>`. Next: `/lg-scaffold <path>` to generate code."
 
 If sprint mode, also recommend: "Link this design from your sprint plan's `## Skills` section."
+
+## Terminal State
+
+The next skill in the chain is `/lg-scaffold <design-doc-path>`. Do NOT invoke `/lg-add` (capabilities go after scaffold), `/build` (no scaffold yet), or other implementation skills until `/lg-scaffold` completes — or the user explicitly overrides (per `CLAUDE.md` § Instruction precedence).

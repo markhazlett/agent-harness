@@ -72,3 +72,13 @@ Cannot check all boxes? You skipped TDD. Delete and start over.
 ## What this skill does NOT cover
 
 Throwaway prototypes (with explicit user permission), generated code, configuration files, and documentation changes. For exemptions outside this list, name them in `CLAUDE.md` § Instruction precedence — not as a per-task rationalization.
+
+## Terminal State
+
+After the cycle passes:
+
+- **Invoked from `/build`?** Return to the `/build` execution loop. Terminal state = next Implementation Step.
+- **Standalone AND your edits touched UI surfaces** (extensions `.tsx` / `.jsx` / `.vue` / `.svelte`, paths under `src/components/` or `apps/web/`)? **Terminal state is `/e2e-verify`.** Do NOT mark complete without browser evidence.
+- **Standalone AND no UI changes**? Terminal state. Done.
+
+Do NOT invoke `/ship`, `/pre-deploy`, or other downstream skills directly from `/tdd` — let the caller (`/build` or the user) drive the next gate, or hand off to `/e2e-verify` per the rule above. The user can override per `CLAUDE.md` § Instruction precedence.

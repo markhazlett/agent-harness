@@ -288,3 +288,18 @@ bin/conductor-status update phase=shipped pr_url="<pr-url>"
 - Tests reveal a bug in existing code (not your change)
 - The estimated effort is significantly exceeded
 - You discover a security concern
+
+## Terminal State
+
+The terminal state of `/build` is **completion of every Done Criteria item in the plan, ending with a clean PR via `/ship`**. Quality skills are MANDATORY when their trigger conditions are met — silent skips are a violation of the plan, not an optimization (per `Harness Principles.md` §15: process before implementation, verification at the end).
+
+Required handoffs while executing the plan:
+
+- **New function, class, service, or behavior change** → `/tdd` (write the failing test first; do NOT implement before the test fails for the right reason).
+- **Bug, test failure, or unexpected behavior** → `/debug` (staged investigation before any fix). `/debug` will hand off to `/tdd`.
+- **UI changes** (extensions `.tsx` / `.jsx` / `.vue` / `.svelte`, paths under `src/components/`, `apps/web/`) → `/e2e-verify` before declaring complete.
+- **Auth / session / credential / external HTTP / file-upload diff** → `/security-review`.
+- **Schema or migration diff** → `/db-review`.
+- **Final gate before PR** → `/pre-deploy` (and `/ship` reaffirms the risk-check on auth/schema/deploy/hook diffs).
+
+Do NOT skip a quality skill because "the change is small" or "I'll do it after." If a trigger condition is met, the skill is mandatory — or the user explicitly overrides (per `CLAUDE.md` § Instruction precedence).

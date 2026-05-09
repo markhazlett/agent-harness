@@ -50,6 +50,18 @@ test -x bin/skill-baseline && echo "PASS bin/skill-baseline" || echo "FAIL bin/s
 bin/skill-baseline --help >/dev/null 2>&1 && echo "PASS bin/skill-baseline --help" || echo "FAIL bin/skill-baseline --help"
 ```
 
+### 5c. Terminal-State Validator
+
+Verify that the four skills designated by G9 (`lg-scaffold`, `lg-design`, `build-plan`, `tdd`) declare a `## Terminal State` section, and run the regression test.
+
+```bash
+test -x bin/test-terminal-states && echo "PASS bin/test-terminal-states" || echo "FAIL bin/test-terminal-states (missing or not executable)"
+bash bin/test-terminal-states >/dev/null 2>&1 && echo "PASS terminal-state declarations" || echo "FAIL terminal-state declarations (run \`bin/test-terminal-states\` to see which skills are missing the section)"
+bash bin/tests/test-terminal-states.test.sh >/dev/null 2>&1 && echo "PASS terminal-state regression test" || echo "FAIL terminal-state regression test"
+```
+
+A FAIL on `terminal-state declarations` means at least one of the four required skills is missing a `## Terminal State` section.
+
 ### 5b. Plan Self-Review Validator
 
 Verify `bin/test-plan-self-review` exists and runs its test suite. If `docs/plans/` exists and contains any `.md` files, also run the validator over each as a placeholder scan (FAIL on any exit-1 result).
