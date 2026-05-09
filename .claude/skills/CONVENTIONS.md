@@ -89,3 +89,7 @@ The trigger may include named slash-commands, user phrases, or situational condi
 ## Naming rule
 
 `name` in frontmatter MUST equal the folder name. If you rename a skill folder, update `name`. The validator catches mismatches.
+
+## User-supremacy invariant
+
+Skills are advisors; the user is principal. When `CLAUDE.md` or a direct user instruction conflicts with a skill body, follow the user. Rigid skills carry an italicized override note near the top of their body pointing at `CLAUDE.md` § Instruction precedence — keep that note on every rigid skill. The full hierarchy lives in the project's `CLAUDE.md`.

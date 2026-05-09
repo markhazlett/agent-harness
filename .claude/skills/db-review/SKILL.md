@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # DB Review
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Review pending database migrations and schema changes for safety before deploying to production. Catches destructive operations, missing indexes, and irreversible changes.
 
 Trigger: when the user says "review migrations", "db review", "check schema changes", "safe to migrate?", or before deploying schema changes to production.

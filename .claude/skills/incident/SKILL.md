@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Incident
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Structured incident response for production issues. Takes a symptom, investigates systematically, and produces a diagnosis with remediation steps.
 
 Trigger: when the user reports a production problem — "users can't log in", "500 errors", "the site is down", "something broke", "getting errors on [page]", "incident", "production issue".

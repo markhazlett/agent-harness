@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Security Review
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Comprehensive security audit before production deployment. Covers the full attack surface: authentication, authorization, injection, credential handling, data isolation, client-side security, infrastructure, and dependency health.
 
 Trigger: before production deploys, when the user says "security review", "audit security", "check for vulnerabilities", "is this secure?", or before any `/ship` to a production branch. Also run proactively when changes touch auth, credentials, raw SQL, API routes, or external integrations.

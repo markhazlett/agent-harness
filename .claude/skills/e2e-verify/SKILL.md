@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # E2E Verify (Browser)
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Visually verify features end-to-end in the browser using the Claude-in-Chrome MCP. Screenshots are saved to `/tmp/e2e-screenshots/` (not the repo) to avoid repo bloat.
 
 Trigger: after completing UI or API changes, or when the user says "verify", "check it", "test it", "e2e".

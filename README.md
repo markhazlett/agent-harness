@@ -50,6 +50,10 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
+### User control
+
+The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's `CLAUDE.md` says to skip a skill in a given context, the harness follows `CLAUDE.md`. The hierarchy is published in your `CLAUDE.md` under "Instruction precedence" — user instructions outrank skills, skills outrank Claude Code defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
+
 ---
 
 ## Conductor mode (optional)

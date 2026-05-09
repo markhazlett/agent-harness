@@ -21,6 +21,8 @@ Run: `bash -c 'source "$(git rev-parse --show-toplevel)/.claude/hooks/harness.co
 
 # /lg-review
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Read-only static audit of your LangChain/LangGraph code against v1 best practices and the current deprecation list. Analysis comes first — fixes are offered only after the full punch list is presented and the user explicitly approves. Results are saved to `docs/lg-reviews/` for audit trail.
 
 ## Phase 0: Load shared context

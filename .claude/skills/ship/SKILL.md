@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Ship
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Run the full shipping pipeline: tests, lint, E2E verify, commit, push, and create a PR. Use when the user says "/ship", "ship it", "let's ship", or "push this up".
 
 ## Prerequisites

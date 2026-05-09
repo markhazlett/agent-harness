@@ -15,6 +15,8 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Pre-Deploy
 
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
+
 Run the full pre-deployment quality gate. Aggregates all checks into a single go/no-go verdict. Use before every push to production.
 
 Trigger: when the user says "pre-deploy", "ready to deploy?", "deploy check", "go/no-go", or before pushing to a production branch.

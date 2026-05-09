@@ -94,11 +94,11 @@ None. Lands in wave 1.
 
 ## Done criteria
 
-- [ ] `CLAUDE.md` has an "## Instruction precedence" section near the top, naming the 3-tier hierarchy and override paths.
-- [ ] `README.md` has a "User control" paragraph (under "What you get") referencing the override.
-- [ ] All 8 currently-rigid skills (`tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`) have an "Override: see `CLAUDE.md`" preamble line near the top of the body.
-- [ ] `.claude/skills/CONVENTIONS.md` cross-references the invariant.
-- [ ] CLAUDE.md is structurally valid — no broken sections, no merge artifacts.
+- [x] `CLAUDE.md` has an "## Instruction precedence" section near the top, naming the 3-tier hierarchy and override paths.
+- [x] `README.md` has a "User control" paragraph (under "What you get") referencing the override.
+- [x] All 8 currently-rigid skills (`tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`) have an "Override: see `CLAUDE.md`" preamble line near the top of the body.
+- [x] `.claude/skills/CONVENTIONS.md` cross-references the invariant.
+- [x] CLAUDE.md is structurally valid — no broken sections, no merge artifacts.
 
 ## Skills
 
