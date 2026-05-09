@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# bin/test-plan-self-review — placeholder scanner for plan documents.
+#
+# Usage: bin/test-plan-self-review <plan-file>
+#
+# Scans a plan markdown file for placeholder tokens that indicate the plan
+# is not yet ready for handoff: TBD, XXX, ???, "implement later",
+# "as needed", "appropriate".
+#
+# Exit codes:
+#   0  no placeholders found
+#   1  at least one placeholder found
+#   2  usage error (missing arg, file not readable)
+#
+# This is item 1 of the 6-item Self-Review checklist used by /plan-sprint
+# (Phase 4) and /deep-plan (Phase 6.5). The remaining 5 items require
+# judgment and stay manual.
+
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: $(basename "$0") <plan-file>" >&2
+  exit 2
+fi
+
+file="$1"
+
+if [ ! -r "$file" ]; then
+  echo "error: cannot read '$file'" >&2
+  exit 2
+fi
+
+# Token list mirrors the checklist in plan-sprint/SKILL.md and deep-plan/SKILL.md.
+# Word boundaries on bare-word tokens prevent false positives like
+# "inappropriate" matching "appropriate". Multi-word phrases need no boundaries.
+pattern='\bTBD\b|\bXXX\b|\?\?\?|implement later|as needed|\bappropriate\b'
+
+if grep -nE "$pattern" "$file" >&2; then
+  echo "" >&2
+  echo "$(basename "$0"): placeholder tokens found in $file" >&2
+  exit 1
+fi
+
+exit 0

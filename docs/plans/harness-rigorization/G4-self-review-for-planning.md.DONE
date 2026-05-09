@@ -71,11 +71,11 @@ None.
 
 ## Done criteria
 
-- [ ] `/plan-sprint/SKILL.md` has a "Phase 4: Self-Review" section with the 6-item mechanical checklist.
-- [ ] `/deep-plan/SKILL.md` has a "Phase 6.5: Self-Review" section that applies to entry doc + sub-plans.
-- [ ] Both phases explicitly forbid user-handoff while items are unchecked.
-- [ ] `bin/test-plan-self-review` exists, exit codes documented.
-- [ ] `/harness-health` invokes the validator if `docs/plans/` is non-empty.
+- [x] `/plan-sprint/SKILL.md` has a "Phase 4: Self-Review" section with the 6-item mechanical checklist.
+- [x] `/deep-plan/SKILL.md` has a "Phase 6.5: Self-Review" section that applies to entry doc + sub-plans.
+- [x] Both phases explicitly forbid user-handoff while items are unchecked.
+- [x] `bin/test-plan-self-review` exists, exit codes documented.
+- [x] `/harness-health` invokes the validator if `docs/plans/` is non-empty.
 
 ## Skills
 

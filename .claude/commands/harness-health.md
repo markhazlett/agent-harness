@@ -50,6 +50,28 @@ test -x bin/skill-baseline && echo "PASS bin/skill-baseline" || echo "FAIL bin/s
 bin/skill-baseline --help >/dev/null 2>&1 && echo "PASS bin/skill-baseline --help" || echo "FAIL bin/skill-baseline --help"
 ```
 
+### 5b. Plan Self-Review Validator
+
+Verify `bin/test-plan-self-review` exists and runs its test suite. If `docs/plans/` exists and contains any `.md` files, also run the validator over each as a placeholder scan (FAIL on any exit-1 result).
+
+```bash
+test -x bin/test-plan-self-review && echo "PASS bin/test-plan-self-review" || echo "FAIL bin/test-plan-self-review (missing or not executable)"
+bash bin/tests/test-plan-self-review.test.sh >/dev/null 2>&1 && echo "PASS plan-self-review tests" || echo "FAIL plan-self-review tests"
+
+if [ -d docs/plans ] && find docs/plans -type f -name '*.md' | head -1 | grep -q .; then
+  fail=0
+  while IFS= read -r f; do
+    if ! bin/test-plan-self-review "$f" >/dev/null 2>&1; then
+      fail=1
+      echo "  placeholder tokens in: $f"
+    fi
+  done < <(find docs/plans -type f -name '*.md' ! -name '*.DONE')
+  [ "$fail" = "0" ] && echo "PASS plan placeholder scan" || echo "FAIL plan placeholder scan (one or more plan files contain TBD/XXX/??? etc.)"
+else
+  echo "SKIP plan placeholder scan (no docs/plans/*.md)"
+fi
+```
+
 ### 6. Settings Wiring
 
 Verify `.claude/settings.json` has all hooks wired:
