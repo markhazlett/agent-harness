@@ -21,3 +21,9 @@ Skip the bump for: docs-only edits that don't change skill content, internal ref
 - **Patch** (`0.X.Y`) for fixes and small tweaks to existing behavior.
 
 Do the bump as part of the feature commit (or a `chore: bump version to X.Y.Z` commit in the same PR). Don't ship the feature and the bump in separate PRs — that defeats the point of update-check.
+
+## Learnings
+
+Captured by `/learn`; each entry lives at `docs/learnings/<slug>.md` with a `Rule / Why / How to apply` body.
+
+Avoid saving entries that fall in the anti-list — code patterns, file paths, git history, fix recipes, CLAUDE.md duplicates, ephemeral state, activity summaries. When a candidate looks like one of those, ask what was *surprising* and save the surprising framing instead. Memories that name a specific function, file, or flag should be re-verified (`Grep` / `test -e`) before being recommended — they describe a moment in time, not a current guarantee.

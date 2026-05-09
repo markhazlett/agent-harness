@@ -32,11 +32,13 @@ Read `.claude/hooks/harness.config.sh` for `HARNESS_TEST_CMD` and run it.
 
 ### 5. Learn Helper
 
-Verify `bin/learn` exists and is executable, then run its test suite:
+Verify `bin/learn` exists and is executable, then run its test suites:
 
 ```bash
 test -x bin/learn && echo "PASS bin/learn" || echo "FAIL bin/learn (missing or not executable)"
 bash bin/tests/learn.test.sh >/dev/null 2>&1 && echo "PASS learn tests" || echo "FAIL learn tests"
+test -x bin/test-learn-anti-list && echo "PASS bin/test-learn-anti-list" || echo "FAIL bin/test-learn-anti-list (missing or not executable)"
+bash bin/test-learn-anti-list >/dev/null 2>&1 && echo "PASS learn anti-list tests" || echo "FAIL learn anti-list tests"
 ```
 
 ### 6. Settings Wiring

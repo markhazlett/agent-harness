@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# bin/test-learn-anti-list — regression test for `bin/learn --check-anti-list`.
+#
+# Asserts the scanner is advisory (exit 0 always) and surfaces an "anti-list"
+# warning to stderr when a candidate body contains anti-list signals
+# (file paths, fix recipes, PR numbers, git SHAs, ephemeral references).
+set -euo pipefail
+
+REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+LEARN_BIN="$REPO_ROOT/bin/learn"
+
+PASS=0
+FAIL=0
+
+pass() { echo "PASS: $1"; PASS=$((PASS+1)); }
+fail() { echo "FAIL: $1"; echo "  $2"; FAIL=$((FAIL+1)); }
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+run_check() {
+  local body="$1"
+  local stderr_file="$TMPDIR/stderr"
+  local stdout_file="$TMPDIR/stdout"
+  local rc=0
+  "$LEARN_BIN" --check-anti-list --body-file "$body" \
+    >"$stdout_file" 2>"$stderr_file" || rc=$?
+  echo "$rc"
+  cat "$stderr_file"
+}
+
+assert_warns() {
+  local label="$1" body_file="$2" expected_signal="$3"
+  local out rc stderr
+  out=$(run_check "$body_file")
+  rc=$(printf '%s\n' "$out" | head -n1)
+  stderr=$(printf '%s\n' "$out" | tail -n +2)
+  if [ "$rc" != "0" ]; then
+    fail "$label" "scanner must exit 0 (advisory); got $rc"
+    return
+  fi
+  if ! echo "$stderr" | grep -qiE 'anti-list'; then
+    fail "$label" "expected 'anti-list' in stderr; got: $stderr"
+    return
+  fi
+  if [ -n "$expected_signal" ] && ! echo "$stderr" | grep -qF "$expected_signal"; then
+    fail "$label" "expected '$expected_signal' to be flagged; got: $stderr"
+    return
+  fi
+  pass "$label"
+}
+
+assert_quiet() {
+  local label="$1" body_file="$2"
+  local out rc stderr
+  out=$(run_check "$body_file")
+  rc=$(printf '%s\n' "$out" | head -n1)
+  stderr=$(printf '%s\n' "$out" | tail -n +2)
+  if [ "$rc" != "0" ]; then
+    fail "$label" "scanner must exit 0 (advisory); got $rc"
+    return
+  fi
+  if echo "$stderr" | grep -qiE 'anti-list'; then
+    fail "$label" "expected no warning; got: $stderr"
+    return
+  fi
+  pass "$label"
+}
+
+# ---- positive cases (anti-pattern bodies should warn) ----
+
+cat > "$TMPDIR/file-path.md" <<'EOF'
+**Rule:** Always run typecheck after editing.
+
+**Why:** We fixed a bug in `src/foo.ts` yesterday because the type was wrong.
+
+**How to apply:** Run pnpm typecheck before pushing.
+EOF
+assert_warns "warns on src/*.ts file path" "$TMPDIR/file-path.md" "src/foo.ts"
+
+cat > "$TMPDIR/fix-recipe.md" <<'EOF'
+**Rule:** When the build fails, the fix is to clear node_modules and reinstall.
+EOF
+assert_warns "warns on 'the fix is' phrase" "$TMPDIR/fix-recipe.md" "the fix is"
+
+cat > "$TMPDIR/pr-number.md" <<'EOF'
+**Rule:** Activity recap.
+
+**Why:** Mark merged PR #123 yesterday and it broke staging.
+EOF
+assert_warns "warns on PR number" "$TMPDIR/pr-number.md" "#123"
+
+cat > "$TMPDIR/git-sha.md" <<'EOF'
+**Rule:** The regression was introduced at 3bdf09e2a1c5.
+EOF
+assert_warns "warns on git SHA" "$TMPDIR/git-sha.md" "3bdf09e2a1c5"
+
+cat > "$TMPDIR/packages-path.md" <<'EOF'
+**Rule:** Always lint `packages/api/src/handlers/auth.tsx` before commit.
+EOF
+assert_warns "warns on packages/*.tsx path" "$TMPDIR/packages-path.md" "packages/api/src/handlers/auth.tsx"
+
+# ---- negative cases (clean bodies should not warn) ----
+
+cat > "$TMPDIR/clean.md" <<'EOF'
+**Rule:** Always run prettier before committing.
+
+**Why:** The team agreed to keep formatting noise out of code review.
+
+**How to apply:** Run pnpm format before staging changes.
+EOF
+assert_quiet "no warning on clean body" "$TMPDIR/clean.md"
+
+cat > "$TMPDIR/clean-with-tool.md" <<'EOF'
+**Rule:** Use pnpm, not npm.
+
+**Why:** Workspace uses pnpm; npm corrupts the lockfile.
+
+**How to apply:** Substitute pnpm for any npm command.
+EOF
+assert_quiet "no warning on tool-name body" "$TMPDIR/clean-with-tool.md"
+
+# ---- argument validation ----
+
+if "$LEARN_BIN" --check-anti-list --body-file "$TMPDIR/does-not-exist.md" >/dev/null 2>&1; then
+  fail "missing body file" "expected non-zero exit when --body-file points to a missing file"
+else
+  pass "missing body file rejected"
+fi
+
+# ---- summary ----
+echo ""
+echo "Results: $PASS passed, $FAIL failed"
+[ "$FAIL" -eq 0 ]

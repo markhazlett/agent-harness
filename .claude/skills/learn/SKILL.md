@@ -35,6 +35,8 @@ Before drafting anything, read what already exists so you can dedupe and merge.
 
 These are short index files; loading them is cheap. Don't load the full body files unless a candidate looks like it matches an existing entry.
 
+**Verify before recommending.** A loaded learning that names a specific function, file path, or flag is a claim about the past, not a guarantee about now. Before treating such an entry as authoritative — for example, before merging a candidate into it, surfacing it to the user as the canonical source, or recommending the named identifier — verify the identifier still exists. Use `Grep` for a function/flag/symbol or `test -e` for a path. If the named identifier is gone, flag the entry for cleanup and surface it to the user in step 7. A memory naming `bin/old-helper` describes a moment in time; the moment may have passed.
+
 ### 2. Identify candidate learnings
 
 **Scan mode:** look across the recent session for:
@@ -47,6 +49,25 @@ If the recent context is thin (e.g., the session was compacted), `pre-compact.sh
 **Targeted mode:** the user's description *is* the candidate; skip the scan.
 
 If you find no candidates in scan mode, say so and stop. Do not manufacture learnings.
+
+### 2.5. Defend against the anti-list
+
+Some categories are almost never worth saving — they're better recovered from the project itself. Before drafting a candidate, check it against this list:
+
+- **Code patterns, file paths, project conventions** — read the project; don't memorize it.
+- **Git history / who-changed-what** — `git log` and `git blame` are authoritative.
+- **Debugging fix recipes** — the fix is in the code; the commit message has the context.
+- **Content already in CLAUDE.md** — duplicating it in a learning is drift waiting to happen.
+- **Ephemeral task state** — in-progress work, the current PR, today's conversation.
+- **Activity summaries** — PR lists, sprint recaps, "what we did this week".
+
+If a candidate falls into any of these, do **not** auto-skip it. Surface the conflict to the user: "This looks like an X — we usually don't save these. Was something surprising or non-obvious about it?" If the user gives a surprising framing, save *that* framing (the underlying lesson), not the surface fact. Otherwise drop the candidate.
+
+This rule applies even when the user explicitly asked to save the candidate. The user is sovereign — `/learn` does not refuse — but the skill must articulate the conflict before writing, so the user can re-aim the entry at the load-bearing lesson.
+
+Examples:
+- Candidate: "We use pnpm, not npm." (Project convention.) → Ask. User answers "we tried npm and it broke CI"; save *that* as the lesson, not the bare fact.
+- Candidate: "Mark fixed the auth bug yesterday in `src/auth/middleware.ts`." (Git history + fix recipe + ephemeral.) → Drop unless the user surfaces a generalizable pattern about how the bug was diagnosed.
 
 ### 3. Draft each candidate
 
@@ -90,7 +111,14 @@ Wait for the user's response. Apply their choices.
 
 ### 6. Write the survivors
 
-For each accepted entry:
+For each accepted entry, **first** run the anti-list scanner over the body and surface any matches to the user before writing:
+
+```bash
+bash "$(git rev-parse --show-toplevel)/bin/learn" --check-anti-list \
+  --body-file /tmp/learn-body.md
+```
+
+The scanner is advisory — it always exits 0 — and prints one `anti-list: <category>: <fragment>` line per match to stderr. If matches appear, paste them back to the user and ask: "These look like anti-list signals. Save anyway, or rewrite the entry to capture the surprising lesson?" Honor the user's call. If they accept, proceed to write.
 
 **Project (new or update):**
 
