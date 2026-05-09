@@ -1,3 +1,11 @@
+---
+name: security-review
+description: Use when the user says "security review", "audit security", "check for vulnerabilities", or "is this secure?", or before any /ship to a production branch. Also fire proactively when changes touch auth, credentials, raw SQL, API routes, or external integrations.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

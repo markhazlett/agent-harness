@@ -1,3 +1,11 @@
+---
+name: ship
+description: Use when the user says "/ship", "ship it", "let's ship", or "push this up" and the branch is ready to leave the workstation — runs the full shipping pipeline (tests, lint, e2e, commit, push, PR).
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

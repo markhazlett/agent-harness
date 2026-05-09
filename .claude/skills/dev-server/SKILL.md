@@ -1,3 +1,10 @@
+---
+name: dev-server
+description: Use when the user says "start the dev server", "restart the server", "check the server logs", "what's the server error", or any dev-server lifecycle phrasing.
+user-invocable: true
+tier: util
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

@@ -1,7 +1,9 @@
 ---
 name: lg-review
-description: Review existing LangChain/LangGraph code for v1 best practices, deprecated patterns, and footguns. Catches legacy `createReactAgent`/`AgentExecutor`/`langchain/agents`, missing reducers, `MemorySaver` in production, pre-bound tools breaking structured output, missing observability, missing `subgraphs: true`, node-restart idempotency hazards, unbounded `recursionLimit`. Doubles as the migration scout for v0→v1 upgrades. Use when the user says "review my agent", "is this LangGraph code current", "audit this for footguns", "help me migrate from v0", or "find the bug in my graph".
+description: Use when the user says "review my agent", "is this LangGraph code current", "audit this for footguns", "help me migrate from v0", or "find the bug in my graph". Reviews LangChain/LangGraph code for v1 best practices, deprecated patterns, and known footguns; doubles as the migration scout for v0→v1 upgrades.
 user-invocable: true
+tier: rigid
+kind: verification
 ---
 
 <update-check>

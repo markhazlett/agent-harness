@@ -1,7 +1,9 @@
 ---
 name: lg-scaffold
-description: Scaffold a new LangChain/LangGraph agent in TypeScript. Generates runnable code using LangChain v1 / LangGraph v1 patterns — `createAgent` (or raw `StateGraph` / Deep Agent) + tools + checkpointer + optional LangSmith tracing + streaming wiring. Use when the user says "scaffold an agent", "build me a LangGraph agent that does X", "create a Deep Agent", "start a new agent", or hands off from `/lg-design` with a design path.
+description: Use when the user says "scaffold an agent", "build me a LangGraph agent that does X", "create a Deep Agent", "start a new agent", or hands off from /lg-design with a design path. Generates runnable TypeScript using LangChain v1 / LangGraph v1 patterns — createAgent (or raw StateGraph / Deep Agent) + tools + checkpointer + optional LangSmith tracing + streaming wiring.
 user-invocable: true
+tier: flexible
+kind: implementation
 ---
 
 <update-check>

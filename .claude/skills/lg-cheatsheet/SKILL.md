@@ -1,7 +1,8 @@
 ---
 name: lg-cheatsheet
-description: Quick reference for LangChain v1 / LangGraph v1 / Deep Agents — mental model, v1-current API surface, footgun list, deprecated patterns, JS/TS specifics, production checklist. Use when the user asks "what's the right way to do X in LangGraph", "how do streaming/checkpointers/HITL work", or any general LangGraph reference question. Other lg-* skills load this for shared context.
+description: Use when the user asks "what's the right way to do X in LangGraph", "how do streaming/checkpointers/HITL work", or any general LangGraph reference question. Other lg-* skills load this for shared context (mental model, v1 API surface, footguns, deprecated patterns, JS/TS specifics, production checklist).
 user-invocable: true
+tier: util
 ---
 
 <update-check>

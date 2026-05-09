@@ -1,3 +1,11 @@
+---
+name: pre-deploy
+description: Use when the user says "pre-deploy", "ready to deploy?", "deploy check", "go/no-go", or before pushing to a production branch — runs the full pre-deployment quality gate.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

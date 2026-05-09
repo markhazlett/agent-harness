@@ -1,7 +1,9 @@
 ---
 name: plan-sprint
-description: Break the current week's goals into concrete, executable projects with full implementation plans. Each project gets a plan written to docs/plans/YYYY-wNN/sprint-plans/ with file footprints, test criteria, and E2E browser verification steps. Use at the start of a week to turn goals into actionable work.
+description: Use when the user starts a new week or says "/plan-sprint", "plan the week", or "turn goals into projects". Breaks the current week's goals into concrete, executable projects with full implementation plans (file footprints, test criteria, E2E verification) under docs/plans/YYYY-wNN/sprint-plans/.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>

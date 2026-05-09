@@ -1,3 +1,11 @@
+---
+name: db-review
+description: Use when the user says "review migrations", "db review", "check schema changes", "safe to migrate?", or before deploying schema changes to production.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

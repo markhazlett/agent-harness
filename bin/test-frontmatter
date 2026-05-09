@@ -1,0 +1,141 @@
+#!/usr/bin/env bash
+# bin/test-frontmatter — validate every .claude/skills/*/SKILL.md frontmatter
+#
+# Contract enforced (see .claude/skills/CONVENTIONS.md):
+#   1. YAML frontmatter present (delimited by `---` lines).
+#   2. `name:` non-empty and equals the parent folder name.
+#   3. `description:` non-empty and starts with `Use when`.
+#   4. `user-invocable:` is exactly `true` or `false`.
+#   5. `tier:` is one of `rigid | flexible | util`.
+#   6. `kind:` is one of `process | implementation | verification`,
+#      or absent only when `tier: util`.
+#
+# Exits 0 on full pass, 1 on any non-conformance. Always prints a per-skill
+# PASS/FAIL line and a final summary.
+
+set -u
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$repo_root" ]; then
+  echo "FAIL: not inside a git repo" >&2
+  exit 1
+fi
+cd "$repo_root" || exit 1
+
+skills_dir=".claude/skills"
+if [ ! -d "$skills_dir" ]; then
+  echo "FAIL: $skills_dir not found" >&2
+  exit 1
+fi
+
+fail=0
+total=0
+pass=0
+
+# Extract a frontmatter scalar value for `key:` from the first frontmatter
+# block in a SKILL.md. Returns empty string if absent. Strips surrounding
+# whitespace and matching outer quotes.
+extract_field() {
+  local file="$1" key="$2"
+  awk -v k="$key" '
+    BEGIN { in_fm=0; saw_open=0 }
+    /^---[[:space:]]*$/ {
+      if (in_fm) { exit }
+      if (!saw_open) { in_fm=1; saw_open=1; next }
+    }
+    in_fm {
+      line=$0
+      # Match `<key>:` followed by optional whitespace and a value.
+      if (match(line, "^[[:space:]]*" k "[[:space:]]*:")) {
+        val=substr(line, RSTART+RLENGTH)
+        sub(/^[[:space:]]+/, "", val)
+        sub(/[[:space:]]+$/, "", val)
+        # Strip a single pair of matching outer quotes.
+        if (val ~ /^".*"$/) { val=substr(val, 2, length(val)-2) }
+        else if (val ~ /^'\''.*'\''$/) { val=substr(val, 2, length(val)-2) }
+        print val
+        exit
+      }
+    }
+  ' "$file"
+}
+
+# Detect whether the file starts with frontmatter at all.
+has_frontmatter() {
+  local file="$1"
+  awk 'NR==1 { if ($0 ~ /^---[[:space:]]*$/) { print "yes"; exit } else { print "no"; exit } }' "$file"
+}
+
+for skill_md in "$skills_dir"/*/SKILL.md; do
+  total=$((total + 1))
+  folder="$(basename "$(dirname "$skill_md")")"
+  errs=()
+
+  if [ "$(has_frontmatter "$skill_md")" != "yes" ]; then
+    errs+=("missing YAML frontmatter (must start with --- on line 1)")
+    fail=$((fail + 1))
+    echo "FAIL  $folder"
+    for e in "${errs[@]}"; do echo "       - $e"; done
+    continue
+  fi
+
+  name="$(extract_field "$skill_md" name)"
+  description="$(extract_field "$skill_md" description)"
+  user_invocable="$(extract_field "$skill_md" user-invocable)"
+  tier="$(extract_field "$skill_md" tier)"
+  kind="$(extract_field "$skill_md" kind)"
+
+  if [ -z "$name" ]; then
+    errs+=("name: missing or empty")
+  elif [ "$name" != "$folder" ]; then
+    errs+=("name: '$name' does not match folder '$folder'")
+  fi
+
+  if [ -z "$description" ]; then
+    errs+=("description: missing or empty")
+  else
+    case "$description" in
+      "Use when"*) ;;
+      *) errs+=("description: must start with 'Use when' (got: '$(printf %.60s "$description")…')") ;;
+    esac
+  fi
+
+  case "$user_invocable" in
+    true|false) ;;
+    "") errs+=("user-invocable: missing") ;;
+    *) errs+=("user-invocable: must be 'true' or 'false' (got: '$user_invocable')") ;;
+  esac
+
+  case "$tier" in
+    rigid|flexible|util) ;;
+    "") errs+=("tier: missing") ;;
+    *) errs+=("tier: must be rigid|flexible|util (got: '$tier')") ;;
+  esac
+
+  if [ -z "$kind" ]; then
+    if [ "$tier" != "util" ]; then
+      errs+=("kind: required when tier is '$tier' (only 'util' may omit kind)")
+    fi
+  else
+    case "$kind" in
+      process|implementation|verification) ;;
+      *) errs+=("kind: must be process|implementation|verification (got: '$kind')") ;;
+    esac
+    if [ "$tier" = "util" ]; then
+      errs+=("kind: must be absent when tier is 'util' (got: '$kind')")
+    fi
+  fi
+
+  if [ ${#errs[@]} -eq 0 ]; then
+    pass=$((pass + 1))
+    echo "PASS  $folder"
+  else
+    fail=$((fail + 1))
+    echo "FAIL  $folder"
+    for e in "${errs[@]}"; do echo "       - $e"; done
+  fi
+done
+
+echo
+echo "Frontmatter validation: $pass/$total passed, $fail failed."
+[ "$fail" -eq 0 ] || exit 1

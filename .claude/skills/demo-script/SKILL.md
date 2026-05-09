@@ -1,7 +1,9 @@
 ---
 name: demo-script
-description: Generate a customer-story demo script for the current week's goals. Told from a real persona's perspective to build empathy. Critically scopes to what can ship in a week. Targets 5 minutes.
+description: Use when the user asks for a demo script, customer story, or end-of-week demo for the current week's goals. Generates a 5-minute persona-told script scoped to what can ship in a week.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>

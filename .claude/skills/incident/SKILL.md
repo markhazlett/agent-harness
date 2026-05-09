@@ -1,3 +1,11 @@
+---
+name: incident
+description: Use when the user reports a production problem — "users can't log in", "500 errors", "the site is down", "something broke", "getting errors on [page]", "incident", or "production issue". Drives structured triage → diagnosis → remediation.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

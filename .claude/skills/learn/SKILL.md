@@ -1,3 +1,11 @@
+---
+name: learn
+description: Use when the user says "/learn", "/learn <description>", "remember this", "save this lesson", or "add this to learnings" — captures corrections and surprising approvals from the current session into durable memory.
+user-invocable: true
+tier: flexible
+kind: implementation
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

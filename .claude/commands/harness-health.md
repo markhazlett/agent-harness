@@ -65,6 +65,17 @@ Read `.claude/hooks/harness.config.sh` and verify key values are set:
 - `HARNESS_TEST_CMD` is set
 - `HARNESS_APP_NAME` is not still "My Project" (suggests setup.sh was run)
 
+### 9. Skill Frontmatter
+
+Verify every `.claude/skills/*/SKILL.md` has valid frontmatter per `.claude/skills/CONVENTIONS.md` (`name` matches folder, `description` is a `Use when` trigger, `user-invocable`, `tier`, and `kind` where applicable):
+
+```bash
+test -x bin/test-frontmatter && echo "PASS bin/test-frontmatter" || echo "FAIL bin/test-frontmatter (missing or not executable)"
+bash bin/test-frontmatter >/dev/null 2>&1 && echo "PASS skill frontmatter" || echo "FAIL skill frontmatter (run \`bin/test-frontmatter\` to see which skills are non-conformant)"
+```
+
+A FAIL here means at least one skill is missing required fields, has an out-of-vocab `tier`/`kind`, or has a `description` that does not start with `Use when`. Run `bin/test-frontmatter` directly to see the per-skill diagnosis.
+
 ## Output Format
 
 ```
@@ -81,6 +92,7 @@ Read `.claude/hooks/harness.config.sh` and verify key values are set:
 | Tests | PASS/FAIL | |
 | Settings wiring | PASS/FAIL | |
 | Config populated | PASS/WARN | |
+| Skill frontmatter | PASS/FAIL | |
 
 ### Verdict: HEALTHY / NEEDS ATTENTION
 ```

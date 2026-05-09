@@ -1,7 +1,9 @@
 ---
-name: build
-description: Execute a sprint plan end-to-end — branch, implement, test, verify in browser, commit incrementally, and prepare for PR. Pass it a sprint plan document path. When plan steps involve LangGraph/LangChain agent work, /lg-* skills auto-fire (lg-scaffold, lg-add, lg-eval, lg-review).
+name: build-plan
+description: Use when the user says "/build", hands off a sprint-plan document path, or asks to execute a written plan end-to-end. Branches, implements, tests, verifies in browser, commits incrementally, and prepares the PR. Auto-fires /lg-* skills when plan steps involve LangGraph/LangChain agent work.
 user-invocable: true
+tier: flexible
+kind: implementation
 ---
 
 <update-check>

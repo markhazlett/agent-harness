@@ -1,7 +1,9 @@
 ---
 name: lg-add
-description: Add a capability to an existing LangGraph agent — HITL (`interrupt()` / humanInTheLoopMiddleware), persistence (checkpointer + thread strategy), streaming (token + node events), sub-agents, custom tools, middleware (summarization, PII redaction, rate-limit), or BaseStore for cross-thread memory. Use when the user says "add HITL to my agent", "make this graph durable", "wire streaming", "add a sub-agent", "attach a checkpointer", or any "add X to my LangGraph" phrasing.
+description: Use when the user says "add HITL to my agent", "make this graph durable", "wire streaming", "add a sub-agent", "attach a checkpointer", or any "add X to my LangGraph" phrasing. Adds capabilities to an existing LangGraph agent — HITL, persistence, streaming, sub-agents, custom tools, middleware, or BaseStore.
 user-invocable: true
+tier: flexible
+kind: implementation
 ---
 
 <update-check>
