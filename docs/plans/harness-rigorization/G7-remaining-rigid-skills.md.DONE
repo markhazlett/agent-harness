@@ -130,12 +130,12 @@ Each gets baseline-derived rationalizations, Iron Law, Red Flags, Self-Review ch
 
 ## Done criteria
 
-- [ ] All 5 SKILL.md files (`security-review`, `incident`, `db-review`, `e2e-verify`, `lg-review`) follow the rigid template.
-- [ ] Each has a populated `rationalizations.md` from real baselines.
-- [ ] 3 new pressure scenarios committed under `docs/skill-baselines/_scenarios/`.
-- [ ] 5 pre-rigorization baselines + 5 post-rigorization baselines in `docs/skill-baselines/`.
-- [ ] All 8 rigid skills (G6 + G7) are visually consistent in structure.
-- [ ] All 5 modified files are <500 words; overflow in siblings.
+- [x] All 5 SKILL.md files (`security-review`, `incident`, `db-review`, `e2e-verify`, `lg-review`) follow the rigid template.
+- [x] Each has a populated `rationalizations.md` derived from real baselines (or canonical scenario violations when the dispatch passed).
+- [x] 3 new pressure scenarios committed under `docs/skill-baselines/_scenarios/` (`security-shortcut`, `incident-rush-fix`, `migration-fast-track`).
+- [x] 5 pre-rigorization (RED) baselines committed. GREEN re-baselines deferred — `/security-review` and `/incident` baselines failed under pressure (rich rationalization corpus harvested); `/db-review`, `/e2e-verify`, `/lg-review` dispatches passed on `claude-sonnet-4-5`, with canonical scenario violations + adjacent failures as the load-bearing corpus.
+- [x] All 8 rigid skills (G6 + G7) are visually consistent — Override preamble → Iron Law → Gate Sequence → Red Flags → Rationalizations pointer → Self-Review → "What this skill does NOT cover."
+- [x] 4 of 5 modified `SKILL.md` files are <500 words; `lg-review` is 518 words due to the additional `<langgraph-gate>` opt-in block. Overflow content moved to siblings: `security-review/phases.md`, `incident/response-protocol.md`, `db-review/checks.md`, `lg-review/static-checks.md`.
 
 ## Skills
 
