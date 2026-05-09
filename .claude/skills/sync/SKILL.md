@@ -1,7 +1,8 @@
 ---
 name: sync
-description: Switch to main branch and pull latest changes from remote.
+description: Use when the user says "/sync", "pull main", "sync with main", or "get latest". Switches to main and pulls the latest from remote.
 user-invocable: true
+tier: util
 ---
 
 <update-check>

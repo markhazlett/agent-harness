@@ -1,7 +1,9 @@
 ---
 name: lg-eval
-description: Set up evals for a LangGraph/LangChain agent in either local-only mode (Vitest/Jest assertions, no upload) or LangSmith-backed mode (datasets, experiment tracking, regression bound to a dataset, online evals against prod traces). Trajectory checks (right tools called in right order), final-answer correctness, smoke/hallucination checks, custom evaluators (rule-based + LLM-as-judge). Use when the user says "add evals", "write a regression test for my agent", "set up LangSmith evals", "check the agent's trajectory", or "I broke something — write the test first".
+description: Use when the user says "add evals", "write a regression test for my agent", "set up LangSmith evals", "check the agent's trajectory", or "I broke something — write the test first". Sets up evals for a LangGraph/LangChain agent in either local-only or LangSmith-backed mode (trajectory, final-answer, smoke/hallucination, custom rule-based and LLM-as-judge).
 user-invocable: true
+tier: flexible
+kind: verification
 ---
 
 <update-check>

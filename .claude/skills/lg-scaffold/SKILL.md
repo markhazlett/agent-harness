@@ -1,7 +1,9 @@
 ---
 name: lg-scaffold
-description: Scaffold a new LangChain/LangGraph agent in TypeScript. Generates runnable code using LangChain v1 / LangGraph v1 patterns — `createAgent` (or raw `StateGraph` / Deep Agent) + tools + checkpointer + optional LangSmith tracing + streaming wiring. Use when the user says "scaffold an agent", "build me a LangGraph agent that does X", "create a Deep Agent", "start a new agent", or hands off from `/lg-design` with a design path.
+description: Use when the user says "scaffold an agent", "build me a LangGraph agent that does X", "create a Deep Agent", "start a new agent", or hands off from /lg-design with a design path. Generates runnable TypeScript using LangChain v1 / LangGraph v1 patterns — createAgent (or raw StateGraph / Deep Agent) + tools + checkpointer + optional LangSmith tracing + streaming wiring.
 user-invocable: true
+tier: flexible
+kind: implementation
 ---
 
 <update-check>
@@ -405,6 +407,10 @@ Final message to the user:
 > "Scaffold done at `src/agents/<slug>/`. Next: `/lg-add <capability>` to wire HITL / persistence / streaming / sub-agents / middleware. Set up evals: `/lg-eval`."
 
 If scaffolded from a design doc, also note: "Design doc is linked in `graph.ts` header comment for traceability."
+
+## Terminal State
+
+The next skill in the chain is `/lg-add` (capability additions like HITL, persistence, streaming, sub-agents). Do NOT invoke `/lg-eval` (run after capabilities, not before scaffold), `/lg-review` (audit, not authoring), or other implementation skills until `/lg-add` completes — or the user explicitly overrides (per `CLAUDE.md` § Instruction precedence).
 
 ---
 

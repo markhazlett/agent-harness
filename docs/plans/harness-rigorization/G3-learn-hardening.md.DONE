@@ -1,0 +1,107 @@
+# G3 — `/learn` anti-list + verify-before-recommend
+
+**Workstream:** harness-rigorization
+**Wave:** 1 (no dependencies)
+**Effort:** 1 pt
+**Type:** Extend
+
+## Goal
+
+Address two memory-system gaps from `Harness Principles.md`:
+
+- §20 — Explicit anti-list of what NOT to save, enforced even when the user explicitly asks to save.
+- §22 — Verify-before-recommend rule for memories naming concrete identifiers (file paths, function names, flags).
+
+`/learn` already implements typed buckets (§17), Why/How-to-apply structure (§18), saving validations (§19), and the index/body split (§21). This sub-plan closes the remaining two principles.
+
+## Dependencies
+
+None.
+
+## Key Decisions (already made)
+
+- The anti-list lives in `/learn`'s SKILL.md body, not a sibling file. It's short and load-bearing on every learn invocation.
+- The verify-before-recommend rule is enforced when a learning's body references a concrete identifier (file path, function name, flag). The rule lives in `/learn`'s body and in a new section in `auto memory` documentation if applicable.
+- "Even when the user explicitly asks to save" — `/learn` defends saves against the anti-list and asks the user to articulate what's surprising/non-obvious before saving.
+
+## File footprint
+
+**Creates:**
+- None. All edits land in existing files.
+
+**Modifies:**
+- `.claude/skills/learn/SKILL.md` — add "Anti-list" section before step 3 ("Draft each candidate"); add "Verify before recommending" guidance to the load-existing-learnings section.
+- `bin/learn` (the helper, not the skill) — add a `--check-anti-list <body-file>` mode that scans a body for anti-list violations and warns/rejects (advisory; doesn't block the user but surfaces the conflict to the agent).
+- `CLAUDE.md` (project) — note the anti-list categories and verify-before-recommend rule in the Learnings section template, so saved entries inherit the convention.
+
+**Reads (context only):**
+- `Harness Principles.md` §20, §22.
+- The existing `auto memory` system prompt section (referenced by `/learn`).
+
+## Implementation steps
+
+1. **Draft the anti-list.** Six categories per principle §20:
+   - Code patterns / conventions / file paths (read the project).
+   - Git history / who-changed-what (use `git log`).
+   - Debugging fix recipes (the fix is in the code; the commit message has the context).
+   - CLAUDE.md content (already documented).
+   - Ephemeral task state (in-progress work, current conversation context).
+   - Activity summaries (PR lists, sprint recaps — ask what was *surprising* instead).
+
+2. **Add the anti-list section to `/learn`'s SKILL.md.** Insert between step 2 ("Identify candidate learnings") and step 3 ("Draft each candidate"). Title: "Step 2.5: Defend against the anti-list." Content:
+   - Enumerate the six categories with one-line definitions.
+   - State the rule: "If a candidate falls in any anti-category, do NOT auto-skip it — surface the conflict to the user. Ask: 'This looks like X, which we usually don't save. Was something surprising about it?' If the user gives a surprising/non-obvious framing, save the framing as the entry; otherwise drop the candidate."
+   - Examples: a candidate "we use pnpm" (file-pattern category — ask user what's surprising; their answer might be "we tried npm and it broke CI" → save THAT). A candidate "Mark fixed bug X yesterday" (git-history category — drop unless something's surprising about the fix's *approach*).
+
+3. **Add verify-before-recommend guidance to `/learn`.** Modify step 1 ("Load the existing learnings index"). Add: "If you load an existing learning to check for dedup, and the learning names a specific function, file, or flag — before treating that learning as authoritative for the current task, verify the named identifier still exists. Use Grep or `test -e`. A memory naming `bin/old-helper` is a claim about the past, not a guarantee about now. If the named identifier is gone, flag the learning for cleanup at the end of `/learn`."
+
+4. **Update `bin/learn` with a `--check-anti-list` mode.** Inputs: `--body-file <path>`. Behavior:
+   - Read the body file.
+   - Scan for anti-pattern signals: file paths matching `(packages|src|lib|apps)/.*\.(ts|tsx|js|py|go)$`; phrases like "fixed", "the fix is", "yesterday Mark"; PR numbers; git SHAs.
+   - If matches found, print a warning to stderr listing each match and the anti-category it triggered. Exit 0 (advisory, not blocking).
+   - The skill body checks for this exit/output during step 6 (write the survivors) and surfaces the warning to the user before writing.
+
+5. **Update CLAUDE.md project memory section.** In the "Learnings" template, add a one-line note: "Avoid saving entries that fall in the anti-list (file paths, git history, fix recipes, ephemeral state, activity summaries). When in doubt, ask what was *surprising*."
+
+6. **Add a regression test.** Write a short script `bin/test-learn-anti-list` that:
+   - Creates a temp body file with anti-pattern content (e.g., "We fixed a bug in `src/foo.ts` yesterday").
+   - Runs `bin/learn --check-anti-list` on it.
+   - Asserts that stderr contains "anti-list" warning.
+   - Cleans up.
+   - Cite this script in `/harness-health`.
+
+## Test plan
+
+### Unit
+- `bin/test-learn-anti-list` passes against a known anti-pattern body.
+- `bin/test-learn-anti-list` does NOT warn against a body that's pure rule + why + how-to-apply with no file paths.
+
+### E2E
+- Invoke `/learn` against a fake session where the user just said "Mark fixed `src/foo.ts` yesterday — save that." Confirm `/learn` surfaces the anti-list conflict and asks for the surprising framing.
+- Invoke `/learn` against a fake session where the user said "we always run prettier before committing." Confirm `/learn` accepts (no anti-pattern) and proposes saving.
+
+### Manual verification
+- Read the modified `/learn/SKILL.md` end-to-end. Confirm:
+  - Anti-list section appears between steps 2 and 3.
+  - Verify-before-recommend appears in step 1.
+  - Examples are concrete enough that an agent reading under pressure would actually defend the save.
+
+## Done criteria
+
+- [x] `/learn/SKILL.md` has an "Anti-list" section enumerating 6 categories with examples.
+- [x] `/learn/SKILL.md` has verify-before-recommend guidance in step 1.
+- [x] `bin/learn --check-anti-list <body-file>` exists and surfaces matches advisory-style.
+- [x] `bin/test-learn-anti-list` passes.
+- [x] CLAUDE.md project Learnings template notes the anti-list briefly.
+- [x] `/harness-health` runs the test script.
+
+## Skills
+
+- `/tdd` (for the regression script)
+- `/learn` (validation pass — invoke it on a fake session)
+
+## Notes for the executor
+
+- Keep the anti-list section under 200 words. It loads on every `/learn` invocation; bloat hurts.
+- The advisory-not-blocking design is deliberate. The user is sovereign (principle §42) — `/learn` surfaces conflicts and asks; it does not refuse.
+- The verify-before-recommend rule is about LOADED memories at recall time, not just at write time. Make sure the guidance is in the right step.

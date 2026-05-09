@@ -1,0 +1,146 @@
+# G9 — Terminal-state declarations + missing handoffs
+
+**Workstream:** harness-rigorization
+**Wave:** 4 (depends on G7)
+**Effort:** 2 pts
+**Type:** Extend
+
+## Goal
+
+Close two related gaps:
+
+- **Terminal-state declarations** (per principle §16): when a skill hands off, *name* the next skill and *forbid* the alternatives. Currently 4 skills handoff but don't forbid alternatives — they just say "next, do X."
+- **Missing handoffs**: a few well-defined edges where one skill should hand off to another but doesn't.
+
+Specifically:
+- Add terminal-state declarations to `lg-scaffold`, `lg-design`, `build-plan`, `tdd`.
+- Wire the `/tdd → /e2e-verify` linkage (TDD writes unit tests; UI changes also need browser verification).
+- Reaffirm `/ship`'s risk-check (added in G6) explicitly references `/pre-deploy` and that the user can override.
+- `/incident → /debug` handoff was added in G8 — verify it's still well-formed after wave 3 lands.
+
+The `incident → fix-skill` handoff is partially deferred: `/incident` hands off to `/debug` (G8), and `/debug` hands off to `/tdd`. So the chain `/incident → /debug → /tdd` covers the gap. No new handoff in this sub-plan for that path; just verification.
+
+## Dependencies
+
+- **G7** — all rigid skills landed; we're building on top of them.
+- **G6** — rigid template in place.
+- **G8** — `/debug` exists.
+
+## Key Decisions (already made)
+
+- Terminal-state phrasing: identical across skills. "Terminal state: [next skill]. Do NOT invoke [alternatives] until [next skill] completes."
+- `/tdd → /e2e-verify` is conditional. `/tdd` doesn't always need browser verification — only when the changes touch UI. The handoff is a question: "Does this change affect the UI? If yes, hand off to `/e2e-verify`. If no, terminal state is `/build`'s execution loop."
+- `/ship`'s risk check (from G6) gets reaffirmed, not re-implemented.
+
+## File footprint
+
+**Creates:**
+- None.
+
+**Modifies:**
+- `.claude/skills/lg-scaffold/SKILL.md` — add terminal-state declaration at the end of Phase 7.
+- `.claude/skills/lg-design/SKILL.md` — add terminal-state declaration at the end of Phase 5.
+- `.claude/skills/build-plan/SKILL.md` — add terminal-state declaration; explicitly require quality skills (`tdd`, `e2e-verify`, `security-review`, `pre-deploy`) when their conditions are met.
+- `.claude/skills/tdd/SKILL.md` — add terminal-state and conditional `/e2e-verify` handoff.
+- `.claude/skills/ship/SKILL.md` — verify the risk-check from G6 cleanly references `/pre-deploy` and respects user-supremacy.
+- `.claude/skills/incident/SKILL.md` — verify the `/incident → /debug` handoff (added in G8) is well-formed.
+
+**Reads (context only):**
+- All G6/G7/G8 outputs.
+- `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/brainstorming/SKILL.md` (HARD-GATE pattern).
+
+## Implementation steps
+
+1. **Draft canonical terminal-state phrasing.** Use this template:
+
+   ```
+   ## Terminal State
+
+   The next skill in the chain is `/{{next}}`. Do NOT invoke `/foo`,
+   `/bar`, or any other implementation skill until `/{{next}}` completes
+   or the user explicitly overrides (per `CLAUDE.md` § Instruction
+   precedence).
+   ```
+
+2. **Add terminal-state to `/lg-scaffold/SKILL.md`.**
+   - Next skill: `/lg-add` (for capability additions like HITL, persistence, streaming).
+   - Forbidden alternatives: `/lg-eval` (run after capabilities, not before scaffold), `/lg-review` (audit, not authoring).
+   - Place at end of Phase 7.
+
+3. **Add terminal-state to `/lg-design/SKILL.md`.**
+   - Next skill: `/lg-scaffold <design-doc-path>`.
+   - Forbidden alternatives: jumping to `/build` without scaffold; using `/lg-add` before scaffold exists.
+   - Place at end of Phase 5.
+
+4. **Add terminal-state to `/build-plan/SKILL.md`.**
+   - This is more nuanced — `/build-plan` orchestrates many sub-skills. Terminal state is "completion of all Done Criteria items in the plan, ending with a clean PR via `/ship`."
+   - Forbidden alternatives: skipping conditional quality skills (`/tdd` when new functions are introduced; `/e2e-verify` when UI changes; `/security-review` when auth/data is touched; `/pre-deploy` as a final gate).
+   - Wording: explicit about each conditional skill being MANDATORY when its trigger condition is met. Reference principle §15 (process before implementation, verification at the end).
+
+5. **Add terminal-state and conditional handoff to `/tdd/SKILL.md`.**
+   - After the TDD cycle passes, declare:
+     - If invoked from `/build-plan`: terminal state is the `/build-plan` execution loop. Return there.
+     - If invoked standalone AND the changes touch UI files (extension `.tsx`, `.jsx`, `.vue`, `.svelte`, or paths under `src/components/`, `apps/web/`): hand off to `/e2e-verify`. Forbid declaring done without browser verification.
+     - If invoked standalone AND no UI changes: terminal state. Done.
+   - Phrasing: "If your edits touched UI surfaces, the terminal state is `/e2e-verify`. Do NOT mark complete without browser evidence."
+
+6. **Verify `/ship`'s risk-check** (added in G6) references `/pre-deploy` cleanly. Confirm it:
+   - Asks once, doesn't loop.
+   - Respects "no" — if the user says skip, `/ship` continues without `/pre-deploy`.
+   - Lists the trigger conditions explicitly (auth files, schema files, deploy config, hooks).
+
+7. **Verify `/incident`'s handoff to `/debug`** (added in G8) is well-formed. Confirm:
+   - The handoff happens after Phase 2 (root cause named).
+   - `/incident` doesn't write fixes itself.
+   - Terminal state of `/incident` is "handoff to `/debug` completed."
+
+8. **Cross-skill consistency pass.** Open all 4 skills with new terminal-state declarations. Confirm:
+   - Same template phrasing.
+   - Same placement (end of last phase).
+   - All forbid the same set of inappropriate alternatives.
+
+9. **Add a validator script `bin/test-terminal-states`** that scans every rigid skill's `SKILL.md` for the presence of "Terminal State" section if the skill is `tier: rigid` AND has handoffs (look for `/skill-name` references in the body). Exit 1 if a rigid skill with handoffs lacks terminal-state declaration.
+
+10. **Wire validator into `/harness-health`.**
+
+## Test plan
+
+### Unit
+- `bin/test-terminal-states` passes against the post-G9 repo state.
+- Negative test: temporarily remove the terminal-state from one skill, run validator, confirm exit 1.
+
+### E2E
+- Invoke `/lg-design` on a fake LangGraph design task. Confirm at the end it says "Terminal State: `/lg-scaffold <doc-path>`. Do not invoke `/lg-add` or other implementation skills."
+- Invoke `/tdd` on a UI-touching change (a small `.tsx` edit). Confirm it hands off to `/e2e-verify` and refuses to declare done without it.
+- Invoke `/tdd` on a non-UI change (a backend `.ts` file in `lib/`). Confirm it doesn't trigger `/e2e-verify`.
+- Invoke `/incident` on a fake incident. Confirm it hands off to `/debug` after Phase 2 and doesn't write a fix.
+
+### Manual verification
+- Read each modified `SKILL.md`. Confirm:
+  - Terminal State section is present and consistent.
+  - Forbidden alternatives are listed explicitly.
+  - User-override path is preserved (per G5).
+
+## Done criteria
+
+- [x] `/lg-scaffold`, `/lg-design`, `/build-plan`, `/tdd` have explicit Terminal State sections.
+- [x] `/tdd` handoff to `/e2e-verify` is conditional on UI-touching changes (extensions `.tsx`/`.jsx`/`.vue`/`.svelte` and paths under `src/components/`/`apps/web/`).
+- [x] `/build-plan` Terminal State enumerates mandatory quality skill triggers (TDD on new functions, /debug on bugs, /e2e-verify on UI, /security-review on auth/data, /db-review on schema, /pre-deploy as final gate) — silent skips explicitly forbidden.
+- [x] `/ship`'s risk-check (added in G6) references `/pre-deploy`, asks once, respects user override per `CLAUDE.md` § Instruction precedence.
+- [x] `/incident → /debug` handoff (added in G8) is well-formed and verified — `/incident` doesn't write fixes; terminal state is "handoff to /debug completed."
+- [x] `bin/test-terminal-states` exists, exit codes documented, regression test in `bin/tests/test-terminal-states.test.sh` (2/2 PASS).
+- [x] `/harness-health` invokes the validator (section 5c).
+- [x] All four Terminal State phrasings use the same canonical template ("The next skill in the chain is `/X`. Do NOT invoke `/Y`, `/Z`, ..., or other implementation skills until `/X` completes — or the user explicitly overrides per `CLAUDE.md` § Instruction precedence.").
+
+VERSION 0.7.5 → 0.8.0 — workstream-final per the sub-plan's "after this lands" note. All 9 sub-plans (G1–G9) of the harness-rigorization workstream are now `.DONE`.
+
+## Skills
+
+- `/learn` (if new patterns surface)
+
+## Notes for the executor
+
+- This sub-plan is the LAST one in the workstream. Once it lands, run `/harness-health` and confirm everything is green.
+- Bump `VERSION` to `0.7.0` in this sub-plan's commit (per workstream-final convention).
+- The `/tdd → /e2e-verify` conditional logic should be encoded as a question, not a hard rule — the agent reads the file extensions and decides. Don't try to detect UI changes via shell magic; let the agent reason about it.
+- After this lands, the workstream PR can be opened. Title: `feat: harness 0.7 — behavioral rigorization (Iron Laws, rationalization tables, /debug, /skill-baseline, …)`.

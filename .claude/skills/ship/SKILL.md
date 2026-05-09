@@ -1,3 +1,11 @@
+---
+name: ship
+description: Use when the user says "/ship", "ship it", "let's ship", or "push this up" and the branch is ready to leave the workstation — runs the full shipping pipeline (tests, lint, e2e, commit, push, PR).
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
@@ -7,63 +15,70 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Ship
 
-Run the full shipping pipeline: tests, lint, E2E verify, commit, push, and create a PR. Use when the user says "/ship", "ship it", "let's ship", or "push this up".
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-## Prerequisites
+Run the full shipping pipeline: risk-check → tests → lint → E2E verify (if UI) → commit → push → create PR.
 
-- All changes are saved (no pending edits)
-- On a feature branch (not main)
-- Dev server is running for E2E verification
+## The Iron Law
+
+```
+NO PUSH WITHOUT GREEN PIPELINE AND A REAL PR DESCRIPTION
+```
+
+Every push reflects a green test run, clean lint, a conventional commit, and a PR with a Summary + Test plan that a reviewer can read without Slack context. Flaky tests aren't green — fix them. One-line PR descriptions aren't descriptions. "I'll amend later" isn't a workflow.
 
 ## Pipeline
 
-### 1. Run Tests
+Read `.claude/hooks/harness.config.sh` for commands. Stop on any failure.
 
-Read `HARNESS_TEST_CMD` from `.claude/hooks/harness.config.sh` and run it.
+### 0. Risk-Check (pre-pipeline)
 
-If tests fail, stop and report. Do not continue.
+Scan the diff for risk surfaces (auth/session, schema/migrations, deploy config, hooks — full list in `risk-surfaces.md`). If any match, ask once: *"Did you run `/pre-deploy`? This diff touches `<surface>` — recommend running it before push."* Don't auto-fire `/pre-deploy`; just ask. Continue when the user responds.
 
-### 2. Run Lint
+### 1–6. The Pipeline
 
-Read `HARNESS_LINT_CMD` from `.claude/hooks/harness.config.sh` and run it.
+1. **Tests** — `HARNESS_TEST_CMD`. Stop on failure; investigate, don't retry.
+2. **Lint** — `HARNESS_LINT_CMD`. Stop on errors; warnings noted.
+3. **E2E** — if UI changed, fire `/e2e-verify` against the dev server.
+4. **Commit** — stage specific files, conventional message `<type>(<scope>): <subject>`, append `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`.
+5. **Push** — `git push -u origin <branch>`. Never to `main`/`master` (bash-guard blocks it).
+6. **PR** — `gh pr create` with title <70 chars, body has `## Summary` + `## Test plan` + Claude Code attribution. Use heredoc.
 
-Report warnings but continue. Stop only on errors.
+### Flags
 
-### 3. E2E Verify (if UI changes)
+- `--no-e2e` — skip browser verify (only when no UI changed).
+- `--no-pr` — push without PR (rare; stacking).
+- `--amend` — amend previous commit (only when user explicitly requests).
 
-If any UI files were changed:
-- Use the `e2e-verify` skill to check the UI in the browser
-- If critical issues found, stop and report
+## Red Flags — STOP
 
-### 4. Commit
+- "The fix is one line, the lint pass is overhead."
+- "Tests are flaky anyway, retry passing is fine."
+- "PR description can be one line, real description in a follow-up."
+- "Skip lint, the formatter ran on save."
+- "Push now, open the PR after the demo."
+- "I'll amend later."
+- Pushing without a PR.
+- Skipping risk-check on auth/schema/deploy diffs.
 
-- Stage changed files (specific files, not `git add -A`)
-- Write a conventional commit message based on the changes
-- Include `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`
+**All of these mean: stop. Run the full pipeline against the current branch before pushing.**
 
-### 5. Push
+## Common Rationalizations
 
-```bash
-git push -u origin <branch-name>
-```
+**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is anchored in real time-pressure baselines.
 
-### 6. Create PR
+## Self-Review Checklist
 
-Use `gh pr create` with:
-- Short title (under 70 chars)
-- Body with Summary (bullet points), Schema Changes (if any), and Test Plan
-- End body with: `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+- [ ] Risk-check fired on auth/schema/deploy/hook diffs (and user answered).
+- [ ] Tests fresh against current HEAD; green.
+- [ ] Lint fresh; no errors.
+- [ ] UI changed → `/e2e-verify` ran and passed.
+- [ ] Commit is conventional, scoped, with co-author attribution.
+- [ ] PR title <70 chars; body has Summary + Test plan.
+- [ ] `git status` clean post-push.
 
-## Flags
+Cannot check all boxes? Don't claim the ship. Fix and re-run.
 
-- `/ship --no-e2e` — skip browser verification
-- `/ship --no-pr` — push but don't create PR
-- `/ship --amend` — amend previous commit instead of creating new one (only if user explicitly requests)
+## What this skill does NOT cover
 
-## Failure Handling
-
-If any step fails:
-1. Report exactly what failed and why
-2. Suggest a fix
-3. Do NOT continue the pipeline
-4. Do NOT force-push or skip verification
+`/pre-deploy` (the full gate; risk-check above only *asks*), production runtime systems, and syncing with main (use `/sync` first if behind).

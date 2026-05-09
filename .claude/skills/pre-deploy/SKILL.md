@@ -1,3 +1,11 @@
+---
+name: pre-deploy
+description: Use when the user says "pre-deploy", "ready to deploy?", "deploy check", "go/no-go", or before pushing to a production branch — runs the full pre-deployment quality gate.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
@@ -7,97 +15,67 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Pre-Deploy
 
-Run the full pre-deployment quality gate. Aggregates all checks into a single go/no-go verdict. Use before every push to production.
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-Trigger: when the user says "pre-deploy", "ready to deploy?", "deploy check", "go/no-go", or before pushing to a production branch.
+The full pre-deployment quality gate. Aggregates lint, type-check, tests, build, migration check, env audit, and console cleanup into a single GO / NO-GO verdict.
 
-## Configuration
+## The Iron Law
 
-Read `.claude/hooks/harness.config.sh` for commands. Key vars:
-- `HARNESS_TYPECHECK_CMD` — typecheck command
-- `HARNESS_LINT_CMD` — lint command
-- `HARNESS_TEST_CMD` — test command
-- `HARNESS_BUILD_CMD` — build command
-- `HARNESS_DB_SCHEMA_PATH` — schema file (for migration check)
-- `HARNESS_DB_MIGRATIONS_DIR` — migrations directory
-- `HARNESS_REQUIRED_ENV_VARS` — required env var names (space-separated)
+```
+NO DEPLOY APPROVAL WITHOUT FRESH GATE EVIDENCE
+```
 
-## Pipeline
+Every gate runs against the current diff, in this run, with green output. Stale evidence is no evidence. A subset run isn't the gate. Authority is ownership of risk, not safety. "Small change" is not an exemption.
 
-Run checks in this order. Stop on any FAIL unless `--force` is passed.
+## Gate Sequence
 
-### 1. Git State
+Run all gates against the current branch. Stop on any FAIL. Read `.claude/hooks/harness.config.sh` for commands.
 
-- Confirm on a feature branch (not `main` or `production`)
-- Confirm working tree is clean (no uncommitted changes)
-- Confirm branch is up to date with remote
+1. **Git state.** Feature branch (not `main`/`production`), clean tree, up to date with remote.
+2. **Type check.** `HARNESS_TYPECHECK_CMD` — FAIL on errors.
+3. **Lint.** `HARNESS_LINT_CMD` — FAIL on errors; WARN on warnings (with count).
+4. **Tests.** `HARNESS_TEST_CMD` — FAIL on any failure; report pass/fail/skip.
+5. **Build.** `HARNESS_BUILD_CMD` — FAIL on build errors.
+6. **Migration check.** If `HARNESS_DB_SCHEMA_PATH` is set and the schema changed, verify a corresponding migration exists in `HARNESS_DB_MIGRATIONS_DIR`. WARN if absent.
+7. **Env audit.** Cross-reference `process.env.*` against `.env.example`/`.env.template`. WARN on undocumented; FAIL on missing required vars.
+8. **Console cleanup.** Grep `console.log` in source (excl. tests). WARN with file:line. `console.error`/`console.warn` are intentional.
 
-### 2. Type Check
-
-Run `HARNESS_TYPECHECK_CMD`. FAIL on any type errors.
-
-### 3. Lint
-
-Run `HARNESS_LINT_CMD`. FAIL on errors. WARN on warnings (report count).
-
-### 4. Tests
-
-Run `HARNESS_TEST_CMD`. FAIL if any test fails. Report total pass/fail/skip counts.
-
-### 5. Build
-
-Run `HARNESS_BUILD_CMD`. FAIL if build fails. This catches issues that type-check and lint miss.
-
-### 6. Migration Check
-
-If `HARNESS_DB_SCHEMA_PATH` is configured:
-- Check if the schema file has uncommitted changes
-- If schema changed, verify a corresponding migration exists in `HARNESS_DB_MIGRATIONS_DIR`
-- WARN if schema changed but no migration is committed
-
-### 7. Environment Audit
-
-- Verify `.env.example` or `.env.template` exists
-- Cross-reference env vars used in code (`process.env.VARIABLE`) against the template
-- WARN if any env var is referenced in code but missing from the template
-- If `HARNESS_REQUIRED_ENV_VARS` is set, FAIL if any required var is missing from the template
-
-### 8. Console Cleanup
-
-- Grep for `console.log` in source files (excluding test files)
-- WARN on any found (with file:line list) — debug logs in production may leak info
-- Ignore `console.error` and `console.warn` — those are intentional
-
-### 9. Bundle Analysis (Optional)
-
-If `--bundle` flag passed, run the project's bundle analyzer if available. Report any pages exceeding 200KB first-load JS.
+After fixes, re-run the **full** pipeline. Fixes can break previously-green gates.
 
 ## Verdict
 
-```
-## Pre-Deploy Check — [date] [branch]
+Print the verdict in the format documented in `verdict-format.md`. Status values: `PASS`, `WARN`, `FAIL`. Any single FAIL = NO-GO. WARNs are reported but don't block.
 
-### Verdict: GO / NO-GO
+## Red Flags — STOP
 
-| Check | Status | Detail |
-|-------|--------|--------|
-| Git state | PASS | feat/my-feature, clean, up-to-date |
-| Type check | PASS | 0 errors |
-| Lint | PASS | 0 errors, 3 warnings |
-| Tests | PASS | 42 passed, 0 failed |
-| Build | PASS | Built successfully |
-| Migrations | PASS | No schema changes |
-| Env vars | PASS | All documented |
-| Console cleanup | WARN | 2 console.logs found |
+- "Tests passed last time, skip them this time."
+- "Run lint and type-check only — the cheap checks."
+- "The VP owns the risk."
+- "It's a small change, the gate is overkill."
+- "We can harden post-launch."
+- "I'll file a follow-up ticket."
+- Approving GO when a gate is WARN you didn't read.
+- Treating a flaky-looking test as flaky without investigating.
+- Skipping `/security-review` on an auth diff or `/db-review` on a schema diff.
 
-### Action Items (if NO-GO)
-1. [what to fix]
-```
+**All of these mean: stop. Run the full gate against the current diff before any GO verdict.**
 
-## Rules
+## Common Rationalizations
 
-- Every check must produce PASS, WARN, or FAIL
-- Any single FAIL = NO-GO verdict
-- WARNs are reported but don't block
-- Run all checks even if one fails (developer needs the full picture)
-- After fixes, re-run the full pipeline — don't skip "passing" checks
+**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is anchored in real authority/deadline pressure baselines.
+
+## Self-Review Checklist
+
+- [ ] Every gate ran against the current branch HEAD (not stale).
+- [ ] Every gate output was read in full.
+- [ ] No FAIL is being treated as a WARN.
+- [ ] Auth/session diff → `/security-review` ran and passed.
+- [ ] Schema/migration diff → `/db-review` ran and passed.
+- [ ] WARNs are documented in the verdict, not hidden.
+- [ ] You can name what each gate caught — or that it had nothing to catch.
+
+Cannot check all boxes? NO-GO. Fix and re-run.
+
+## What this skill does NOT cover
+
+Code review (use `/security-review`, `/db-review`, or human review for risky diffs), production runtime monitoring (next layer), and rollback strategy (document in PR, not gated here).

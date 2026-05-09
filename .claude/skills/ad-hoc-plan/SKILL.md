@@ -1,7 +1,9 @@
 ---
 name: ad-hoc-plan
-description: Quick plan for a one-off task that slots into the current sprint. Lighter than /plan-sprint — reads existing plans for context, uses plan mode, writes a focused plan file.
+description: Use when the user has a one-off task that slots into the current sprint and needs a quick written plan — lighter than /plan-sprint. Reads existing plans for context, uses plan mode, writes a focused plan file.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>

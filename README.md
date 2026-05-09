@@ -50,6 +50,12 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
+**Rigid skills with Iron Laws.** Verification skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, `/incident`, `/db-review`, `/e2e-verify`, `/lg-review`, `/debug`) each carry an Iron Law — a single-sentence rule — plus a Rationalization Table of verbatim excuses harvested from real subagent baselines under deadline, authority, and sunk-cost pressure. When the model catches itself thinking *"must be flaky"* or *"the manager said skip it,"* the table names the framing and forces the gate. Plans get a 6-item mechanical Self-Review before handoff (placeholder scan, scope check, ambiguity check, etc.); `/debug` enforces four-phase staged debugging with an attempt counter that escalates to architecture-questioning after 3 failed fixes. All overrideable via `CLAUDE.md` (see "User control" below).
+
+### User control
+
+The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's `CLAUDE.md` says to skip a skill in a given context, the harness follows `CLAUDE.md`. The hierarchy is published in your `CLAUDE.md` under "Instruction precedence" — user instructions outrank skills, skills outrank Claude Code defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
+
 ---
 
 ## Conductor mode (optional)
@@ -128,6 +134,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 | `/build <plan>` | Execution | Run a sprint plan end-to-end |
 | `/ship` | Shipping | Test → lint → commit → push → PR |
 | `/learn` | After a session | Capture corrections from the session into project + user learnings |
+| `/office-hours` | New idea / strategy | YC-style brainstorm in two modes (Startup diagnostic / Builder generative) |
 | `/sync` | Reset | Switch to main and pull |
 
 **Quality**
@@ -135,6 +142,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 | Skill | When | Purpose |
 |---|---|---|
 | `/tdd` | Implementation | Test-driven development cycle |
+| `/debug` | Bug or test failure | Staged debugging — root cause → pattern → hypothesis → handoff to /tdd |
 | `/pre-deploy` | Before deploy | Full go / no-go quality gate |
 | `/security-review` | Before deploy | 15-phase security audit |
 | `/db-review` | Schema changes | Migration safety review |
@@ -146,8 +154,9 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 
 | Skill | When | Purpose |
 |---|---|---|
-| `/incident` | Production issues | Structured incident response |
+| `/incident` | Production issues | Structured incident response — hands off to `/debug` |
 | `/worktree` | Parallel work | Git worktree management |
+| `/skill-baseline` | Authoring rigid skills | Subagent baselines under pressure to harvest rationalizations |
 | `/harness-overview` | Reference | Full harness documentation |
 
 **LangGraph (opt-in via `./setup.sh`)**
@@ -258,7 +267,7 @@ The skill loader discovers it automatically. Project skills complement the base 
   hooks/              9 shell hooks + harness.config.sh
   agents/             4 specialized sub-agents
   commands/           2 slash commands
-  skills/             18 reusable skills
+  skills/             28 reusable skills (9 rigid, 14 flexible, 5 util) + rigid template
   settings.json       hook wiring + permission allowlist
 bin/
   conductor-status    per-workspace status manifest (Conductor mode)

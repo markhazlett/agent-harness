@@ -1,7 +1,9 @@
 ---
 name: plan-sprint
-description: Break the current week's goals into concrete, executable projects with full implementation plans. Each project gets a plan written to docs/plans/YYYY-wNN/sprint-plans/ with file footprints, test criteria, and E2E browser verification steps. Use at the start of a week to turn goals into actionable work.
+description: Use when the user starts a new week or says "/plan-sprint", "plan the week", or "turn goals into projects". Breaks the current week's goals into concrete, executable projects with full implementation plans (file footprints, test criteria, E2E verification) under docs/plans/YYYY-wNN/sprint-plans/.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>
@@ -208,14 +210,34 @@ Wave 2 (after Wave 1 ships):
 
 If a wave has only one plan, mark it `Parallel-safe: no` — there's no one to run alongside.
 
-## Phase 4: Update goals document
+## Phase 4: Self-Review
+
+Before handing the plans to the user, run this checklist against every plan written in Phase 3. Every item must pass on every plan. If any item fails, edit the plan and re-run Phase 4 — do not hand the plan to the user with known gaps.
+
+The first item is automated. The remaining five require re-reading the doc and confirming each check yourself.
+
+1. **Placeholder scan.** Run `bin/test-plan-self-review <plan-file>` on the plan. Exit 0 = clean; exit 1 = found one of `TBD`, `XXX`, `???`, `implement later`, `as needed`, `appropriate`. Every match must be removed or replaced with concrete content. Cite the section line the validator printed.
+
+2. **File-footprint completeness.** Every Implementation Step that creates or modifies a file must list that file in the `File Footprint` section under `Creates` or `Modifies`. Build the two sets and diff them; report mismatches and fix the plan.
+
+3. **Type/name consistency.** Extract every type name, function name, and config key referenced anywhere in the plan. Confirm spelling and casing are identical across sections (e.g., `userId` vs `user_id` vs `UserID` mixed in one plan = inconsistency). Pick one and replace everywhere.
+
+4. **Scope check.** Re-read the goal/priority statement at the top of the plan. List every Implementation Step. For each step, state in one sentence why it serves the goal. If you can't, the step is scope creep — drop it or rescope.
+
+5. **Ambiguity check.** For each Implementation Step, is the action unambiguous? "Set up logging" is ambiguous; "Add `pino` with daily rotation, level=info, output to `logs/app.log`" is not. Flag every ambiguous step and rewrite it concretely.
+
+6. **Done-criteria reachability.** Every item in the `Done Criteria` checklist must be testable by an Implementation Step. If a Done item has no corresponding Step, either add the Step or drop the Done item.
+
+Cannot check all 6 boxes? Edit the plan and re-run Phase 4. Do not proceed to Phase 5 with unchecked items.
+
+## Phase 5: Update goals document
 
 After all plans are written:
 
 1. Add a `## Sprint Plan` section to the goals document listing all project plans with links, effort estimates, and execution order.
 2. Commit all plan files and the updated goals doc together.
 
-## Phase 5: Dispatch Wave 1 to Conductor workspaces (optional)
+## Phase 6: Dispatch Wave 1 to Conductor workspaces (optional)
 
 **Precondition:** Skip this phase entirely if `bin/conductor-dispatch` is not executable in the repo. Check with: `[ -x bin/conductor-dispatch ]`. If absent, note "Conductor dispatch helper not installed — skipping" and stop Phase 5.
 

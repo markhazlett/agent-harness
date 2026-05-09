@@ -32,11 +32,56 @@ Read `.claude/hooks/harness.config.sh` for `HARNESS_TEST_CMD` and run it.
 
 ### 5. Learn Helper
 
-Verify `bin/learn` exists and is executable, then run its test suite:
+Verify `bin/learn` exists and is executable, then run its test suites:
 
 ```bash
 test -x bin/learn && echo "PASS bin/learn" || echo "FAIL bin/learn (missing or not executable)"
 bash bin/tests/learn.test.sh >/dev/null 2>&1 && echo "PASS learn tests" || echo "FAIL learn tests"
+test -x bin/test-learn-anti-list && echo "PASS bin/test-learn-anti-list" || echo "FAIL bin/test-learn-anti-list (missing or not executable)"
+bash bin/test-learn-anti-list >/dev/null 2>&1 && echo "PASS learn anti-list tests" || echo "FAIL learn anti-list tests"
+```
+
+### 5a. Skill-baseline Helper
+
+Verify `bin/skill-baseline` exists and is executable:
+
+```bash
+test -x bin/skill-baseline && echo "PASS bin/skill-baseline" || echo "FAIL bin/skill-baseline (missing or not executable)"
+bin/skill-baseline --help >/dev/null 2>&1 && echo "PASS bin/skill-baseline --help" || echo "FAIL bin/skill-baseline --help"
+```
+
+### 5c. Terminal-State Validator
+
+Verify that the four skills designated by G9 (`lg-scaffold`, `lg-design`, `build-plan`, `tdd`) declare a `## Terminal State` section, and run the regression test.
+
+```bash
+test -x bin/test-terminal-states && echo "PASS bin/test-terminal-states" || echo "FAIL bin/test-terminal-states (missing or not executable)"
+bash bin/test-terminal-states >/dev/null 2>&1 && echo "PASS terminal-state declarations" || echo "FAIL terminal-state declarations (run \`bin/test-terminal-states\` to see which skills are missing the section)"
+bash bin/tests/test-terminal-states.test.sh >/dev/null 2>&1 && echo "PASS terminal-state regression test" || echo "FAIL terminal-state regression test"
+```
+
+A FAIL on `terminal-state declarations` means at least one of the four required skills is missing a `## Terminal State` section.
+
+### 5b. Plan Self-Review Validator
+
+Verify `bin/test-plan-self-review` exists and runs its test suite. If `docs/plans/` exists and contains any `.md` files, also run the validator over each as a placeholder scan (FAIL on any exit-1 result).
+
+```bash
+test -x bin/test-plan-self-review && echo "PASS bin/test-plan-self-review" || echo "FAIL bin/test-plan-self-review (missing or not executable)"
+bash bin/tests/test-plan-self-review.test.sh >/dev/null 2>&1 && echo "PASS plan-self-review tests" || echo "FAIL plan-self-review tests"
+
+if [ -d docs/plans ] && find docs/plans -type f -name '*.md' | head -1 | grep -q .; then
+  fail=0
+  while IFS= read -r f; do
+    if ! bin/test-plan-self-review "$f" >/dev/null 2>&1; then
+      fail=1
+      echo "  placeholder tokens in: $f"
+    fi
+  done < <(find docs/plans -type f -name '*.md' ! -name '*.DONE')
+  [ "$fail" = "0" ] && echo "PASS plan placeholder scan" || echo "FAIL plan placeholder scan (one or more plan files contain TBD/XXX/??? etc.)"
+else
+  echo "SKIP plan placeholder scan (no docs/plans/*.md)"
+fi
 ```
 
 ### 6. Settings Wiring
@@ -65,6 +110,17 @@ Read `.claude/hooks/harness.config.sh` and verify key values are set:
 - `HARNESS_TEST_CMD` is set
 - `HARNESS_APP_NAME` is not still "My Project" (suggests setup.sh was run)
 
+### 9. Skill Frontmatter
+
+Verify every `.claude/skills/*/SKILL.md` has valid frontmatter per `.claude/skills/CONVENTIONS.md` (`name` matches folder, `description` is a `Use when` trigger, `user-invocable`, `tier`, and `kind` where applicable):
+
+```bash
+test -x bin/test-frontmatter && echo "PASS bin/test-frontmatter" || echo "FAIL bin/test-frontmatter (missing or not executable)"
+bash bin/test-frontmatter >/dev/null 2>&1 && echo "PASS skill frontmatter" || echo "FAIL skill frontmatter (run \`bin/test-frontmatter\` to see which skills are non-conformant)"
+```
+
+A FAIL here means at least one skill is missing required fields, has an out-of-vocab `tier`/`kind`, or has a `description` that does not start with `Use when`. Run `bin/test-frontmatter` directly to see the per-skill diagnosis.
+
 ## Output Format
 
 ```
@@ -81,6 +137,7 @@ Read `.claude/hooks/harness.config.sh` and verify key values are set:
 | Tests | PASS/FAIL | |
 | Settings wiring | PASS/FAIL | |
 | Config populated | PASS/WARN | |
+| Skill frontmatter | PASS/FAIL | |
 
 ### Verdict: HEALTHY / NEEDS ATTENTION
 ```

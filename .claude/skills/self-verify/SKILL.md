@@ -1,3 +1,11 @@
+---
+name: self-verify
+description: Use when the user says "check the UI", "verify changes", "does it look right", or after completing UI work — quick browser spot-check (not a deploy gate; that is /e2e-verify).
+user-invocable: true
+tier: flexible
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.

@@ -1,7 +1,9 @@
 ---
 name: deep-plan
-description: Plan complex features or workstreams that need architecture analysis, sub-plan decomposition, and security review. Produces folder-based plans with an entry point document plus individually executable sub-plans. Use when the user describes work that spans multiple files/systems, involves architectural decisions, would exceed 9 complexity pts or span multiple sprints, or when they say "deep plan", "plan this feature", "let's plan [complex thing]".
+description: Use when the user describes work that spans multiple files/systems, involves architectural decisions, would exceed 9 complexity pts or span multiple sprints, or says "deep plan", "plan this feature", or "let's plan [complex thing]". Produces folder-based plans with an entry-point doc plus individually executable sub-plans.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>
@@ -148,6 +150,26 @@ docs/plans/YYYY-wNN/sprint-plans/<workstream-slug>/
 5. **Decisions that are NOT one-way doors** — What's safe to defer
 6. **Execution strategy & parallelization** — Dependency graph, time budget
 7. **Sub-plan index** — Table linking to each sub-plan
+
+## Phase 6.5: Self-Review
+
+Before integrating with the sprint, run this checklist against the entry-point doc (`00-*.md`) AND each sub-plan. Every item must pass on every doc. If any item fails, edit the doc and re-run Phase 6.5 — do not proceed to Phase 7 with known gaps.
+
+The first item is automated. The remaining five require re-reading the doc and confirming each check yourself.
+
+1. **Placeholder scan.** Run `bin/test-plan-self-review <doc-file>` on the entry-point doc and on each sub-plan. Exit 0 = clean; exit 1 = found one of `TBD`, `XXX`, `???`, `implement later`, `as needed`, `appropriate`. Every match must be removed or replaced with concrete content.
+
+2. **File-footprint completeness.** For each sub-plan, every Implementation Step that creates or modifies a file must list that file in the `File Footprint` section under `Creates` or `Modifies`. Diff the two sets and fix mismatches. (The entry-point doc has no implementation steps; skip this check on `00-*.md`.)
+
+3. **Type/name consistency across sub-plans.** Workstream-wide check: extract every type name, function name, and config key referenced in the entry-point doc. Confirm every sub-plan uses the same spelling and casing. Inconsistency between sub-plans is a real failure mode here — they were drafted as a set, but each was written separately.
+
+4. **Workstream scope check.** Re-read the workstream goal in `00-*.md`. For each sub-plan in the index, state in one sentence why it serves the workstream goal. If you can't, the sub-plan is scope creep — drop it or fold it into another sub-plan. Then within each sub-plan, repeat the per-step scope check from `/plan-sprint` Phase 4 item 4.
+
+5. **Ambiguity check.** For each Implementation Step in each sub-plan, is the action unambiguous? Flag every ambiguous step and rewrite it concretely. (Same standard as `/plan-sprint` Phase 4 item 5.)
+
+6. **Done-criteria reachability.** For each sub-plan, every item in its `Done Criteria` checklist must be testable by an Implementation Step. Also: the workstream `Done criteria` in `00-*.md` must be covered by the union of sub-plan Done Criteria — if a workstream criterion is not addressed by any sub-plan, either add a sub-plan or drop the criterion.
+
+Cannot check all 6 boxes? Edit the doc(s) and re-run Phase 6.5. Do not proceed to Phase 7 with unchecked items.
 
 ## Phase 7: Integrate with Sprint
 

@@ -1,7 +1,9 @@
 ---
 name: office-hours
-description: Strategic conversation about a product or idea — YC-style office hours. Two modes. Startup mode runs six forcing questions to expose demand reality, status quo, desperate specificity, narrowest wedge, observation, and future-fit. Builder mode brainstorms cool side projects, hackathons, and learning projects. Saves a design doc. Use when the user says "brainstorm this", "I have an idea", "help me think through this", "office hours", or "is this worth building", or describes a new product idea before any code is written.
+description: Use when the user says "brainstorm this", "I have an idea", "help me think through this", "office hours", "is this worth building", or describes a new product idea before any code is written. YC-style strategic conversation in two modes (Startup diagnostic / Builder generative); saves a design doc.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 # Office Hours

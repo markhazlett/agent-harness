@@ -1,7 +1,9 @@
 ---
 name: weekly-goals
-description: Load and reference the current week's goals. Use proactively to keep work aligned with weekly priorities, flag when tasks drift off-track, and suggest what to work on next.
+description: Use when the user starts a new task and you need to align with weekly priorities, asks "what should I work on", says "/weekly-goals", or "check this week's goals". Loads and references the current week's goals; flag drift and suggest the next thing.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>

@@ -1,3 +1,11 @@
+---
+name: incident
+description: Use when the user reports a production problem — "users can't log in", "500 errors", "the site is down", "something broke", "getting errors on [page]", "incident", or "production issue". Drives structured triage → diagnosis → remediation.
+user-invocable: true
+tier: rigid
+kind: verification
+---
+
 <update-check>
 Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 - `UPGRADE_AVAILABLE <old> <new>` → tell the user: "agent-harness <new> is available (you have <old>). Visit https://github.com/markhazlett/agent-harness to upgrade." Then continue.
@@ -7,109 +15,57 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Incident
 
-Structured incident response for production issues. Takes a symptom, investigates systematically, and produces a diagnosis with remediation steps.
+> _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-Trigger: when the user reports a production problem — "users can't log in", "500 errors", "the site is down", "something broke", "getting errors on [page]", "incident", "production issue".
+Structured incident response for production issues. Severity classification → context-gathering → root-cause hypothesis → remediation → verification → report. The discipline gates the fix on the classification, not the other way around.
 
-## Response Protocol
-
-### 1. Acknowledge & Classify
-
-Immediately classify severity:
-
-| Severity | Criteria | Response |
-|----------|----------|----------|
-| **SEV-1** | Service down, all users affected, data loss risk | Drop everything. Investigate immediately. |
-| **SEV-2** | Major feature broken, many users affected | Investigate now, consider rollback |
-| **SEV-3** | Minor feature broken, workaround exists | Investigate, fix in next deploy |
-| **SEV-4** | Cosmetic, edge case, low impact | Log and schedule fix |
-
-### 2. Gather Context (Parallel)
-
-Run these simultaneously to build the incident picture:
-
-**a. Recent changes**
-```bash
-git log --oneline -20 --since="24 hours ago"
-```
-What shipped recently? Changes in the last 24 hours are prime suspects.
-
-**b. Application state**
-- Check if the dev server / production is reachable
-- Check deployment platform logs (Railway, Vercel, Fly.io, etc.)
-
-**c. Database connectivity**
-- Check if the database is reachable and responsive
-- Look for recent migration runs or schema changes
-
-**d. Related code**
-- Search the codebase for the affected feature/route/component
-- Read the relevant service, route handler, and component files
-- Check for recent changes to those files: `git log --oneline -5 -- <file>`
-
-**e. Application metrics/signals**
-- Check any connected monitoring (PostHog, Datadog, Sentry, etc.) for anomalies
-- Look for correlated errors or traffic spikes
-
-### 3. Diagnose
-
-Based on gathered context, identify:
-
-- **Root cause** — what exactly is broken and why
-- **Blast radius** — who is affected, what functionality is degraded
-- **Trigger** — what change or event caused this (deploy, data migration, external service, traffic spike)
-- **Timeline** — when did it start, based on logs/commits/signals
-
-### 4. Remediate
-
-Propose fixes in order of speed:
-
-1. **Immediate mitigation** — can we reduce impact right now? (revert deploy, disable feature flag, add rate limit)
-2. **Root cause fix** — the actual code/config change needed
-3. **Verification** — how to confirm the fix works (test command, URL to check, metric to watch)
-
-### 5. Report
-
-Output a structured incident report:
+## The Iron Law
 
 ```
-## Incident Report — [date] [time]
-
-### Symptom
-[What the user reported]
-
-### Severity: SEV-[1-4]
-
-### Timeline
-- [time] — First reported
-- [time] — [key event]
-- [time] — Root cause identified
-- [time] — Fix applied / in progress
-
-### Root Cause
-[What broke and why, with file:line references]
-
-### Blast Radius
-[Who/what is affected]
-
-### Immediate Mitigation
-[What was done to reduce impact]
-
-### Fix
-[Code changes needed, with specific files and approach]
-
-### Verification
-[How to confirm the fix works]
-
-### Prevention
-[What would prevent this class of issue in the future — test, monitor, guard]
+NO INCIDENT FIX WITHOUT SEVERITY CLASSIFICATION AND ROOT-CAUSE NAMED
 ```
 
-## Rules
+Before any patch ships or any rollback executes, two things exist *in writing* in the incident channel: a severity (SEV-1 to SEV-4) and a 1–2 line root-cause hypothesis. "I see the diff in my head" is not naming the cause. Rollback is a remediation, not an exemption — name the cause first.
 
-- Speed over polish. Get to the root cause fast
-- Check the obvious first: recent deploys, database connectivity, env vars
-- If a rollback is the fastest mitigation, recommend it immediately (but don't execute without user approval)
-- NEVER run destructive commands (DROP, DELETE, reset) without explicit user approval
-- If the issue is in production and you can't access logs, tell the user what to check and what to look for
-- After resolution, suggest a monitor or test that would catch this issue earlier next time
+## Gate Sequence
+
+**REQUIRED SUB-FILE:** Read `response-protocol.md` for the severity matrix, context-gathering steps, and report template.
+
+1. **Classify.** Severity declared in writing. SEV-1/2 drops everything. No fix lands before this.
+2. **Gather context (parallel).** Recent changes, app state, DB, related code, monitoring.
+3. **Diagnose.** Write root cause + blast radius + trigger + timeline.
+4. **Remediate.** Mitigation → root-cause fix → verification. Rollback allowed; rollback-without-cause is not.
+5. **Report.** Timeline + root cause + mitigation + fix + verification + prevention.
+
+## Red Flags — STOP
+
+- "Just patch it."
+- "We'll write it up after."
+- "I already know the cause" (without writing it down).
+- "Severity classification is paperwork."
+- "Roll back first, diagnose later."
+- "I can do the formal write-up tomorrow."
+- VP / on-call lead said skip the gate.
+- Pushing the fix before SEV is declared in the channel.
+
+**All of these mean: stop. Declare severity and write the root-cause hypothesis before any remediation lands.**
+
+## Common Rationalizations
+
+**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is harvested from a real `incident-rush-fix` baseline (the subagent rolled back without classifying or naming the cause).
+
+## Self-Review Checklist
+
+- [ ] Severity is declared in writing in the incident channel before remediation.
+- [ ] Root-cause hypothesis (1–2 lines, with file:line if known) is written before the fix or rollback lands.
+- [ ] Blast radius is documented (who is affected, with numbers if possible).
+- [ ] Verification step is explicit (test, URL, metric to watch).
+- [ ] Report includes timeline, root cause, mitigation, fix, prevention.
+
+Cannot check all boxes? The incident is not closed. Finish the report before claiming resolution.
+
+## What this skill does NOT cover
+
+- **The actual fix.** After root cause is named (Phase 3), hand off to `/debug` for the fix process. `/debug` runs the staged investigation and hands off to `/tdd` after Phase 3 confirms the hypothesis. Do not invoke `/tdd` directly from `/incident` — `/debug` is the gate.
+- **Postmortem facilitation.** Schedule that as a separate meeting; this skill closes when the report is filed.
+- **Status page updates.** Coordinate via the comms lead; outside the technical loop here.

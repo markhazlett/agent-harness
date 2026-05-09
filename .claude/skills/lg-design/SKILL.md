@@ -1,7 +1,9 @@
 ---
 name: lg-design
-description: Design a LangGraph agent before writing code. Asks structured questions about purpose, tools, persistence, HITL, streaming, memory; picks the right pattern (createAgent vs raw StateGraph vs Deep Agent vs supervisor/swarm); produces a design doc. Use when the user says "design an agent", "I'm building an agent that does X", "help me architect this LangGraph", or before any agent implementation work.
+description: Use when the user says "design an agent", "I'm building an agent that does X", "help me architect this LangGraph", or before any agent implementation work. Asks structured questions, picks the right pattern (createAgent vs raw StateGraph vs Deep Agent vs supervisor/swarm), produces a design doc.
 user-invocable: true
+tier: flexible
+kind: process
 ---
 
 <update-check>
@@ -273,3 +275,7 @@ Tell the user:
 > "Design saved to `<path>`. Next: `/lg-scaffold <path>` to generate code."
 
 If sprint mode, also recommend: "Link this design from your sprint plan's `## Skills` section."
+
+## Terminal State
+
+The next skill in the chain is `/lg-scaffold <design-doc-path>`. Do NOT invoke `/lg-add` (capabilities go after scaffold), `/build` (no scaffold yet), or other implementation skills until `/lg-scaffold` completes — or the user explicitly overrides (per `CLAUDE.md` § Instruction precedence).

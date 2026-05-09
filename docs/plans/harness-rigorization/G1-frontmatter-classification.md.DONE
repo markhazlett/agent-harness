@@ -1,0 +1,154 @@
+# G1 — Frontmatter audit + `tier`/`kind` fields + CONVENTIONS.md
+
+**Workstream:** harness-rigorization
+**Wave:** 1 (no dependencies)
+**Effort:** 2 pts
+**Type:** Extend
+
+## Goal
+
+Standardize the frontmatter contract across all 26 skills. Codify the rigidity classification (`tier`) and priority class (`kind`). Write `.claude/skills/CONVENTIONS.md` so future contributors know the shape.
+
+This is the foundation — every later sub-plan references the conventions written here.
+
+## Dependencies
+
+None. Lands first.
+
+## Key Decisions (already made)
+
+- Frontmatter required fields: `name`, `description`, `user-invocable`, `tier`. `kind` required when `tier != util`.
+- `tier` enum: `rigid | flexible | util`.
+- `kind` enum: `process | implementation | verification`.
+- `description` MUST be a trigger ("Use when…"), never a workflow summary. This is enforced in CONVENTIONS.md and validated in `/harness-health`.
+- `name` MUST match the skill folder name. The current `build-plan/SKILL.md` declares `name: build` — that gets fixed here.
+
+## File footprint
+
+**Creates:**
+- `.claude/skills/CONVENTIONS.md` — frontmatter contract, tier/kind definitions, description-vs-summary examples, validator checklist.
+
+**Modifies (frontmatter only — body untouched):**
+- `.claude/skills/tdd/SKILL.md`
+- `.claude/skills/ship/SKILL.md`
+- `.claude/skills/pre-deploy/SKILL.md`
+- `.claude/skills/self-verify/SKILL.md`
+- `.claude/skills/e2e-verify/SKILL.md`
+- `.claude/skills/security-review/SKILL.md`
+- `.claude/skills/incident/SKILL.md`
+- `.claude/skills/db-review/SKILL.md`
+- `.claude/skills/worktree/SKILL.md`
+- `.claude/skills/dev-server/SKILL.md`
+- `.claude/skills/harness-overview/SKILL.md`
+- `.claude/skills/sync/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/learn/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/build-plan/SKILL.md` — fix `name: build` → `name: build-plan`, add `tier`/`kind`
+- `.claude/skills/weekly-goals/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/demo-script/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/plan-sprint/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/deep-plan/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/ad-hoc-plan/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/office-hours/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-design/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-scaffold/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-add/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-eval/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-review/SKILL.md` — add `tier`/`kind`
+- `.claude/skills/lg-cheatsheet/SKILL.md` — add `tier`/`kind`
+- `.claude/commands/harness-health.md` — add a frontmatter validation step.
+
+**Reads (context only):**
+- All current SKILL.md files (audit pass).
+- `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/writing-skills/SKILL.md` lines 144–180 (frontmatter convention).
+
+## Implementation steps
+
+1. **Write `.claude/skills/CONVENTIONS.md`.** Contents:
+   - Required frontmatter fields, with examples.
+   - `tier` enum with one-paragraph definition each (rigid, flexible, util).
+   - `kind` enum with one-paragraph definition each (process, implementation, verification).
+   - The "description = trigger, not summary" rule with two examples (one bad, one good), copied from `superpowers:writing-skills` convention.
+   - Naming: skill folder name MUST equal `name:` in frontmatter.
+   - Body convention: rigid skills have Iron Law near the top; rationalization tables live in sibling files (forward reference to G6).
+   - Validation hook: `/harness-health` parses every SKILL.md and reports missing/invalid frontmatter.
+
+2. **Audit and fix `build-plan/SKILL.md`.** Change `name: build` to `name: build-plan`. Confirm description is a trigger; rewrite if it's a summary.
+
+3. **For each of the 11 skills missing frontmatter, add the YAML block.** Build the descriptions from the existing first-paragraph hint in each SKILL.md (those already say "Use when…"). For rigid skills, add `tier: rigid` + `kind: verification`. For util, `tier: util` (no kind). For flexible, `tier: flexible` + appropriate `kind`.
+
+   Per-skill assignments:
+   - `tdd` → `tier: rigid, kind: verification`
+   - `ship` → `tier: rigid, kind: verification`
+   - `pre-deploy` → `tier: rigid, kind: verification`
+   - `self-verify` → `tier: flexible, kind: verification`
+   - `e2e-verify` → `tier: rigid, kind: verification`
+   - `security-review` → `tier: rigid, kind: verification`
+   - `incident` → `tier: rigid, kind: verification`
+   - `db-review` → `tier: rigid, kind: verification`
+   - `worktree` → `tier: util`
+   - `dev-server` → `tier: util`
+   - `harness-overview` → `tier: util`
+
+4. **For the 14 skills that already have frontmatter, add `tier` and `kind` fields.** Per-skill assignments:
+   - `sync` → `tier: util`
+   - `learn` → `tier: flexible, kind: implementation`
+   - `weekly-goals` → `tier: flexible, kind: process`
+   - `demo-script` → `tier: flexible, kind: process`
+   - `plan-sprint` → `tier: flexible, kind: process`
+   - `deep-plan` → `tier: flexible, kind: process`
+   - `ad-hoc-plan` → `tier: flexible, kind: process`
+   - `build-plan` → `tier: flexible, kind: implementation`
+   - `office-hours` → `tier: flexible, kind: process`
+   - `lg-design` → `tier: flexible, kind: process`
+   - `lg-scaffold` → `tier: flexible, kind: implementation`
+   - `lg-add` → `tier: flexible, kind: implementation`
+   - `lg-eval` → `tier: flexible, kind: verification`
+   - `lg-review` → `tier: rigid, kind: verification`
+   - `lg-cheatsheet` → `tier: util`
+
+5. **Audit every description for "trigger vs summary".** For each skill, ask: does the description start with "Use when…" or describe a triggering condition? If it summarizes the workflow ("This skill does X, Y, Z"), rewrite it. Output a diff list showing which descriptions changed.
+
+6. **Add validation to `harness-health.md`.** New step: parse each `.claude/skills/*/SKILL.md` with `awk` or `yq`. Verify:
+   - `name` matches folder name.
+   - `description` is non-empty and starts with "Use when".
+   - `user-invocable` is `true` or `false`.
+   - `tier` is one of `rigid|flexible|util`.
+   - `kind` is one of `process|implementation|verification` OR absent (only allowed when `tier: util`).
+   Fail the check if any skill is non-conformant.
+
+7. **Bump `VERSION`** as part of the workstream's final commit (do not bump in this sub-plan independently — wait until the full workstream lands).
+
+## Test plan
+
+### Unit
+- Write a small shell test or `awk` validator that loads each `.claude/skills/*/SKILL.md`, extracts the frontmatter, and asserts the contract. Place it at `bin/test-frontmatter` so `/harness-health` can invoke it.
+- Run it against the repo. All 26 skills should pass.
+
+### E2E / Browser
+- N/A. Documentation + skill metadata only.
+
+### Manual verification
+- `cat .claude/skills/build-plan/SKILL.md | head -8` — confirm `name: build-plan`.
+- `grep -L "tier:" .claude/skills/*/SKILL.md` — should return zero files.
+- `grep -L "user-invocable:" .claude/skills/*/SKILL.md` — should return zero files.
+- Run `/harness-health` and confirm the new frontmatter check passes.
+
+## Done criteria
+
+- [x] `.claude/skills/CONVENTIONS.md` exists and documents frontmatter, tier, kind, naming, and description rules.
+- [x] All 26 SKILL.md files have valid YAML frontmatter with `name`, `description`, `user-invocable`, `tier`, plus `kind` where applicable.
+- [x] `build-plan/SKILL.md` has `name: build-plan` (not `build`).
+- [x] No description summarizes a workflow — every description is a trigger.
+- [x] `bin/test-frontmatter` (or equivalent) validates the contract programmatically.
+- [x] `/harness-health` runs the validator and reports clean.
+
+## Skills
+
+- `/tdd` (validator script)
+- `/harness-health`
+
+## Notes for the executor
+
+- This sub-plan is a mechanical pass. Do NOT modify skill bodies — that work is in G6/G7. Frontmatter and descriptions only.
+- If you find a skill whose first-paragraph hint is itself a summary not a trigger, rewrite it to a trigger; do NOT skip.
+- Commit after each batch of ~5 files so review is reasonable. One PR for the whole sub-plan.
