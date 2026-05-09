@@ -17,110 +17,58 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 > _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-Test-driven development workflow.
+Test-driven development for every new function, bugfix, refactor, or behavior change. The order is the proof.
 
-## Cycle
+## The Iron Law
 
-1. **Write a failing test** — describe the expected behavior
-2. **Run the test** — confirm it fails for the right reason
-3. **Implement** — write the minimum code to make it pass
-4. **Run the test** — confirm it passes
-5. **Refactor** — clean up while keeping tests green
-
-## Test Conventions
-
-Read `CLAUDE.md` for project-specific test conventions. Generic defaults:
-
-- **Location:** Tests go in `__tests__/` adjacent to the source file, or in a top-level `tests/` directory
-- **Naming:** `<module>.test.ts` or `<module>.spec.ts`
-- **Framework:** Check `package.json` — commonly Vitest or Jest
-- **Run tests:** Use `HARNESS_TEST_CMD` from `.claude/hooks/harness.config.sh`
-
-## Vitest Mock Patterns (if using Vitest)
-
-### Use static imports + vi.hoisted(), not vi.resetModules()
-
-**NEVER do this** — causes flaky tests:
-
-```typescript
-// BAD: fragile pattern
-beforeEach(() => {
-  vi.resetModules(); // clears module cache — fragile
-});
-
-it("my test", async () => {
-  const { myService } = await import("../my-service"); // race conditions
-});
+```
+NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-**Always do this** — deterministic:
+Wrote code before the test? Delete it. Start over. Don't keep it as reference, don't adapt it, don't look at it. Implement fresh from the test.
 
-```typescript
-// GOOD: deterministic, no flakiness
-const { mockDep } = vi.hoisted(() => ({
-  mockDep: vi.fn(),
-}));
+## Cycle: Red → Green → Refactor
 
-vi.mock("../dependency", () => ({
-  doThing: mockDep,
-}));
+1. **RED.** Write one failing test. Clear name, one behavior, real code (no mocks unless unavoidable). State what *should* happen.
+2. **Verify RED.** Run it. Confirm it fails (not errors), and fails for the right reason (feature missing, not typo). Test passes immediately? You're testing existing behavior — fix the test.
+3. **GREEN.** Minimal code to pass. No extra features, no abstractions, no improvements beyond the test.
+4. **Verify GREEN.** Run it. Confirm pass, other tests still pass, clean output.
+5. **REFACTOR.** Remove duplication, improve names, extract helpers. Keep tests green. Don't add behavior. Next failing test.
 
-// Static imports — vi.mock() is hoisted above these
-import { myService } from "../my-service";
+Project mock patterns (Vitest `vi.hoisted()`, Jest) live in `mock-patterns.md`.
 
-beforeEach(() => {
-  vi.clearAllMocks(); // sufficient — resets call history
-  mockDep.mockReturnValue({ result: "default" });
-});
-```
+## Red Flags — STOP and Start Over
 
-### Why vi.hoisted() is required
+- Code before test, or test after implementation.
+- Test passes immediately on first run.
+- Can't explain why the test failed.
+- "I'll add the test in a follow-up PR."
+- "I already manually tested it."
+- "Tests after achieve the same purpose."
+- "It's about spirit, not ritual."
+- "Keep as reference" or "adapt existing code."
+- "Already spent X hours, deleting is wasteful."
+- "TDD is dogmatic, I'm being pragmatic."
+- "This is different because…"
 
-`vi.mock()` factories are hoisted ABOVE all other code, including `const` declarations. Without `vi.hoisted()`, mock variables hit the temporal dead zone.
+**All of these mean: stop. Delete the code. Start over with a failing test.**
 
-### Quick checklist for new test files
+## Common Rationalizations
 
-1. Declare mock variables with `vi.hoisted()`
-2. Define `vi.mock()` factories referencing those hoisted variables
-3. Use static `import` for the module under test (after `vi.mock()` calls)
-4. Use `vi.clearAllMocks()` in `beforeEach` — never `vi.resetModules()`
-5. Re-configure mock implementations in `beforeEach`
+**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is harvested from real subagent baselines under pressure.
 
-## Jest Mock Patterns (if using Jest)
+## Self-Review Checklist
 
-```typescript
-jest.mock("../dependency", () => ({
-  doThing: jest.fn(),
-}));
+- [ ] Every new function/method has a test.
+- [ ] You watched each test *fail* before implementing.
+- [ ] Each failure was for the expected reason (feature missing, not typo).
+- [ ] You wrote the minimal code to pass each test.
+- [ ] All tests pass; output is clean.
+- [ ] Tests use real code — mocks only where unavoidable (`mock-patterns.md`).
+- [ ] Edge cases and error paths are covered.
 
-import { doThing } from "../dependency";
+Cannot check all boxes? You skipped TDD. Delete and start over.
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  (doThing as jest.Mock).mockReturnValue({ result: "default" });
-});
-```
+## What this skill does NOT cover
 
-## Example (Vitest)
-
-```typescript
-// src/services/__tests__/my-service.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
-vi.mock("../http-client", () => ({ fetch: mockFetch }));
-
-import { myService } from "../my-service";
-
-describe("myService", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should return processed result", async () => {
-    mockFetch.mockResolvedValueOnce({ data: "test" });
-    const result = await myService.process("input");
-    expect(result).toMatchObject({ status: "success" });
-  });
-});
-```
+Throwaway prototypes (with explicit user permission), generated code, configuration files, and documentation changes. For exemptions outside this list, name them in `CLAUDE.md` § Instruction precedence — not as a per-task rationalization.

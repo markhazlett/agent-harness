@@ -93,3 +93,23 @@ The trigger may include named slash-commands, user phrases, or situational condi
 ## User-supremacy invariant
 
 Skills are advisors; the user is principal. When `CLAUDE.md` or a direct user instruction conflicts with a skill body, follow the user. Rigid skills carry an italicized override note near the top of their body pointing at `CLAUDE.md` § Instruction precedence — keep that note on every rigid skill. The full hierarchy lives in the project's `CLAUDE.md`.
+
+## How to write a rigid skill
+
+A rigid skill is a verification gate that must compel compliance under pressure. The shape is templated; the *content* must be specific to your skill and grounded in real failure modes.
+
+1. **Run baselines before writing.** Use `/skill-baseline` (or `bin/skill-baseline --skill <name> --scenario <slug>`) against scenarios that put pressure on this skill's discipline (time, authority, sunk cost, exhaustion). The point is to harvest the verbatim excuses an unaided agent generates. Inventing rationalizations from imagination defeats the purpose — agents under pressure recognize phrases they've actually used, not phrases someone imagined they might.
+2. **Copy the template.** Start from `.claude/skills/_template-rigid/TEMPLATE.md` (the body), `rationalizations.md` (the sibling table), and optionally `red-flags.md` (when the inline list outgrows ~12 bullets). Place the new skill at `.claude/skills/<name>/SKILL.md`.
+3. **Fill the template.**
+   - Frontmatter per the contract above (`tier: rigid`, `kind: verification`).
+   - Override preamble — italic line under the H1 pointing at `CLAUDE.md` § Instruction precedence.
+   - **Iron Law** — one all-caps sentence in a code block. Pick the single discipline this skill enforces. 3–5 lines of "no exceptions" guidance below it, naming specific shortcuts the law forbids.
+   - **Cycle / Steps** — the workflow itself, kept short. Sub-steps belong in sibling files.
+   - **Red Flags** — 6–12 bullets of thoughts/actions that mean: stop, restart from the top.
+   - **Common Rationalizations** — pointer line + sibling `rationalizations.md` populated from the baseline transcripts.
+   - **Self-Review Checklist** — 4–8 mechanical checkboxes verifiable by re-reading the diff or output.
+   - **What this skill does NOT cover** — short scope-bound, naming legitimate exemptions.
+4. **Re-baseline.** Run the same scenarios again with the upgraded skill loaded. Confirm the subagent now passes. If it doesn't, identify the new rationalization, append a row to `rationalizations.md`, and iterate (REFACTOR phase).
+5. **Word-budget the body.** Aim under ~500 words for `SKILL.md`. Overflow content (mock patterns, expanded red flags, large code samples) lives in sibling files loaded on demand.
+
+The first three rigid skills (`tdd`, `pre-deploy`, `ship`) shipped with G6 of the harness-rigorization workstream and serve as the reference implementations. Read them when in doubt.
