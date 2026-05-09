@@ -39,6 +39,15 @@ test -x bin/learn && echo "PASS bin/learn" || echo "FAIL bin/learn (missing or n
 bash bin/tests/learn.test.sh >/dev/null 2>&1 && echo "PASS learn tests" || echo "FAIL learn tests"
 ```
 
+### 5a. Skill-baseline Helper
+
+Verify `bin/skill-baseline` exists and is executable:
+
+```bash
+test -x bin/skill-baseline && echo "PASS bin/skill-baseline" || echo "FAIL bin/skill-baseline (missing or not executable)"
+bin/skill-baseline --help >/dev/null 2>&1 && echo "PASS bin/skill-baseline --help" || echo "FAIL bin/skill-baseline --help"
+```
+
 ### 6. Settings Wiring
 
 Verify `.claude/settings.json` has all hooks wired:

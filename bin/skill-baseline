@@ -1,0 +1,239 @@
+#!/usr/bin/env bash
+# bin/skill-baseline — helper for the /skill-baseline skill.
+#
+# Two modes:
+#
+#   1) PREPARE — print the prompt to paste into a fresh Claude Code subagent
+#      dispatch (Agent tool, subagent_type=general-purpose). The subagent must
+#      NOT have the target skill loaded.
+#
+#        bin/skill-baseline --skill <name> --scenario <slug>
+#
+#   2) FINALIZE — given the captured subagent transcript, write a baseline
+#      file under docs/skill-baselines/<skill>-<YYYY-MM-DD>.md (or --out)
+#      containing the scenario setup verbatim, the transcript verbatim, and
+#      an empty "Rationalizations extracted" section for the contributor to
+#      fill in.
+#
+#        bin/skill-baseline --finalize <skill> <scenario> \
+#          --transcript <file> [--out <path>] [--model <id>]
+#
+# Why two modes? Claude Code does not yet expose stable headless subagent
+# dispatch from a shell. The PREPARE/FINALIZE split is the human-in-the-loop
+# pattern: the helper renders the prompt and the contributor pastes it into a
+# session, captures the response to a file, and runs FINALIZE.
+#
+# Exit codes:
+#   0  success
+#   1  scenario or transcript missing / unreadable
+#   2  bad usage / bad arguments
+set -euo pipefail
+
+SCENARIOS_DIR="docs/skill-baselines/_scenarios"
+BASELINES_DIR="docs/skill-baselines"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bin/skill-baseline --skill <name> --scenario <slug>
+      Print the prompt to paste into a fresh subagent dispatch. The subagent
+      MUST be dispatched WITHOUT the target skill loaded — that is the whole
+      point of the baseline (see RED phase in /skill-baseline).
+
+  bin/skill-baseline --finalize <skill> <scenario> \
+      --transcript <file> [--out <path>] [--model <id>]
+      Write the baseline file from a captured transcript. The baseline file
+      contains the scenario setup verbatim, the transcript verbatim, and an
+      empty "Rationalizations extracted" section. The contributor fills that
+      section in by hand from the transcript.
+
+Common:
+  -h, --help        Show this help.
+
+Headless caveat:
+  Claude Code does not yet have stable headless subagent dispatch from a
+  shell script. PREPARE prints the prompt and tells you what to do; FINALIZE
+  writes the file once you have the transcript. This is intentional — see
+  the /skill-baseline skill for the full workflow.
+EOF
+}
+
+cmd_first="${1:-}"
+case "$cmd_first" in
+  ""|-h|--help|help) usage; exit 0 ;;
+esac
+
+# ── FINALIZE branch ──────────────────────────────────────────────────────────
+if [ "$cmd_first" = "--finalize" ]; then
+  shift
+  SKILL="${1:-}"; shift || true
+  SCENARIO="${1:-}"; shift || true
+  TRANSCRIPT=""
+  OUT=""
+  MODEL=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --transcript) TRANSCRIPT="$2"; shift 2 ;;
+      --out)        OUT="$2"; shift 2 ;;
+      --model)      MODEL="$2"; shift 2 ;;
+      *) echo "Unknown arg: $1" >&2; usage >&2; exit 2 ;;
+    esac
+  done
+
+  [ -n "$SKILL" ] && [ -n "$SCENARIO" ] && [ -n "$TRANSCRIPT" ] || {
+    echo "Missing required args for --finalize" >&2
+    usage >&2
+    exit 2
+  }
+
+  SCENARIO_FILE="$SCENARIOS_DIR/$SCENARIO.md"
+  [ -f "$SCENARIO_FILE" ] || {
+    echo "Scenario not found: $SCENARIO_FILE" >&2
+    exit 1
+  }
+  [ -f "$TRANSCRIPT" ] || {
+    echo "Transcript not found: $TRANSCRIPT" >&2
+    exit 1
+  }
+
+  TODAY=$(date -u +"%Y-%m-%d")
+  if [ -z "$OUT" ]; then
+    mkdir -p "$BASELINES_DIR"
+    OUT="$BASELINES_DIR/${SKILL}-${TODAY}.md"
+  else
+    mkdir -p "$(dirname "$OUT")"
+  fi
+
+  MODEL_LINE="${MODEL:-unknown (record manually)}"
+
+  {
+    cat <<HEADER
+# Baseline: /$SKILL under $SCENARIO
+
+**Skill under test:** /$SKILL
+**Scenario:** [$SCENARIO](_scenarios/$SCENARIO.md)
+**Date (UTC):** $TODAY
+**Model used (subagent):** $MODEL_LINE
+**Skill loaded during run?** NO (this is a RED-phase baseline)
+
+## Scenario setup (verbatim)
+
+HEADER
+    cat "$SCENARIO_FILE"
+    cat <<'TRANSCRIPT_HEAD'
+
+
+## Subagent transcript (verbatim)
+
+```
+TRANSCRIPT_HEAD
+    cat "$TRANSCRIPT"
+    cat <<'TAIL'
+
+```
+
+## Rationalizations extracted
+
+<!--
+Read the transcript above and pull out each verbatim rationalization
+the subagent used. ONE bullet per excuse. Do NOT paraphrase — exact
+phrasing is what triggers later recognition (principle §3).
+
+Format:
+- "exact words from the subagent"
+
+When this section is filled in, copy each excuse into the target
+skill's rationalizations.md as a row in the Rationalization Table.
+-->
+
+## Outcome
+
+<!-- Did the subagent choose the correct option (A) or fail (B/C)?
+One line. Used to decide whether the skill needs more counters. -->
+TAIL
+  } > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
+
+  echo "Baseline captured at $OUT."
+  echo "Open the file and fill in '## Rationalizations extracted' from the transcript."
+  exit 0
+fi
+
+# ── PREPARE branch ───────────────────────────────────────────────────────────
+SKILL=""
+SCENARIO=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skill)    SKILL="$2"; shift 2 ;;
+    --scenario) SCENARIO="$2"; shift 2 ;;
+    -h|--help)  usage; exit 0 ;;
+    *) echo "Unknown arg: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$SKILL" ] && [ -n "$SCENARIO" ] || {
+  echo "Missing required args" >&2
+  usage >&2
+  exit 2
+}
+
+SCENARIO_FILE="$SCENARIOS_DIR/$SCENARIO.md"
+[ -f "$SCENARIO_FILE" ] || {
+  echo "Scenario not found: $SCENARIO_FILE" >&2
+  echo "Available scenarios:" >&2
+  ls -1 "$SCENARIOS_DIR"/*.md 2>/dev/null | grep -v README.md | sed 's|.*/||; s|\.md$||; s/^/  /' >&2
+  exit 1
+}
+
+# Extract the setup prompt block from the scenario file.
+# Convention: the prompt lives between "## Setup prompt" and the next "## ".
+PROMPT_BLOCK=$(awk '
+  /^## Setup prompt/ { in_block = 1; next }
+  in_block && /^## / { exit }
+  in_block { print }
+' "$SCENARIO_FILE")
+
+[ -n "$PROMPT_BLOCK" ] || {
+  echo "Could not find '## Setup prompt' section in $SCENARIO_FILE" >&2
+  exit 1
+}
+
+cat <<EOF
+================================================================================
+SKILL BASELINE — PREPARE
+================================================================================
+
+Target skill : /$SKILL
+Scenario     : $SCENARIO
+Scenario file: $SCENARIO_FILE
+
+WHAT TO DO NOW
+--------------
+
+1. In a fresh Claude Code session, dispatch a subagent using the Agent tool
+   with subagent_type="general-purpose". The subagent MUST NOT have /$SKILL
+   loaded — that is the entire point of the baseline (RED phase).
+
+2. Paste the prompt below into the subagent's "prompt" argument verbatim.
+
+3. Capture the subagent's full response to a file, e.g.:
+
+       /tmp/baseline-$SKILL-$SCENARIO.md
+
+4. Run FINALIZE to write the baseline:
+
+       bin/skill-baseline --finalize $SKILL $SCENARIO \\
+         --transcript /tmp/baseline-$SKILL-$SCENARIO.md \\
+         --model claude-sonnet-4-6
+
+5. Open the resulting docs/skill-baselines/$SKILL-<date>.md file and fill in
+   '## Rationalizations extracted' by quoting the subagent's excuses
+   verbatim. Then copy those excuses into .claude/skills/$SKILL/rationalizations.md
+   as Rationalization Table rows.
+
+PROMPT (paste this into the subagent verbatim)
+----------------------------------------------
+
+$PROMPT_BLOCK
+
+================================================================================
+EOF
