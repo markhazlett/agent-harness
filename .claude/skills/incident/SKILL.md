@@ -66,6 +66,6 @@ Cannot check all boxes? The incident is not closed. Finish the report before cla
 
 ## What this skill does NOT cover
 
-- **The actual fix.** Once root cause is named, hand off to `/tdd` or `/debug` for the implementation.
+- **The actual fix.** After root cause is named (Phase 3), hand off to `/debug` for the fix process. `/debug` runs the staged investigation and hands off to `/tdd` after Phase 3 confirms the hypothesis. Do not invoke `/tdd` directly from `/incident` — `/debug` is the gate.
 - **Postmortem facilitation.** Schedule that as a separate meeting; this skill closes when the report is filed.
 - **Status page updates.** Coordinate via the comms lead; outside the technical loop here.

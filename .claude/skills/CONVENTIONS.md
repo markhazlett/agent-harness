@@ -27,7 +27,7 @@ Notes:
 
 How strictly the skill's body must be followed.
 
-- **rigid** — gate-worthy verification. The skill exists because under pressure the model rationalizes around the right behavior. Rigid skills have an Iron Law (one-line declaration), a Rationalization Table (excuses → reality), Red Flags, and a Self-Review checklist. Bypass requires explicit user override. Examples: `tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`.
+- **rigid** — gate-worthy verification. The skill exists because under pressure the model rationalizes around the right behavior. Rigid skills have an Iron Law (one-line declaration), a Rationalization Table (excuses → reality), Red Flags, and a Self-Review checklist. Bypass requires explicit user override. Examples: `tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`, `debug`.
 - **flexible** — procedural, judgment-driven. The skill prescribes a workflow but expects adaptation to context. No Iron Law. Examples: `plan-sprint`, `deep-plan`, `build-plan`, `learn`, `office-hours`, `lg-design`, `lg-scaffold`, `lg-add`, `lg-eval`, `lg-cheatsheet`, `weekly-goals`, `demo-script`, `ad-hoc-plan`, `self-verify`.
 - **util** — operational, no rigor needed. Thin commands that do one thing. Examples: `sync`, `worktree`, `dev-server`, `harness-overview`.
 

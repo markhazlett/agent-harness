@@ -139,6 +139,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 | Skill | When | Purpose |
 |---|---|---|
 | `/tdd` | Implementation | Test-driven development cycle |
+| `/debug` | Bug or test failure | Staged debugging — root cause → pattern → hypothesis → handoff to /tdd |
 | `/pre-deploy` | Before deploy | Full go / no-go quality gate |
 | `/security-review` | Before deploy | 15-phase security audit |
 | `/db-review` | Schema changes | Migration safety review |

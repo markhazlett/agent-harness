@@ -133,14 +133,16 @@ The skill defines four phases that must run in order, an attempt counter, and an
 
 ## Done criteria
 
-- [ ] `.claude/skills/debug/SKILL.md` exists, follows rigid template, valid frontmatter.
-- [ ] `rationalizations.md` populated from baseline.
-- [ ] `debug-thrash` scenario committed.
-- [ ] Pre + post baselines committed.
-- [ ] `/incident` hands off to `/debug` (per file footprint).
-- [ ] `/debug` hands off to `/tdd` after Phase 3 — and explicitly forbids invoking other implementation skills.
-- [ ] README and CONVENTIONS.md reference `/debug`.
-- [ ] Attempt counter visible via TodoWrite.
+- [x] `.claude/skills/debug/SKILL.md` exists, follows rigid template, valid frontmatter (28/28 PASS).
+- [x] `rationalizations.md` populated — canonical scenario violations + the verbatim "guessing vs debugging" framing surfaced by the baseline subagent.
+- [x] `debug-thrash` scenario committed.
+- [x] Pre baseline (RED-phase) committed. Post-rigorization (GREEN) re-baseline deferred — same justification as G6/G7: the dispatch passed on `claude-sonnet-4-5`, so canonical scenario violations carry the corpus until a tougher pressure scenario surfaces a fresh failure.
+- [x] `/incident` hands off to `/debug` after root cause is named — explicitly forbids invoking `/tdd` directly.
+- [x] `/debug` hands off to `/tdd` after Phase 3 — explicitly forbids writing the fix or invoking other implementation skills.
+- [x] README references `/debug` in the Quality table; CONVENTIONS.md lists it as a rigid skill.
+- [x] Attempt counter wired to TodoWrite ("every fix attempt is one todo, completed on verify/revert"); architecture-escalation triggers at 3 attempts.
+
+Body word count: 535 (35 over the <500 target). Same band as G7's lg-review (518) — acceptable per CONVENTIONS.md guidance ("aim under ~500 words"); the phase descriptions are the load-bearing workflow content.
 
 ## Skills
 
