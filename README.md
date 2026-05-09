@@ -2,8 +2,6 @@
 
 A production-tested toolkit that turns Claude Code into a reliable teammate: it plans your week, executes sprints, ships code, and refuses to touch `main`, `.env`, or anything else you'd have to revert.
 
-Built for engineers who pair with Claude Code daily. Battle-tested on a Next.js monorepo at [Sigio](https://sigio.io). Works standalone with plain Claude Code, or lights up parallel-agent features when running inside a [Conductor](https://conductor.build) workspace.
-
 ---
 
 ## The workflow
