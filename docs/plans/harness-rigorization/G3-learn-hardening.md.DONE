@@ -88,12 +88,12 @@ None.
 
 ## Done criteria
 
-- [ ] `/learn/SKILL.md` has an "Anti-list" section enumerating 6 categories with examples.
-- [ ] `/learn/SKILL.md` has verify-before-recommend guidance in step 1.
-- [ ] `bin/learn --check-anti-list <body-file>` exists and surfaces matches advisory-style.
-- [ ] `bin/test-learn-anti-list` passes.
-- [ ] CLAUDE.md project Learnings template notes the anti-list briefly.
-- [ ] `/harness-health` runs the test script.
+- [x] `/learn/SKILL.md` has an "Anti-list" section enumerating 6 categories with examples.
+- [x] `/learn/SKILL.md` has verify-before-recommend guidance in step 1.
+- [x] `bin/learn --check-anti-list <body-file>` exists and surfaces matches advisory-style.
+- [x] `bin/test-learn-anti-list` passes.
+- [x] CLAUDE.md project Learnings template notes the anti-list briefly.
+- [x] `/harness-health` runs the test script.
 
 ## Skills
 
