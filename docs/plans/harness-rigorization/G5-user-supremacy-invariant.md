@@ -1,0 +1,111 @@
+# G5 — User-supremacy invariant in CLAUDE.md + README
+
+**Workstream:** harness-rigorization
+**Wave:** 1 (no dependencies)
+**Effort:** 1 pt
+**Type:** Extend
+
+## Goal
+
+Address principle §42 ("the user can override anything") by stating user-supremacy as a published invariant in two places contributors and agents see often: project `CLAUDE.md` and `README.md`. Add a one-line note to each rigid skill's frontmatter description explaining the override path.
+
+Why this matters: the rigorization in G6/G7 will make rigid skills harder to skip. If we don't publish the invariant, users will feel fought by the harness and turn it off (principle §42).
+
+## Dependencies
+
+None. Lands in wave 1.
+
+## Key Decisions (already made)
+
+- The invariant lives prominently in CLAUDE.md (always loaded into context) and the README (visible to humans).
+- Each rigid skill body explicitly notes: "If `CLAUDE.md` says skip this skill in context X, follow it. The user is principal."
+- Mode flags (Auto / Plan equivalent) are PUNTED — we don't ship them in this workstream. The harness already has implicit modes via `/weekly-goals → /plan → /build → /ship` phasing, and Claude Code's plan mode is available. A future workstream can revisit if a need surfaces.
+
+## File footprint
+
+**Creates:**
+- None.
+
+**Modifies:**
+- `CLAUDE.md` — add a top-level section "## Instruction precedence" near the top, after the existing introduction.
+- `README.md` — add one paragraph under "What you get" or a new "User control" subsection explaining the override.
+
+**Reads (context only):**
+- `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/using-superpowers/SKILL.md` (for canonical phrasing).
+
+## Implementation steps
+
+1. **Draft the invariant.** Three-tier hierarchy with phrasing matching superpowers:
+
+   ```
+   ## Instruction precedence
+
+   When instructions conflict, this is the order:
+
+   1. **User explicit instructions** (CLAUDE.md, AGENTS.md, direct user requests) — highest
+   2. **Harness skills** (`/tdd`, `/pre-deploy`, etc.) — override default behavior where they conflict
+   3. **Default Claude Code behavior** — lowest
+
+   If `CLAUDE.md` says "don't use TDD" and `/tdd` says "always TDD," follow `CLAUDE.md`. The user is principal; skills are advisors.
+
+   This applies to rigid skills too. A rigid skill's Iron Law is the harness's recommendation, not a runtime block. The user can:
+   - Override globally in `CLAUDE.md` (e.g., "skip /pre-deploy on docs-only PRs").
+   - Override per-turn in their message ("ignore /tdd for this prototype script").
+   - Suppress a skill from auto-firing by adding it to `CLAUDE.md`'s skip list.
+
+   Skills that auto-fire (e.g., `/build` invoking `/tdd`) check `CLAUDE.md` first.
+   ```
+
+2. **Add the section to `CLAUDE.md`** at the top, immediately after the file's existing intro paragraph. Don't disturb existing sections.
+
+3. **Add the README paragraph.** Insert under "What you get" (around the "Guardrails that run automatically" paragraph) or create a new section "User control":
+
+   ```
+   ### User control
+
+   The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, etc.) are recommendations, not runtime blocks. If `CLAUDE.md` says to skip a skill in your context, the harness follows `CLAUDE.md`. See "Instruction precedence" in `CLAUDE.md` for the override paths.
+   ```
+
+4. **Update each rigid skill's frontmatter.** For the 9 skills marked `tier: rigid` (after G1), add a single body line near the top: "Override: see `CLAUDE.md` § Instruction precedence." Place it as a one-line italicized note above the Iron Law (the Iron Law itself comes in G6/G7).
+
+   For this sub-plan, the line is added now even though the Iron Law isn't there yet — it's a no-op preamble that becomes meaningful once G6/G7 land. List of skills (post-G1):
+   - `tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`. (`/debug` doesn't exist yet — added in G8.)
+
+5. **Verify CLAUDE.md is still well-formed.** The file is project-instructions; corrupting it breaks every skill load. Read top-to-bottom after editing. Confirm:
+   - Existing "Bump VERSION" guidance is intact.
+   - Existing examples are intact.
+   - The new section is placed before any "## Learnings" section that exists or might be added later.
+
+6. **Cite the invariant in `.claude/skills/CONVENTIONS.md`** (created in G1). Add a short cross-reference: "User-supremacy invariant — see `CLAUDE.md`. Skills are advisors; the user is principal."
+
+## Test plan
+
+### Unit
+- N/A — content edits.
+
+### E2E
+- Open a Claude Code session in this repo. Confirm the new "Instruction precedence" section is visible in the loaded CLAUDE.md context.
+- Add a test entry to a fake CLAUDE.md ("don't run /tdd on this branch"). Invoke `/build` on a small task. Confirm the agent honors the user's override and reports it.
+
+### Manual verification
+- Read CLAUDE.md top to bottom. Confirm structure is preserved.
+- Read README.md. Confirm the new paragraph reads naturally and doesn't duplicate existing content.
+- For each of the 8 rigid skills, confirm the override line is present.
+
+## Done criteria
+
+- [ ] `CLAUDE.md` has an "## Instruction precedence" section near the top, naming the 3-tier hierarchy and override paths.
+- [ ] `README.md` has a "User control" paragraph (under "What you get") referencing the override.
+- [ ] All 8 currently-rigid skills (`tdd`, `pre-deploy`, `ship`, `e2e-verify`, `security-review`, `incident`, `db-review`, `lg-review`) have an "Override: see `CLAUDE.md`" preamble line near the top of the body.
+- [ ] `.claude/skills/CONVENTIONS.md` cross-references the invariant.
+- [ ] CLAUDE.md is structurally valid — no broken sections, no merge artifacts.
+
+## Skills
+
+- `/learn` (if any new conventions surface during edits, capture them).
+
+## Notes for the executor
+
+- Mode flags (Auto / Plan) are NOT in scope. Don't add them.
+- The override line in rigid skill bodies is a placeholder that gains meaning when G6/G7 add the Iron Law. Place it consistently (italicized, single line, just above the Iron Law section header).
+- If you find existing CLAUDE.md content that already implicitly covers user-supremacy, link it from the new section rather than duplicating.

@@ -1,0 +1,198 @@
+# G6 — Rigid template + `tdd`/`pre-deploy`/`ship` rigorization
+
+**Workstream:** harness-rigorization
+**Wave:** 2 (depends on G1 + G2)
+**Effort:** 4 pts
+**Type:** Build + Extend
+
+## Goal
+
+Build the rigid-skill template and apply it to the three highest-frequency rigid skills: `/tdd`, `/pre-deploy`, `/ship`. Each gets:
+
+- Iron Law (single-sentence, all-caps, near top).
+- Rationalization Table (sibling file `rationalizations.md`).
+- Red Flags list (sibling file `red-flags.md` if extensive, inline if short).
+- Self-Review checklist (mechanical).
+- Override preamble (added in G5; reaffirm placement above Iron Law).
+
+Rationalizations are HARVESTED from real subagent baselines using G2's tooling — not invented.
+
+## Dependencies
+
+- **G1** — frontmatter contract must be in place (every modified skill needs valid `tier: rigid, kind: verification` and the description-as-trigger).
+- **G2** — `bin/skill-baseline` must exist and produce runnable baselines.
+
+## Key Decisions (already made)
+
+- Sibling-file pattern: heavy reference (`rationalizations.md`, optional `red-flags.md`) lives next to `SKILL.md`, loaded on demand via `**REQUIRED SUB-FILE: ...**` reference.
+- Each rigid skill keeps its body under 500 words; the Iron Law + Red Flags inline + a short Self-Review checklist + sibling-file pointers fit comfortably.
+- Baselines are run BEFORE the Iron Law and Rationalization Table are written. The order is: baseline → extract → write skill → re-baseline → close loopholes.
+
+## File footprint
+
+**Creates:**
+- `.claude/skills/_template-rigid/SKILL.md` — template for rigid skills with placeholders for Iron Law, Red Flags, Self-Review.
+- `.claude/skills/_template-rigid/rationalizations.md` — template for the Rationalization Table sibling.
+- `.claude/skills/_template-rigid/red-flags.md` — template for the Red Flags sibling (used when the list is long).
+- `.claude/skills/tdd/rationalizations.md`
+- `.claude/skills/pre-deploy/rationalizations.md`
+- `.claude/skills/ship/rationalizations.md`
+- `docs/skill-baselines/tdd-time-pressure-2026-05-09.md` (date may differ at execution time)
+- `docs/skill-baselines/tdd-sunk-cost-2026-05-09.md`
+- `docs/skill-baselines/pre-deploy-authority-2026-05-09.md`
+- `docs/skill-baselines/ship-time-pressure-2026-05-09.md`
+
+**Modifies:**
+- `.claude/skills/tdd/SKILL.md` — Iron Law + Red Flags + Self-Review + sibling links + override preamble (G5 already placed it; verify location).
+- `.claude/skills/pre-deploy/SKILL.md` — same treatment.
+- `.claude/skills/ship/SKILL.md` — same treatment. Includes the risk-check addition (asks "Did you run /pre-deploy?" if diff touches auth/schema/deploy).
+- `.claude/skills/CONVENTIONS.md` — add a "How to write a rigid skill" section pointing at the template.
+
+**Reads (context only):**
+- `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/test-driven-development/SKILL.md` (full TDD skill — verbatim Iron Law, RT, Red Flags, Self-Review).
+- `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/verification-before-completion/SKILL.md` (Gate Function pattern).
+
+## Implementation steps
+
+### Phase 1: Build the template
+
+1. **Create `.claude/skills/_template-rigid/SKILL.md`** with these sections (in order):
+   - Frontmatter block (placeholders for `name`, `description`, `user-invocable: true`, `tier: rigid`, `kind: verification`).
+   - `<update-check>` block (boilerplate).
+   - `# {{Skill Title}}` heading.
+   - One-paragraph description (what triggers this skill, what it gates).
+   - Override preamble: *"Override: see `CLAUDE.md` § Instruction precedence."*
+   - **The Iron Law** section — all-caps single sentence in a code block, with 3–5 lines of "no exceptions" guidance below.
+   - **The Cycle / Steps** section — the actual workflow.
+   - **Red Flags** section — short bullet list of "if you're thinking X, stop." For long lists, link to `red-flags.md` sibling.
+   - **Common Rationalizations** section — link to `rationalizations.md` sibling. One-paragraph intro: "If you find yourself making excuses, read `rationalizations.md` before continuing."
+   - **Self-Review Checklist** section — 4–8 mechanical checkboxes.
+   - **What this skill does NOT cover** — short scope-bound. Helps anti-rigidity (user can see when to bypass).
+
+2. **Create `.claude/skills/_template-rigid/rationalizations.md`** with this header:
+   ```
+   # Common Rationalizations — {{Skill}}
+
+   Excerpts from skill baselines under pressure. Each row pairs a verbatim
+   excuse the agent generated with the reality check. If you find yourself
+   thinking any phrase in column 1, stop and read column 2.
+
+   | Excuse | Reality |
+   |--------|---------|
+   | (template — fill from baselines) | (template) |
+   ```
+
+3. **Create `.claude/skills/_template-rigid/red-flags.md`** with header + bullet list template + closing line "All of these mean: stop. Restart the skill from the top."
+
+4. **Update `.claude/skills/CONVENTIONS.md`** — add section "How to write a rigid skill":
+   - Step 1: Run `/skill-baseline` to gather rationalizations under pressure.
+   - Step 2: Copy `_template-rigid/` to your skill folder.
+   - Step 3: Fill the template; populate `rationalizations.md` from the baseline.
+   - Step 4: Re-baseline. Confirm the skill compels compliance. Fill loopholes.
+
+### Phase 2: Baseline + rigorize `/tdd`
+
+5. **Run baselines for `/tdd`.** Use `bin/skill-baseline`:
+   - `bin/skill-baseline --skill tdd --scenario time-pressure-quick-fix`
+   - `bin/skill-baseline --skill tdd --scenario sunk-cost-rewrite`
+
+   Follow the human-in-the-loop pattern from G2: dispatch the subagent, capture the transcript, finalize. Commit baselines as `docs/skill-baselines/tdd-time-pressure-<DATE>.md` and `tdd-sunk-cost-<DATE>.md`.
+
+6. **Extract rationalizations from both baselines.** Read the transcripts. Pull every verbatim excuse. Common ones expected (per superpowers reference): "too simple to test," "I'll test after," "already manually tested," "deleting X is wasteful." This will be a 6–12 row table.
+
+7. **Write `.claude/skills/tdd/rationalizations.md`** as a Rationalization Table populated from step 6. Each row: verbatim excuse | reality counter. Cite the source baseline at the bottom.
+
+8. **Rewrite `.claude/skills/tdd/SKILL.md`** using the template:
+   - Keep the existing Vitest/Jest mock guidance — that's USEFUL content, just relocate it under "## Mock Patterns" or move to a sibling `mock-patterns.md` if SKILL.md gets too long.
+   - Iron Law: `NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST` (verbatim from superpowers, since this is the same skill).
+   - Red Flags: 8–12 short bullets (use superpowers' list as starting point, plus any new ones from baselines).
+   - Self-Review checklist: 6 items adapted from `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/test-driven-development/SKILL.md` lines 327–340.
+   - Mock patterns moved to `.claude/skills/tdd/mock-patterns.md` if the body would exceed 500 words after rigorization.
+
+9. **Re-baseline.** Run `bin/skill-baseline --skill tdd --scenario time-pressure-quick-fix` AGAIN, this time WITH the upgraded skill loaded. Confirm the subagent now writes a failing test first. If it doesn't, identify the new rationalization, add to `rationalizations.md`, and iterate (REFACTOR phase).
+
+### Phase 3: Baseline + rigorize `/pre-deploy`
+
+10. **Run baseline for `/pre-deploy`.** `bin/skill-baseline --skill pre-deploy --scenario authority-deadline`. Capture transcript.
+
+11. **Extract rationalizations.** Expected ones: "this is a small change," "tests passed last time," "the lint warnings are noise," "the user said it's fine," "we'll catch it in QA."
+
+12. **Write `.claude/skills/pre-deploy/rationalizations.md`** populated from the baseline.
+
+13. **Rewrite `.claude/skills/pre-deploy/SKILL.md`** using the template:
+    - Iron Law: `NO DEPLOY APPROVAL WITHOUT FRESH GATE EVIDENCE` (or similar — pick a single sentence that captures pre-deploy's discipline).
+    - Body keeps the existing 8 non-negotiable rules; restructure them as the gate sequence.
+    - Red Flags: 6–10 bullets (e.g., "agreeing because the user is impatient," "approving when one test failed," "skipping security check on auth diff").
+    - Self-Review checklist: 6–8 items.
+
+14. **Re-baseline.** Run `authority-deadline` scenario WITH the upgraded `/pre-deploy`. Confirm the subagent refuses approval until evidence is fresh.
+
+### Phase 4: Baseline + rigorize `/ship`
+
+15. **Run baseline for `/ship`.** `bin/skill-baseline --skill ship --scenario time-pressure-quick-fix`.
+
+16. **Extract rationalizations** (expected: "PR description can be terse," "skip the lint pass, just push," "tests are flaky, retry passing is fine").
+
+17. **Write `.claude/skills/ship/rationalizations.md`** populated from baseline.
+
+18. **Rewrite `.claude/skills/ship/SKILL.md`** using the template:
+    - Iron Law: `NO PUSH WITHOUT GREEN PIPELINE AND CLEAR PR DESCRIPTION` (or similar).
+    - Body: keep the existing pipeline (lint, test, commit, push, PR), formalize each as a gate.
+    - **Risk-check addition (per workstream decision D):** before invoking the pipeline, scan the diff for risk surfaces (auth, schema, deploy config, hooks). If any match, ask the user once: "Did you run `/pre-deploy`? This diff touches <surface>. Recommend running it before push." Don't auto-fire `/pre-deploy` — just ask. Reference principle §32.
+    - Red Flags: 6–8 bullets.
+    - Self-Review checklist: 5–6 items.
+
+19. **Re-baseline.** Run `time-pressure-quick-fix` against upgraded `/ship`. Confirm the subagent runs the full pipeline and writes a real PR description.
+
+### Phase 5: Validate the template across the three
+
+20. **Compare the three rewritten skills side-by-side.** Confirm:
+    - All three have the override preamble at the same position.
+    - All three have the Iron Law in the same format (code block, all caps, one sentence).
+    - All three link to a sibling `rationalizations.md` with the same wording.
+    - All three have a Self-Review checklist with mechanical items.
+
+21. **Word-count each modified SKILL.md.** Target: <500 words. If any exceeds, move overflow content to a sibling file and link.
+
+## Test plan
+
+### Unit
+- For each modified `SKILL.md`: validate frontmatter via `bin/test-frontmatter` (G1).
+- For each `rationalizations.md`: confirm the file is a markdown table with header `| Excuse | Reality |`.
+
+### E2E (subagent baselines)
+- Re-baseline runs for each of `/tdd`, `/pre-deploy`, `/ship` after rigorization. Document results in the baseline files (RED → GREEN proof).
+- If any re-baseline fails (subagent still cheats), iterate: add new rationalization rows, re-test until clean.
+
+### Manual verification
+- Open each modified `SKILL.md` in an editor. Confirm:
+  - Frontmatter conforms to G1.
+  - Override preamble appears as a single italic line.
+  - Iron Law follows in the prescribed format.
+  - Red Flags + Self-Review present.
+  - Sibling files are linked.
+- Open each `rationalizations.md`. Confirm rows are real (verbatim excuses, not paraphrases).
+
+## Done criteria
+
+- [ ] `.claude/skills/_template-rigid/` exists with `SKILL.md`, `rationalizations.md`, `red-flags.md` templates.
+- [ ] `.claude/skills/CONVENTIONS.md` has a "How to write a rigid skill" section.
+- [ ] `/tdd`, `/pre-deploy`, `/ship` SKILL.md bodies follow the rigid template.
+- [ ] Each of the 3 has a populated sibling `rationalizations.md` derived from real baselines.
+- [ ] `docs/skill-baselines/` contains both pre- and post-rigorization baselines for each of the 3 skills (RED + GREEN proof).
+- [ ] `/ship` includes the risk-check question for auth/schema/deploy diffs.
+- [ ] All 3 modified `SKILL.md` files are <500 words; overflow lives in siblings.
+- [ ] `bin/test-frontmatter` passes against the modified files.
+
+## Skills
+
+- `/skill-baseline` (the new skill from G2 — used end-to-end here)
+- `/tdd` (the rewrite is itself implemented test-first via baselines — RED/GREEN/REFACTOR is principle §11)
+- `/learn` (capture any new patterns surfaced during baselines)
+
+## Notes for the executor
+
+- DO NOT skip the baseline runs even if the rationalizations seem obvious. The baselines are forensic record. If the skill regresses in 3 months, we'll re-run them and compare.
+- Resist the urge to over-engineer the template. It's just the structure — the per-skill content does the work.
+- Sub-plan G7 will reuse the template across 5 more rigid skills. Make sure the template is generalized enough (no `/tdd`-specific assumptions baked in).
+- Mock patterns currently in `/tdd/SKILL.md` are valuable — preserve them. Move to sibling if the body bloats.
