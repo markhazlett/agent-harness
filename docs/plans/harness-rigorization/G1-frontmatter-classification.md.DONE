@@ -135,12 +135,12 @@ None. Lands first.
 
 ## Done criteria
 
-- [ ] `.claude/skills/CONVENTIONS.md` exists and documents frontmatter, tier, kind, naming, and description rules.
-- [ ] All 26 SKILL.md files have valid YAML frontmatter with `name`, `description`, `user-invocable`, `tier`, plus `kind` where applicable.
-- [ ] `build-plan/SKILL.md` has `name: build-plan` (not `build`).
-- [ ] No description summarizes a workflow — every description is a trigger.
-- [ ] `bin/test-frontmatter` (or equivalent) validates the contract programmatically.
-- [ ] `/harness-health` runs the validator and reports clean.
+- [x] `.claude/skills/CONVENTIONS.md` exists and documents frontmatter, tier, kind, naming, and description rules.
+- [x] All 26 SKILL.md files have valid YAML frontmatter with `name`, `description`, `user-invocable`, `tier`, plus `kind` where applicable.
+- [x] `build-plan/SKILL.md` has `name: build-plan` (not `build`).
+- [x] No description summarizes a workflow — every description is a trigger.
+- [x] `bin/test-frontmatter` (or equivalent) validates the contract programmatically.
+- [x] `/harness-health` runs the validator and reports clean.
 
 ## Skills
 
