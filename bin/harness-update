@@ -1,0 +1,443 @@
+#!/usr/bin/env bash
+# =============================================================================
+# harness-update — Pull the latest agent-harness into the current project.
+#
+# Two-phase usage (the /harness-update skill drives it):
+#
+#   1. bin/harness-update --plan
+#        Sync upstream into ~/.agent-harness/source, classify each upstream-
+#        managed file as install / update-safe / conflict / skip, and emit
+#        the plan as JSON on stdout. No writes to the project tree.
+#
+#   2. bin/harness-update --apply --resolve <resolution-json> [--from <plan-json>]
+#        Apply the plan. Conflicts are decided by the resolution file.
+#        Writes ~/.agent-harness/installed-manifest.json (provenance) and
+#        ~/.agent-harness/just-upgraded-from (consumed by harness-update-check).
+#
+# Files this script manages (managed = read from upstream and copied to local):
+#   .claude/skills/<skill>/...
+#   .claude/agents/*.md
+#   .claude/commands/*.md
+#   .claude/hooks/*.sh    (except harness.config.sh — always preserved)
+#   .claude/CONVENTIONS.md
+#   .claude/skills/CONVENTIONS.md
+#   bin/*                 (harness binaries; excludes this very script's caller)
+#   VERSION
+#   setup.sh
+#
+# Files this script NEVER touches:
+#   .claude/hooks/harness.config.sh   (project config)
+#   .claude/settings.json             (project hook wiring)
+#   anything outside the managed prefixes above
+#   any local-only file inside the managed prefixes (e.g. a custom skill dir
+#     that has no upstream counterpart) — surfaced in the plan as `local_only`.
+# =============================================================================
+
+set -uo pipefail
+
+# ── Config ──────────────────────────────────────────────────────────────────
+
+UPSTREAM_REPO="https://github.com/markhazlett/agent-harness.git"
+UPSTREAM_BRANCH="main"
+STATE_DIR="${HOME}/.agent-harness"
+SOURCE_DIR="${STATE_DIR}/source"
+MANIFEST_FILE="${STATE_DIR}/installed-manifest.json"
+JUST_UPGRADED_FILE="${STATE_DIR}/just-upgraded-from"
+CACHE_FILE="${STATE_DIR}/last-update-check"
+
+# ── Helpers ─────────────────────────────────────────────────────────────────
+
+die() { echo "harness-update: $*" >&2; exit 1; }
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"
+}
+
+sha256() {
+  # macOS ships shasum; Linux usually has sha256sum. Fall back gracefully.
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+is_managed() {
+  # Return 0 if the upstream-relative path is one we install into a project.
+  case "$1" in
+    .claude/skills/*|\
+    .claude/agents/*|\
+    .claude/commands/*|\
+    .claude/hooks/*|\
+    .claude/CONVENTIONS.md|\
+    bin/*|\
+    VERSION|\
+    setup.sh) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_preserved() {
+  # Return 0 if the path must NEVER be overwritten, even if upstream ships it.
+  case "$1" in
+    .claude/hooks/harness.config.sh) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# ── Setup ───────────────────────────────────────────────────────────────────
+
+require git
+require jq
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
+  || die "not inside a git repository — run this from your project root"
+
+LOCAL_VERSION_FILE="${REPO_ROOT}/VERSION"
+[ -f "$LOCAL_VERSION_FILE" ] \
+  || die "no VERSION file at ${LOCAL_VERSION_FILE} — this doesn't look like a harness install"
+
+LOCAL_VERSION="$(tr -d '[:space:]' < "$LOCAL_VERSION_FILE")"
+
+mkdir -p "$STATE_DIR"
+
+# ── Upstream sync ───────────────────────────────────────────────────────────
+
+sync_upstream() {
+  if [ -d "${SOURCE_DIR}/.git" ]; then
+    git -C "$SOURCE_DIR" fetch --quiet origin "$UPSTREAM_BRANCH" \
+      || die "failed to fetch upstream from ${UPSTREAM_REPO}"
+    git -C "$SOURCE_DIR" reset --hard --quiet "origin/${UPSTREAM_BRANCH}" \
+      || die "failed to reset upstream cache to origin/${UPSTREAM_BRANCH}"
+  else
+    rm -rf "$SOURCE_DIR"
+    git clone --quiet --branch "$UPSTREAM_BRANCH" --depth 1 \
+      "$UPSTREAM_REPO" "$SOURCE_DIR" \
+      || die "failed to clone upstream from ${UPSTREAM_REPO}"
+  fi
+}
+
+# ── Manifest ────────────────────────────────────────────────────────────────
+
+manifest_entry_for() {
+  # Look up the recorded {upstream_hash, local_hash} at last reconcile.
+  # Echo two fields tab-separated, or two empty fields if no record.
+  if [ ! -f "$MANIFEST_FILE" ]; then
+    printf '\t'; return
+  fi
+  jq -r --arg p "$1" \
+    '(.files[$p] // {}) | "\(.upstream_hash // "")\t\(.local_hash // "")"' \
+    "$MANIFEST_FILE" 2>/dev/null
+}
+
+# ── Plan ────────────────────────────────────────────────────────────────────
+
+build_plan() {
+  sync_upstream
+
+  local upstream_version
+  upstream_version="$(tr -d '[:space:]' < "${SOURCE_DIR}/VERSION")"
+
+  # Walk upstream-managed files.
+  local upstream_files
+  upstream_files="$(git -C "$SOURCE_DIR" ls-files)"
+
+  local install_arr='[]' update_arr='[]' skip_arr='[]' conflict_arr='[]'
+  local preserved_arr='[]'
+
+  while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    is_managed "$path" || continue
+
+    if is_preserved "$path"; then
+      preserved_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$preserved_arr")"
+      continue
+    fi
+
+    local up_hash local_hash man_hash local_path
+    local_path="${REPO_ROOT}/${path}"
+    up_hash="$(sha256 "${SOURCE_DIR}/${path}")"
+
+    if [ ! -e "$local_path" ]; then
+      local_hash=""
+    else
+      local_hash="$(sha256 "$local_path")"
+    fi
+
+    local man_up man_local
+    IFS=$'\t' read -r man_up man_local < <(manifest_entry_for "$path")
+
+    if [ -z "$local_hash" ]; then
+      install_arr="$(jq -c --arg p "$path" --arg u "$up_hash" \
+        '. + [{path:$p, upstream_hash:$u}]' <<<"$install_arr")"
+    elif [ "$local_hash" = "$up_hash" ]; then
+      skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
+    elif [ -z "$man_up" ] && [ -z "$man_local" ]; then
+      # No provenance — could be local-only edits or a pre-existing file.
+      conflict_arr="$(jq -c \
+        --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+        --arg mu "" --arg ml "" \
+        --arg r "no manifest record (first run or pre-existing local file)" \
+        '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+        <<<"$conflict_arr")"
+    elif [ "$man_up" = "$up_hash" ]; then
+      # Upstream hasn't moved since last reconcile.
+      if [ "$man_local" = "$local_hash" ]; then
+        # User's previously pinned version is still in place — leave alone.
+        skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
+      else
+        # User's pinned version has been edited since the last reconcile.
+        conflict_arr="$(jq -c \
+          --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+          --arg mu "$man_up" --arg ml "$man_local" \
+          --arg r "local edits since last reconcile (upstream unchanged)" \
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+          <<<"$conflict_arr")"
+      fi
+    else
+      # Upstream advanced.
+      if [ "$man_local" = "$local_hash" ]; then
+        # Local untouched since last reconcile → safe to update.
+        update_arr="$(jq -c --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l}]' <<<"$update_arr")"
+      else
+        # Both upstream and local advanced.
+        conflict_arr="$(jq -c \
+          --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+          --arg mu "$man_up" --arg ml "$man_local" \
+          --arg r "local edits + upstream changes" \
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+          <<<"$conflict_arr")"
+      fi
+    fi
+  done <<<"$upstream_files"
+
+  # Detect local-only files inside managed dirs (custom skills, agents, etc.).
+  local local_only_arr='[]'
+  local upstream_set="$(printf '%s\n' "$upstream_files" | sort)"
+  local managed_dirs=(
+    "${REPO_ROOT}/.claude/skills"
+    "${REPO_ROOT}/.claude/agents"
+    "${REPO_ROOT}/.claude/commands"
+    "${REPO_ROOT}/.claude/hooks"
+    "${REPO_ROOT}/bin"
+  )
+  for dir in "${managed_dirs[@]}"; do
+    [ -d "$dir" ] || continue
+    while IFS= read -r f; do
+      local rel="${f#${REPO_ROOT}/}"
+      is_managed "$rel" || continue
+      is_preserved "$rel" && continue
+      # Skip if upstream ships this exact path.
+      if grep -qxF "$rel" <<<"$upstream_set"; then continue; fi
+      local_only_arr="$(jq -c --arg p "$rel" '. + [$p]' <<<"$local_only_arr")"
+    done < <(find "$dir" -type f 2>/dev/null)
+  done
+
+  jq -n \
+    --arg lv "$LOCAL_VERSION" \
+    --arg uv "$upstream_version" \
+    --arg sd "$SOURCE_DIR" \
+    --argjson install "$install_arr" \
+    --argjson update "$update_arr" \
+    --argjson skip "$skip_arr" \
+    --argjson conflict "$conflict_arr" \
+    --argjson preserved "$preserved_arr" \
+    --argjson local_only "$local_only_arr" \
+    '{
+      local_version: $lv,
+      upstream_version: $uv,
+      source_dir: $sd,
+      actions: {
+        install: $install,
+        update_safe: $update,
+        skip: $skip,
+        conflict: $conflict
+      },
+      preserved: $preserved,
+      local_only: $local_only
+    }'
+}
+
+# ── Apply ───────────────────────────────────────────────────────────────────
+
+copy_file() {
+  # $1 = path relative to repo root (== path relative to upstream root)
+  local src="${SOURCE_DIR}/$1"
+  local dst="${REPO_ROOT}/$1"
+  mkdir -p "$(dirname "$dst")"
+  cp "$src" "$dst"
+  # Preserve executable bit for shell scripts and bin/.
+  case "$1" in
+    bin/*|*.sh) chmod +x "$dst" ;;
+  esac
+}
+
+apply_plan() {
+  local plan_json="$1"
+  local resolution_file="$2"
+
+  [ -f "$resolution_file" ] || die "resolution file not found: $resolution_file"
+
+  # Validate resolution: every conflict must have a decision.
+  local conflicts
+  conflicts="$(jq -r '.actions.conflict[].path' <<<"$plan_json")"
+
+  while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    local decision
+    decision="$(jq -r --arg p "$path" '.conflicts[$p] // ""' "$resolution_file")"
+    case "$decision" in
+      keep-mine|take-upstream) ;;
+      abort) die "aborted by resolution" ;;
+      "") die "no resolution for conflict: $path" ;;
+      *) die "invalid resolution for $path: $decision (expected keep-mine|take-upstream|abort)" ;;
+    esac
+  done <<<"$conflicts"
+
+  # Build the new manifest. Each entry records {upstream_hash, local_hash}
+  # at reconcile time, so a future plan can tell "user pinned a custom version"
+  # apart from "user untouched since install".
+  local new_manifest='{}'
+  local applied_count=0
+
+  record() {
+    # $1 = path, $2 = upstream_hash (current), $3 = local_hash to record
+    new_manifest="$(jq -c --arg p "$1" --arg u "$2" --arg l "$3" \
+      '. + {($p): {upstream_hash: $u, local_hash: $l}}' <<<"$new_manifest")"
+  }
+
+  # 1. install
+  while IFS= read -r row; do
+    [ -z "$row" ] && continue
+    local path up_hash
+    path="$(jq -r '.path' <<<"$row")"
+    up_hash="$(jq -r '.upstream_hash' <<<"$row")"
+    copy_file "$path"
+    record "$path" "$up_hash" "$up_hash"
+    applied_count=$((applied_count + 1))
+    echo "  installed: $path" >&2
+  done < <(jq -c '.actions.install[]' <<<"$plan_json")
+
+  # 2. update_safe
+  while IFS= read -r row; do
+    [ -z "$row" ] && continue
+    local path up_hash
+    path="$(jq -r '.path' <<<"$row")"
+    up_hash="$(jq -r '.upstream_hash' <<<"$row")"
+    copy_file "$path"
+    record "$path" "$up_hash" "$up_hash"
+    applied_count=$((applied_count + 1))
+    echo "  updated:   $path" >&2
+  done < <(jq -c '.actions.update_safe[]' <<<"$plan_json")
+
+  # 3. skip — record provenance so a future divergence can be detected.
+  while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    local up_hash
+    up_hash="$(sha256 "${SOURCE_DIR}/${path}")"
+    record "$path" "$up_hash" "$up_hash"
+  done < <(jq -r '.actions.skip[]' <<<"$plan_json")
+
+  # 4. conflict — apply user's decision.
+  while IFS= read -r row; do
+    [ -z "$row" ] && continue
+    local path up_hash local_hash
+    path="$(jq -r '.path' <<<"$row")"
+    up_hash="$(jq -r '.upstream_hash' <<<"$row")"
+    local_hash="$(jq -r '.local_hash' <<<"$row")"
+    local decision
+    decision="$(jq -r --arg p "$path" '.conflicts[$p]' "$resolution_file")"
+    if [ "$decision" = "take-upstream" ]; then
+      copy_file "$path"
+      record "$path" "$up_hash" "$up_hash"
+      applied_count=$((applied_count + 1))
+      echo "  resolved:  $path  (took upstream)" >&2
+    else
+      # keep-mine: record both upstream_hash (so future runs know which
+      # upstream version was declined) and local_hash (so a later edit to
+      # the kept file is detected).
+      record "$path" "$up_hash" "$local_hash"
+      echo "  kept:      $path  (kept local version)" >&2
+    fi
+  done < <(jq -c '.actions.conflict[]' <<<"$plan_json")
+
+  # Write the new manifest.
+  local upstream_version
+  upstream_version="$(jq -r '.upstream_version' <<<"$plan_json")"
+  jq -n \
+    --arg v "$upstream_version" \
+    --arg t "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+    --argjson files "$new_manifest" \
+    '{version_when_installed: $v, installed_at: $t, files: $files}' \
+    > "$MANIFEST_FILE"
+
+  # Mark just-upgraded so harness-update-check surfaces the JUST_UPGRADED
+  # notice on the next skill invocation.
+  if [ "$LOCAL_VERSION" != "$upstream_version" ]; then
+    echo "$LOCAL_VERSION" > "$JUST_UPGRADED_FILE"
+  fi
+
+  # Bust the update-check cache so the user sees fresh state immediately.
+  rm -f "$CACHE_FILE"
+
+  echo "" >&2
+  echo "Applied $applied_count change(s). VERSION: ${LOCAL_VERSION} → ${upstream_version}" >&2
+}
+
+# ── Entry point ─────────────────────────────────────────────────────────────
+
+usage() {
+  cat <<USAGE
+Usage:
+  harness-update --plan
+  harness-update --apply --resolve <resolution.json> --from <plan.json>
+
+Phases:
+  --plan
+      Sync upstream and emit a JSON plan on stdout. No writes.
+
+  --apply --resolve <file> --from <file>
+      Apply the supplied plan. <resolution.json> must decide every conflict
+      with one of: "keep-mine", "take-upstream", "abort".
+      <plan.json> is the output of a previous --plan run.
+
+State:
+  ~/.agent-harness/source                  upstream cache (cloned/fetched)
+  ~/.agent-harness/installed-manifest.json provenance: path -> sha at install
+  ~/.agent-harness/just-upgraded-from      written on success; consumed by
+                                           bin/harness-update-check
+USAGE
+}
+
+MODE=""
+RESOLVE_FILE=""
+PLAN_FILE=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --plan) MODE="plan"; shift ;;
+    --apply) MODE="apply"; shift ;;
+    --resolve) RESOLVE_FILE="$2"; shift 2 ;;
+    --from) PLAN_FILE="$2"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+case "$MODE" in
+  plan)
+    build_plan
+    ;;
+  apply)
+    [ -n "$RESOLVE_FILE" ] || { usage >&2; die "--apply requires --resolve <file>"; }
+    [ -n "$PLAN_FILE" ]    || { usage >&2; die "--apply requires --from <plan.json>"; }
+    [ -f "$PLAN_FILE" ]    || die "plan file not found: $PLAN_FILE"
+    plan_json="$(cat "$PLAN_FILE")"
+    apply_plan "$plan_json" "$RESOLVE_FILE"
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
