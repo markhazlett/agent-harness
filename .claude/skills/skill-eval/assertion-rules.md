@@ -177,17 +177,69 @@ The orchestrator extracts the JSON between `<trajectory-report>` and `</trajecto
 - **`actions` missing or not a list.** FAIL: "trajectory-report missing `actions` array".
 - **`skill_section_cited` missing.** WARN (not FAIL) — the eval may still pass if other assertions hold, but surfacing the warning helps debug "the model did the right things but didn't know why".
 
-## Phase 4 — judge-LLM fuzzy matching (NOT YET IMPLEMENTED)
+## Phase 4 — judge-LLM fuzzy matching (enforced)
 
-Strict diffing is brittle: equivalent tool choices (`Glob` vs `Bash ls`) fail as missing-expected-step. A judge-LLM secondary pass would catch these — but the design needs in-the-loop decisions about when it fires, what it sees, how cost is capped, and how we red-team it.
+Strict diffing is brittle: equivalent tool choices (e.g., `Glob "**/*.test.ts"` vs `Bash "find . -name '*.test.ts'"`) FAIL as missing-expected-step. Phase 4 adds an opt-in judge that fires *only* when a strict step fails, dispatches a fresh subagent via the `Agent` tool with the prompt in `judge-prompt.md`, and returns one of three verdicts.
 
-Full design questions: see `follow-ups.md` § E. Do NOT add `fuzzy_match`, `judge_*`, or any judge plumbing to eval.yaml or this file until the questions are resolved with the user.
+### When the judge fires
 
-## Phase 4 — headless CI adapter (NOT YET IMPLEMENTED)
+- ONLY on `expected_sequence` "missing expected step" failures. Other assertion failures (`forbidden_actions`, `decision_evals`, `must_cite`, `must_recognize`, `output_evals`, `expect_exit`) are NOT routed through the judge. Those are deterministic and the judge can't recover them.
+- Triggered automatically by the orchestrator unless `SKILL_EVAL_JUDGE=off` is in the environment (CI / `--quick` mode disables).
 
-`/skill-eval` requires Claude Code as the executor — that's the fidelity win. CI doesn't have Claude Code. A separate adapter (`bin/skill-eval-headless` or similar) could close the gap, but the Phase 2 deletion of the Python runner was deliberate and any resurrection needs intentionality.
+### Per-eval cap
 
-Full design questions: see `follow-ups.md` § F. Do NOT recreate any headless executor until the design conversation lands.
+- **5 judge dispatches per eval run** (total across all missing-expected-step failures in that run). If a single trajectory has > 5 missing-expected-step failures, the first 5 are judged; the rest stay as strict FAIL. This prevents runaway token cost on broken evals.
+- Cache verdicts keyed by `sha256(skill_name + eval_id + expected_step_json + captured_trajectory_json)`. Repeated runs of the same captured trajectory reuse the cached verdict. Cache lives at `/tmp/skill-eval-judge-cache.json` (ephemeral; safe to delete).
+
+### Verdict format
+
+The judge returns exactly:
+
+```
+verdict: <equivalent | not_equivalent | ambiguous>
+matched_captured_index: <integer or null>
+because: <one sentence, ≤ 200 chars>
+```
+
+Orchestrator decision rule:
+
+| Verdict | Action |
+|---------|--------|
+| `equivalent` + valid `matched_captured_index` | Flip the missing-expected-step from FAIL to **PASS-with-judge-note**. The PASS report shows: "expected[i] matched captured[k] via judge — because: <reason>". |
+| `equivalent` + null/invalid `matched_captured_index` | FAIL with `judge returned equivalent but matched_captured_index was null/invalid — judge prompt regression?`. |
+| `not_equivalent` | The original strict FAIL stands. Report shows the judge's `because` as context. |
+| `ambiguous` | FAIL-with-judge-warning. Eval fails; report surfaces the judge's `because` so the user can disambiguate. |
+
+### Substitution accounting
+
+When the judge flips an expected step to PASS via `matched_captured_index = k`, capture[k] is **claimed** by that expected step — subsequent expected_sequence iterations skip it (same semantics as a strict match). The cursor advances past k.
+
+### Anti-rubberstamp discipline
+
+`anti-evals/judge-rubberstamp-canary.md` is the regression test for the judge prompt. Run it before shipping any change to `judge-prompt.md`. The canary feeds the judge a trajectory of clearly-wrong Bash actions for a TDD scenario; the expected verdict is `not_equivalent`. If the judge returns `equivalent`, the prompt is overfitting and the change must NOT ship.
+
+This anti-eval is **mandatory** for any PR that touches `judge-prompt.md` or this Phase 4 section. The reverse coupling — the anti-eval embeds the current prompt inline — means stale anti-evals also block; bump both together.
+
+### What the judge does NOT see
+
+- `must_cite`, `must_recognize`, `forbidden_actions`, `decision_evals`, `output_evals`, `expect_exit` — the judge's scope is *one expected step*. Other assertions are graded separately and not re-litigated by the judge.
+- The full skill body (judge gets a one-sentence Iron Law summary, not the whole body). Keeps the dispatch small and avoids the judge re-implementing the skill's discipline.
+- Other captured trajectories (no cross-eval contamination).
+
+### Configuration knobs
+
+- `SKILL_EVAL_JUDGE=off` — disables Phase 4 entirely; revert to strict-only.
+- `SKILL_EVAL_JUDGE_CAP=<int>` — overrides the per-run cap (default 5). Use sparingly.
+- The judge always uses `subagent_type: general-purpose` — no override.
+
+## Phase 4 — headless CI adapter (DEFERRED — blocked on Claude Code SDK headless mode)
+
+The Phase 4 design questions for a headless executor remain valid (see `follow-ups.md` § F), but the recommended path — wait for Claude Code SDK headless mode rather than resurrect a Python mock — is what this PR explicitly chose. Re-evaluate when:
+
+- Claude Code ships an SDK with headless dispatch (`subagent_type` parity + tool palette parity + system prompt parity).
+- OR the harness has accumulated enough Phase 2/3/4 eval surface that the cost of NOT having CI coverage outweighs the fidelity loss of a Python mock.
+
+When either trigger fires, reopen `follow-ups.md` § F, answer Q1 (SDK vs mock) explicitly, then proceed. The Phase 2 deletion of `bin/skill-eval-run` was deliberate; any resurrection requires the same level of intentionality.
 
 ## On FAIL — what to surface
 

@@ -252,16 +252,24 @@ For long-term CI use (when we get there), the headless path may return — but a
 - ✅ Assertion engine: expected_sequence in-order match, must_cite strict substring, must_recognize 3-word-window
 - ✅ Sibling files: `subagent-prompt.md` (dispatch template), `assertion-rules.md` (full diff rules), `future-monitoring.md` (watching for Claude Code drift)
 
-**Phase 3 (follow-up PRs):**
+**Phase 3 (this PR — shipped):**
 
-- 🚧 `forbidden_actions` enforcement (currently declared but not asserted)
-- 🚧 Decision/invocation/output eval execution (currently schema-validated only)
-- 🚧 Richer trajectory-report schema with per-action `result` field (capture exit codes, allowing `expect_exit: nonzero` assertions)
-- 🚧 Judge-LLM fuzzy matching for synonym tool calls (when strict diff fails)
-- 🚧 Headless adapter for CI (returns the Python runner idea, but as an opt-in adapter, not canonical)
-- 🚧 Back-fill `eval.yaml` for the 8 legacy rigid skills (`db-review`, `debug`, `e2e-verify`, `incident`, `lg-review`, `pre-deploy`, `security-review`, `ship`)
+- ✅ `forbidden_actions` enforcement (both string-label and nested-object `before:` forms)
+- ✅ Decision eval execution (`<trajectory-report>.decisions[]`)
+- ✅ Output eval execution (post-dispatch glob + section/regex grading)
+- ✅ Richer trajectory-report schema v2 with per-action `result.exit_code` (enables `expect_exit: zero | nonzero` assertions)
+- ✅ Back-fill `eval.yaml` for all 8 legacy rigid skills (`db-review`, `debug`, `e2e-verify`, `incident`, `lg-review`, `pre-deploy`, `security-review`, `ship`)
 
-The Phase 1 schema is forward-compatible: every field documented above is consumed by Phase 2 + 3 without reshaping.
+**Phase 4 (this PR — shipped):**
+
+- ✅ Judge-LLM fuzzy matching: only-on-strict-fail for missing-expected-step failures, `Agent` dispatch with `judge-prompt.md`, three-way verdict (`equivalent` / `not_equivalent` / `ambiguous`), 5-call cap per run, cached, `SKILL_EVAL_JUDGE=off` disables. Full rules in `.claude/skills/skill-eval/assertion-rules.md` § "Phase 4 — judge-LLM fuzzy matching (enforced)". Anti-eval canary at `.claude/skills/skill-eval/anti-evals/judge-rubberstamp-canary.md`.
+
+**Phase 4 (deferred):**
+
+- 🚧 Invocation eval execution — schema-validated; cross-skill dispatch is its own design problem
+- 🚧 Headless CI adapter — blocked on Claude Code SDK headless mode (see `.claude/skills/skill-eval/follow-ups.md` § F for re-check triggers and retained design questions)
+
+The Phase 1 schema is forward-compatible: every field documented above is consumed by Phase 2 + 3 + 4 without reshaping.
 
 ## When evals are required
 

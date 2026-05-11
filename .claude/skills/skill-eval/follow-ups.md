@@ -1,65 +1,39 @@
-# /skill-eval — Open follow-ups (Phase 4 candidates)
+# /skill-eval — Open follow-ups
 
-This file enumerates work intentionally deferred from Phase 3 because each item needs an in-the-loop design conversation before implementation. The Phase 3 PR ships the four mechanically-clean items (forbidden_actions, decision_evals, output_evals, expect_exit/result); the two listed below carry architectural decisions and must not be implemented autonomously.
+Status reference for Phase 4 items. **§E (Judge-LLM fuzzy matching) was implemented in Phase 4**; see `assertion-rules.md` § "Phase 4 — judge-LLM fuzzy matching (enforced)" and the kept-design-record below. **§F (Headless CI adapter) is deferred** pending Claude Code SDK headless mode; design questions retained for the re-check trigger.
 
-When picking these up, start by answering the design questions inline in this file, then draft a spec section in `.claude/docs/skill-eval-spec.md` before writing code or skill body.
+## E. Judge-LLM fuzzy matching — IMPLEMENTED (Phase 4)
 
-## E. Judge-LLM fuzzy matching
+**Status:** Shipped. See `judge-prompt.md` (template), `assertion-rules.md` § Phase 4 (rules), `anti-evals/judge-rubberstamp-canary.md` (regression test), `SKILL.md` step 7a (when it fires).
 
-**Problem.** Strict diffing against `expected_sequence` is brittle. A subagent may use `Glob` where the eval expected `Bash ls`; functionally identical, mechanically distinct. The current Phase 3 matcher fails such cases as missing-expected-step, producing false negatives that erode trust in the eval suite.
+**Decisions taken (kept for future readers and re-design):**
 
-**Sketch.** When the strict matcher fails, optionally route the failing step + captured trajectory through a judge LLM that returns `equivalent | not_equivalent | ambiguous`. The orchestrator treats `equivalent` as PASS-with-note, `not_equivalent` as the original FAIL, `ambiguous` as FAIL-with-judge-warning.
+| Question | Decision |
+|---|---|
+| Q1. When does the judge fire? | Only-on-strict-fail, specifically on "missing expected step" failures. Other assertion types (forbidden_actions, decision_evals, must_cite, must_recognize, output_evals, expect_exit) are NOT routed through the judge. |
+| Q2. What does the judge see? | One expected step + the full captured trajectory (indexed). Plus the skill's one-sentence Iron Law summary. The judge does NOT see must_cite/must_recognize/forbidden/decisions/output_evals — those are graded separately. |
+| Q3. Verdict format? | Three-way: `equivalent \| not_equivalent \| ambiguous`. `equivalent` requires a non-null `matched_captured_index`. The orchestrator collapses to PASS-with-judge-note / FAIL / FAIL-with-warning. |
+| Q4. Cost cap? | 5 judge dispatches per eval run (configurable via `SKILL_EVAL_JUDGE_CAP`). Verdicts cached at `/tmp/skill-eval-judge-cache.json`. `SKILL_EVAL_JUDGE=off` disables. |
+| Q5. Where does the judge live? | `Agent` dispatch with `subagent_type: general-purpose`. Tight prompt template in `judge-prompt.md` sibling. Stays inside Claude Code, no new auth. |
+| Q6. Negative-test discipline? | `anti-evals/judge-rubberstamp-canary.md` — a clearly-wrong TDD-scenario trajectory the judge MUST mark `not_equivalent`. Run before any PR touching `judge-prompt.md` ships. |
 
-**Design questions to answer before implementation.**
-
-1. **When does the judge fire?**
-   - Only after strict diff fails (cheap-fast-strict, expensive-slow-judge)?
-   - Always, as a secondary signal even on strict-PASS (catch false positives)?
-   - Configurable per-eval via a new `fuzzy_match: true | false` field on `expected_sequence` steps?
-   - Recommendation to debate: only-on-strict-fail. Anything else multiplies token cost without proportional signal.
-
-2. **What does the judge see?**
-   - Just the failing assertion (single expected step + the candidate captured action)?
-   - Full captured trajectory + the failing assertion + the skill body?
-   - The eval.yaml plus the trajectory-report?
-   - Trade-off: more context → better judgment, but more tokens and more places to drift.
-
-3. **What is the judge's verdict format?**
-   - Strict `equivalent | not_equivalent` boolean?
-   - Three-way `equivalent | not_equivalent | ambiguous`?
-   - Numeric score with a threshold?
-   - The orchestrator needs a deterministic decision, so the format must collapse to PASS/FAIL with a tie-breaker rule.
-
-4. **How do we cap cost and latency?**
-   - Max judge calls per eval run (e.g., 3)?
-   - Cache judge verdicts keyed by `(skill_hash, eval_id, step_index, captured_action_target)` so repeated runs don't re-bill?
-   - A "judge mode" flag that disables judges in CI / `--quick` mode?
-
-5. **Where does the judge live?**
-   - Another Agent dispatch from `/skill-eval` (cheap, uses Claude Code already)?
-   - Direct Anthropic API call from a bin/ script (needs API key, breaks the "no key needed" property)?
-   - A separate `/skill-judge` skill (over-engineered for a sub-feature)?
-   - Recommendation to debate: Agent dispatch with `subagent_type: general-purpose`, a tight prompt template in `judge-prompt.md` sibling. Stays inside Claude Code, no new auth, but capped at N calls per run.
-
-6. **What's the negative-test discipline?**
-   - How do we prevent the judge from "fuzzy-matching" everything to equivalent (the eval suite becomes meaningless)?
-   - A red-team eval where a clearly-wrong trajectory must still FAIL?
-   - Recommendation: ship E with at least one judge-anti-eval (a captured trajectory of "delete the database" must be judged `not_equivalent` to "run the test suite").
-
-**Not yet implemented.** Do NOT add `fuzzy_match`, `judge_*`, or any judge plumbing to eval.yaml or assertion-rules.md until the questions above are resolved with the user.
-
-## F. Headless CI adapter
+## F. Headless CI adapter — DEFERRED (blocked on Claude Code SDK headless mode)
 
 **Problem.** `/skill-eval` requires Claude Code as the execution layer — that's the fidelity win. But CI runs without Claude Code. Today, eval coverage in CI stops at `bin/skill-eval --validate` (schema only). To run the actual scenarios in CI we need a second adapter.
 
-**Sketch.** A Python (or shell) runner that drives the Anthropic Messages API directly with mock tools, returning the same `<trajectory-report>` shape so the orchestrator's assertion engine can grade it. Earlier sketch (`bin/skill-eval-run`, deleted in Phase 2) approximated this.
+**Re-check trigger.** Reopen this section when EITHER:
 
-**Design questions.**
+1. Claude Code ships an SDK with headless dispatch (`subagent_type` parity + tool palette parity + system prompt parity), OR
+2. The harness has accumulated enough eval surface that the cost of NOT having CI coverage outweighs the fidelity loss of a Python mock.
+
+**Sketch (kept for the re-design conversation).** A Python (or shell) runner that drives the Anthropic Messages API directly with mock tools, returning the same `<trajectory-report>` shape so the orchestrator's assertion engine can grade it. Earlier sketch (`bin/skill-eval-run`, deleted in Phase 2) approximated this.
+
+**Design questions (answer before implementation when the re-check triggers fire).**
 
 1. **Is this the resurrected Python runner or a different shape?**
    - Resurrected runner: known territory, known fidelity gap (mock tool descriptions diverge from real Claude Code's system prompt).
    - Different shape: run inside Claude Code SDK in headless mode (`claude-code --headless --skill skill-eval`)? Depends on Claude Code shipping a headless mode.
-   - Recommendation to debate: wait for Claude Code SDK headless mode rather than rebuild a Python mock. The "fidelity loss → tests catching wrong drift" argument from `skill-eval-spec.md` § "Why Claude Code, not headless" still applies.
+   - Recommendation: wait for Claude Code SDK headless mode rather than rebuild a Python mock. The "fidelity loss → tests catching wrong drift" argument from `skill-eval-spec.md` § "Why Claude Code, not headless" still applies.
 
 2. **How does it stay fidelity-aligned with Claude Code as Claude Code evolves?**
    - Pin a snapshot of Claude Code's system prompt + tool descriptions in the runner?
@@ -87,4 +61,4 @@ When picking these up, start by answering the design questions inline in this fi
 
 ## Tracking
 
-When picking up E or F, open a GitHub issue referencing this file, then update this section with the issue link. Do not silently start work — both items will absorb a meaningful chunk of a sprint each.
+When picking up F, open a GitHub issue referencing this file, then update this section with the issue link. Do not silently start work — F will absorb a meaningful chunk of a sprint.

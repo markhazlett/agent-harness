@@ -46,9 +46,10 @@ This skill is FLEXIBLE — adapts to which skills are in scope. Static schema ch
 5. **Dispatch** via the `Agent` tool, `subagent_type: general-purpose`, in a fresh context. Capture the full response.
 6. **Parse the trajectory-report.** If missing or unparseable, FAIL immediately with a diagnostic.
 7. **Assert** per `assertion-rules.md`: each expected_sequence step has a matching captured action in order; for steps with `expect_exit`, the matched Bash action's `result.exit_code` matches; `forbidden_actions` did not appear (or appeared only after their `before:` anchor); `decisions[]` answers match `decision_evals[].expected_choice` and avoid `forbidden_choices`; `must_cite` strings appear in free-text; `must_recognize` strings have a 3-word-window match. If `output_evals[]` is non-empty, after the dispatch glob the working tree against `artifact_path_pattern` and grade each matched file against `must_contain_sections` / `must_not_contain` / `must_match_regex`.
-8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step / wrong exit code / forbidden action that fired / wrong decision / missing section / forbidden substring / missing regex / missing citation / unrecognized rationalization.
+7a. **(Phase 4) Judge fuzzy matches.** For each "missing expected step" FAIL from Step 7 ONLY, dispatch the judge via `Agent` (subagent_type: general-purpose, prompt from `judge-prompt.md`). Verdict `equivalent` → PASS-with-judge-note; `not_equivalent` → original FAIL stands; `ambiguous` → FAIL-with-warning. Cap: 5 dispatches per run; `SKILL_EVAL_JUDGE=off` disables. Full rules + scope (judge does NOT see decisions/must_cite/output_evals) in `assertion-rules.md`. Touching `judge-prompt.md` requires running `anti-evals/judge-rubberstamp-canary.md` first.
+8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step (or PASS-with-judge-note) / wrong exit code / forbidden action that fired / wrong decision / missing section / forbidden substring / missing regex / missing citation / unrecognized rationalization.
 
-References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (the full diff rules), `future-monitoring.md` (watching for Claude Code drift).
+References: `subagent-prompt.md` (dispatch template), `judge-prompt.md` (Phase 4 judge), `assertion-rules.md` (full diff rules incl. Phase 4), `anti-evals/` (rubberstamp canary), `future-monitoring.md` (Claude Code drift).
 
 ## Red Flags — STOP and report
 
@@ -58,6 +59,8 @@ References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (
 - More than 15 turns of tool use per subagent. Kill the dispatch, FAIL with "turn limit exceeded".
 - Multiple trajectory evals in one dispatch. **Always one trajectory per Agent dispatch** — context carryover ruins fidelity.
 - You're tempted to mutate `eval.yaml` to make a failing eval pass. Eval drift is a separate fix; surface to user instead.
+- **(Phase 4) Judge rubberstamping** — judge returned `equivalent` for a captured action that's clearly wrong. Anti-eval canary regressed; surface the `because` and propose a `judge-prompt.md` fix before re-running. Do NOT accept the PASS-with-judge-note.
+- **(Phase 4) Judge cap exceeded** (> 5 missing-step failures in one run). Broken trajectory or stale eval.yaml — surface the unjudged failures; do NOT silently raise the cap.
 
 **All of these mean: report FAIL and stop. The user reviews.**
 
@@ -69,13 +72,13 @@ References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (
 - [ ] FAIL reports cite the exact eval id + trajectory step that didn't match.
 - [ ] You did NOT edit `eval.yaml` to make a failing eval pass.
 - [ ] Final report distinguishes PASS / FAIL / SKIP per trajectory.
+- [ ] If Phase 4 judge fired: PASS-with-judge-note entries name `matched_captured_index` + verdict `because`. Judge cap was not exceeded. Anti-eval canary was run if `judge-prompt.md` was touched in this PR.
 
 ## What this skill does NOT cover
 
 - **Static schema validation** → `bin/skill-eval --validate` (run that first).
 - **Invocation evals** — schema-validated; execution still deferred (cross-skill dispatch is its own design problem).
-- **Judge-LLM fuzzy matching** for synonym tool calls — Phase 4 (see `follow-ups.md`).
-- **Headless CI adapter** — Phase 4 (see `follow-ups.md`).
+- **Headless CI adapter** — deferred pending Claude Code SDK headless mode (see `follow-ups.md` § F).
 - **Authoring new evals** → `/write-skill` step 5 + `/skill-baseline` step 7.
 
 ## Terminal State
