@@ -114,6 +114,17 @@ Capture the new transcript. Finalize as a *separate* baseline file (e.g. `<skill
 
 If the subagent still fails, you are in REFACTOR. Add the new rationalizations to `rationalizations.md` and iterate.
 
+## Step 7 — Translate the GREEN trajectory into `eval.yaml`
+
+Once GREEN passes, the GREEN transcript IS the regression spec. For each tool call the subagent made (Read, Edit, Bash, Agent dispatch), drop a corresponding entry into `.claude/skills/<skill>/eval.yaml` under `trajectory_evals[].expected_sequence`. Use `target_contains` (regex/substring) — don't pin exact paths that will drift.
+
+Also populate:
+
+- `must_cite` — strings the agent's reply contains (typically Iron Law text or `rationalizations.md` row content).
+- `must_recognize` — verbatim excuses from the RED transcript the agent caught itself rationalizing against.
+
+Run `bin/skill-eval --validate` and `bin/skill-eval --plan <skill>` to confirm the file parses and lists what Phase 2 will execute. Full schema: `.claude/docs/skill-eval-spec.md`.
+
 ## Pressure-stacking
 
 Real failures combine pressures (time + authority + exhaustion). Single-pressure scenarios are the unit test; stacked scenarios are the integration test.

@@ -101,7 +101,7 @@ Skills are advisors; the user is principal. When `CLAUDE.md` or a direct user in
 A rigid skill is a verification gate that must compel compliance under pressure. The shape is templated; the *content* must be specific to your skill and grounded in real failure modes.
 
 1. **Run baselines before writing.** Use `/skill-baseline` (or `bin/skill-baseline --skill <name> --scenario <slug>`) against scenarios that put pressure on this skill's discipline (time, authority, sunk cost, exhaustion). The point is to harvest the verbatim excuses an unaided agent generates. Inventing rationalizations from imagination defeats the purpose — agents under pressure recognize phrases they've actually used, not phrases someone imagined they might.
-2. **Copy the template.** Start from `.claude/skills/_template-rigid/TEMPLATE.md` (the body), `rationalizations.md` (the sibling table), and optionally `red-flags.md` (when the inline list outgrows ~12 bullets). Place the new skill at `.claude/skills/<name>/SKILL.md`.
+2. **Copy the template.** Start from `.claude/skills/_template-rigid/TEMPLATE.md` (the body), `rationalizations.md` (the sibling table), `eval.yaml` (the eval contract — required for rigid skills per `.claude/docs/skill-eval-spec.md`), and optionally `red-flags.md` (when the inline list outgrows ~12 bullets). Place the new skill at `.claude/skills/<name>/SKILL.md`.
 3. **Fill the template.**
    - Frontmatter per the contract above (`tier: rigid`, `kind: verification`).
    - Override preamble — italic line under the H1 pointing at `CLAUDE.md` § Instruction precedence.
@@ -112,6 +112,7 @@ A rigid skill is a verification gate that must compel compliance under pressure.
    - **Self-Review Checklist** — 4–8 mechanical checkboxes verifiable by re-reading the diff or output.
    - **What this skill does NOT cover** — short scope-bound, naming legitimate exemptions.
 4. **Re-baseline.** Run the same scenarios again with the upgraded skill loaded. Confirm the subagent now passes. If it doesn't, identify the new rationalization, append a row to `rationalizations.md`, and iterate (REFACTOR phase).
-5. **Word-budget the body.** Aim under ~500 words for `SKILL.md`. Overflow content (mock patterns, expanded red flags, large code samples) lives in sibling files loaded on demand.
+5. **Word-budget the body.** Aim under ~500 words for `SKILL.md` (700 hard ceiling). Overflow content (mock patterns, expanded red flags, large code samples) lives in sibling files loaded on demand.
+6. **Author the `eval.yaml`.** For rigid skills, declare at least one trajectory eval (or one invocation eval for `subagent_only: true` skills). Trajectory must trace to the GREEN baseline transcript — see `.claude/docs/skill-eval-spec.md`. `bin/skill-eval --validate` must pass.
 
 The first three rigid skills (`tdd`, `pre-deploy`, `ship`) shipped with G6 of the harness-rigorization workstream and serve as the reference implementations. Read them when in doubt.

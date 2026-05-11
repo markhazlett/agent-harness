@@ -1,0 +1,83 @@
+# Skill evaluation contract.
+# Full spec: .claude/docs/skill-eval-spec.md
+#
+# Rigid skills MUST ship with this file. The 5th Iron Law clause from
+# /write-skill: no rigid skill ships without an eval declaring at least one
+# trajectory eval (or one invocation eval for subagent_only: true skills).
+
+schema_version: 1
+skill_name: {{skill-name}}
+
+# True when this skill is only invoked by other skills (not directly by
+# users). When true, invocation_evals is REQUIRED.
+subagent_only: false
+
+# Triggers the skill should fire on. Used for trigger-detection evals.
+triggers:
+  - "/{{skill-name}}"
+  - "{{user phrase that should trigger this}}"
+  - "{{situational symptom}}"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+# Expected ordered actions for a scenario. The runner dispatches the
+# scenario with the skill loaded, captures tool calls, diffs against
+# expected_sequence.
+#
+# Action types: read | edit | write | bash_run | skill_load | agent_dispatch
+# Optional fields: expect_exit (zero|nonzero), cmd_pattern (regex),
+#                  before (action ref for ordering constraints)
+trajectory_evals:
+  - id: {{unique-within-this-file}}
+    scenario: docs/skill-baselines/_scenarios/{{slug}}.md
+    description: "{{one sentence — what does this verify?}}"
+    expected_sequence:
+      - action: {{read|edit|write|bash_run}}
+        target_contains: "{{regex or substring of file/cmd/skill}}"
+    forbidden_actions:
+      - action: {{type}}
+        target_contains: "{{...}}"
+        before: {{action ref}}
+    must_cite:
+      - "Iron Law"
+      - "rationalizations.md"
+    must_recognize:
+      - "{{verbatim excuse the agent should catch}}"
+
+# ── Invocation evals (REQUIRED when subagent_only: true) ─────────────
+# Does a parent skill correctly dispatch this skill?
+# Uncomment for subagent-only skills. Delete this block otherwise.
+#
+# invocation_evals:
+#   - id: {{unique}}
+#     parent_skill: {{caller-skill-name}}
+#     parent_scenario: "{{one-sentence setup of what the parent receives}}"
+#     expected: "this skill loads before {{some action}}"
+#     forbidden: "parent emits {{action}} without this skill firing first"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+# Skills with conditional logic (e.g., /debug routing flaky vs reproducible)
+# Uncomment when relevant; delete otherwise.
+#
+# decision_evals:
+#   - id: {{unique}}
+#     branch: "{{one-sentence description of the decision point}}"
+#     given: "{{the input/context at the branch}}"
+#     expected_choice: "{{the path the agent should take}}"
+#     forbidden_choices:
+#       - "{{wrong path 1}}"
+#       - "{{wrong path 2}}"
+
+# ── Output evals ─────────────────────────────────────────────────────
+# Skills that produce artifacts (plan docs, demo scripts, learning entries).
+# Uncomment when relevant; delete otherwise.
+#
+# output_evals:
+#   - id: {{unique}}
+#     artifact_path_pattern: "{{docs/plans/*/sprint-plans/*.md}}"
+#     must_contain_sections:
+#       - "## {{Required Section}}"
+#     must_not_contain:
+#       - "TODO"
+#       - "implement later"
+#     must_match_regex:
+#       - "{{(?m)^- \\[ \\] .+$}}"

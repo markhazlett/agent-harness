@@ -1,0 +1,405 @@
+#!/usr/bin/env bash
+# bin/skill-eval — runner for skill evaluations.
+#
+# Spec: .claude/docs/skill-eval-spec.md
+#
+# Phase 1 (this script):
+#   --validate            schema-validate every eval.yaml under .claude/skills/
+#                         (legacy rigid skills without eval.yaml: WARN, not FAIL)
+#   --validate-strict     same as --validate but FAIL on legacy rigid skills
+#                         missing eval.yaml (use in CI once back-fill is done)
+#   --list                inventory of skills with/without eval.yaml
+#   --plan <skill>        pretty-print what would run for one skill
+#
+# Phase 2 (follow-up PRs):
+#   --run <skill> [<id>]  execute scenarios + diff actual vs expected
+#   --report              aggregate report across all skills
+#
+# Exit codes:
+#   0  success / all evals in scope pass
+#   1  one or more evals failed (or schema invalid)
+#   2  usage error / repo not found
+
+set -u
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$repo_root" ]; then
+  echo "FAIL: not inside a git repo" >&2
+  exit 2
+fi
+cd "$repo_root" || exit 2
+
+SKILLS_DIR=".claude/skills"
+if [ ! -d "$SKILLS_DIR" ]; then
+  echo "FAIL: $SKILLS_DIR not found" >&2
+  exit 2
+fi
+
+if ! command -v yq >/dev/null 2>&1; then
+  echo "FAIL: yq is required (apt install yq / brew install yq)" >&2
+  exit 2
+fi
+
+usage() {
+  cat <<'EOF'
+Usage:
+  bin/skill-eval --validate            Schema-validate every eval.yaml under .claude/skills/
+                                       (legacy rigid skills without eval.yaml: WARN)
+  bin/skill-eval --validate-strict     Same as --validate but FAIL on legacy rigid
+                                       skills missing eval.yaml (post back-fill)
+  bin/skill-eval --list                Inventory of skills with/without eval.yaml
+  bin/skill-eval --plan <skill>        Pretty-print what would run for one skill (Phase 1)
+  bin/skill-eval --run <skill> [<id>]  Execute scenarios + diff (Phase 2 — not implemented)
+  bin/skill-eval --report              Aggregate report (Phase 2 — not implemented)
+EOF
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Schema requirements per .claude/docs/skill-eval-spec.md
+#
+# Required top-level keys: schema_version, skill_name, subagent_only
+# Optional keys: triggers, trajectory_evals, invocation_evals,
+#                decision_evals, output_evals
+#
+# Per-eval mandatory fields:
+#   trajectory_evals[]:  id, scenario, description, expected_sequence
+#   invocation_evals[]:  id, parent_skill, parent_scenario, expected
+#   decision_evals[]:    id, branch, given, expected_choice
+#   output_evals[]:      id, artifact_path_pattern
+#
+# Tier-driven requirements (per spec § "When evals are required"):
+#   - tier=rigid + subagent_only=false → trajectory_evals required
+#   - tier=rigid + subagent_only=true  → invocation_evals required
+#   - tier=flexible + kind=implementation (orchestrators) → recommended (warn-only)
+#   - tier=util → no eval required (validator skips missing eval.yaml)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Read a YAML scalar from eval.yaml. Returns empty if missing or null.
+# Uses `// empty` (not `// ""`) because jq's `//` treats boolean `false`
+# as a falsy default trigger — substituting "" would mask `false` values.
+yval() {
+  local file="$1" path="$2"
+  local out
+  out="$(yq -r "$path" "$file" 2>/dev/null)" || return 1
+  [ "$out" = "null" ] && out=""
+  echo "$out"
+}
+
+# Read frontmatter scalar from SKILL.md (matching bin/test-frontmatter style).
+fm_field() {
+  local file="$1" key="$2"
+  awk -v k="$key" '
+    BEGIN { in_fm=0; depth=0 }
+    /^---[[:space:]]*$/ {
+      if (depth==0) { in_fm=1; depth=1; next }
+      if (depth==1) { in_fm=0; exit }
+    }
+    in_fm==1 {
+      pos = index($0, ":")
+      if (pos>0) {
+        key = $0
+        sub(/:.*/, "", key)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+        if (key==k) {
+          val = substr($0, pos+1)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+          gsub(/^["'\'']|["'\'']$/, "", val)
+          print val
+          exit
+        }
+      }
+    }
+  ' "$file"
+}
+
+validate_one() {
+  local eval_file="$1" skill_name="$2"
+  local errors=()
+
+  # YAML must parse.
+  if ! yq -r '.' "$eval_file" >/dev/null 2>&1; then
+    errors+=("YAML does not parse")
+    print_errors "$skill_name" "${errors[@]}"
+    return 1
+  fi
+
+  local sv sn so
+  sv="$(yval "$eval_file" '.schema_version')"
+  sn="$(yval "$eval_file" '.skill_name')"
+  so="$(yval "$eval_file" '.subagent_only')"
+
+  [ "$sv" = "1" ] || errors+=("schema_version must be 1 (got: '${sv}')")
+  [ "$sn" = "$skill_name" ] || errors+=("skill_name must equal folder name '${skill_name}' (got: '${sn}')")
+  case "$so" in
+    true|false) ;;
+    *) errors+=("subagent_only must be true or false (got: '${so}')") ;;
+  esac
+
+  # Tier-driven requirements.
+  local skill_md="$SKILLS_DIR/$skill_name/SKILL.md"
+  local tier=""
+  if [ -f "$skill_md" ]; then
+    tier="$(fm_field "$skill_md" tier)"
+  fi
+
+  local n_traj n_invo
+  n_traj="$(yq -r '.trajectory_evals // [] | length' "$eval_file" 2>/dev/null || echo 0)"
+  n_invo="$(yq -r '.invocation_evals // [] | length' "$eval_file" 2>/dev/null || echo 0)"
+
+  if [ "$tier" = "rigid" ]; then
+    if [ "$so" = "true" ]; then
+      if [ "$n_invo" -lt 1 ]; then
+        errors+=("rigid + subagent_only=true requires at least one invocation_eval")
+      fi
+    else
+      if [ "$n_traj" -lt 1 ]; then
+        errors+=("rigid skills require at least one trajectory_eval")
+      fi
+    fi
+  fi
+
+  # Per-eval field checks.
+  local i id
+  i=0
+  while [ "$i" -lt "$n_traj" ]; do
+    id="$(yq -r ".trajectory_evals[$i].id // \"\"" "$eval_file")"
+    [ -n "$id" ] || errors+=("trajectory_evals[$i] missing id")
+    [ -n "$(yq -r ".trajectory_evals[$i].scenario // \"\"" "$eval_file")" ] \
+      || errors+=("trajectory_evals[$i] (${id:-unknown}) missing scenario")
+    [ -n "$(yq -r ".trajectory_evals[$i].description // \"\"" "$eval_file")" ] \
+      || errors+=("trajectory_evals[$i] (${id:-unknown}) missing description")
+    local seq_len
+    seq_len="$(yq -r ".trajectory_evals[$i].expected_sequence // [] | length" "$eval_file")"
+    [ "$seq_len" -ge 1 ] || errors+=("trajectory_evals[$i] (${id:-unknown}) expected_sequence is empty")
+    # Scenario file should exist.
+    local scen
+    scen="$(yq -r ".trajectory_evals[$i].scenario // \"\"" "$eval_file")"
+    if [ -n "$scen" ] && [ ! -f "$scen" ]; then
+      # Skip strict file-existence check — _scenarios live under docs/ and
+      # may be added in follow-ups. Phase 1 emits a warning, not an error.
+      :
+    fi
+    i=$((i+1))
+  done
+
+  i=0
+  while [ "$i" -lt "$n_invo" ]; do
+    id="$(yq -r ".invocation_evals[$i].id // \"\"" "$eval_file")"
+    [ -n "$id" ] || errors+=("invocation_evals[$i] missing id")
+    [ -n "$(yq -r ".invocation_evals[$i].parent_skill // \"\"" "$eval_file")" ] \
+      || errors+=("invocation_evals[$i] (${id:-unknown}) missing parent_skill")
+    [ -n "$(yq -r ".invocation_evals[$i].expected // \"\"" "$eval_file")" ] \
+      || errors+=("invocation_evals[$i] (${id:-unknown}) missing expected")
+    i=$((i+1))
+  done
+
+  if [ "${#errors[@]}" -gt 0 ]; then
+    print_errors "$skill_name" "${errors[@]}"
+    return 1
+  fi
+
+  echo "PASS  $skill_name  (traj=${n_traj} invo=${n_invo})"
+  return 0
+}
+
+print_errors() {
+  local skill="$1"; shift
+  echo "FAIL  $skill"
+  local e
+  for e in "$@"; do
+    echo "      - $e"
+  done
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Commands
+# ──────────────────────────────────────────────────────────────────────────────
+
+cmd_validate() {
+  # --strict: missing eval.yaml on rigid skills counts as FAIL.
+  # Default:  WARN for legacy rigid skills that predate this contract.
+  # New rigid skills are gated by /write-skill's Iron Law, not by this script.
+  local strict="${1:-}"
+  local total=0 pass=0 fail=0 warned=0 skipped=0
+  local skill_dir name eval_file tier
+
+  for skill_dir in "$SKILLS_DIR"/*/; do
+    name="$(basename "$skill_dir")"
+    [ "$name" = "_template-rigid" ] && continue
+    eval_file="$skill_dir/eval.yaml"
+    total=$((total+1))
+
+    # Determine tier from SKILL.md frontmatter.
+    tier=""
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      tier="$(fm_field "$skill_dir/SKILL.md" tier)"
+    fi
+
+    if [ ! -f "$eval_file" ]; then
+      case "$tier" in
+        rigid)
+          if [ "$strict" = "--strict" ]; then
+            echo "FAIL  $name  (rigid skill missing eval.yaml; --strict)"
+            fail=$((fail+1))
+          else
+            echo "WARN  $name  (rigid skill missing eval.yaml; back-fill pending — new rigid skills gated by /write-skill)"
+            warned=$((warned+1))
+          fi
+          ;;
+        util|"")
+          echo "SKIP  $name  (no eval.yaml; tier='${tier}' not required)"
+          skipped=$((skipped+1))
+          ;;
+        *)
+          echo "WARN  $name  (tier='${tier}', eval.yaml recommended)"
+          warned=$((warned+1))
+          ;;
+      esac
+      continue
+    fi
+
+    if validate_one "$eval_file" "$name"; then
+      pass=$((pass+1))
+    else
+      fail=$((fail+1))
+    fi
+  done
+
+  echo ""
+  echo "Skill-eval validation: ${pass}/${total} passed, ${fail} failed, ${warned} warned, ${skipped} skipped."
+  [ "$fail" -eq 0 ]
+}
+
+cmd_list() {
+  local skill_dir name tier evals
+  printf '%-30s %-10s %s\n' "SKILL" "TIER" "EVALS"
+  printf '%-30s %-10s %s\n' "------------------------------" "----------" "-----"
+  for skill_dir in "$SKILLS_DIR"/*/; do
+    name="$(basename "$skill_dir")"
+    [ "$name" = "_template-rigid" ] && continue
+    tier=""
+    [ -f "$skill_dir/SKILL.md" ] && tier="$(fm_field "$skill_dir/SKILL.md" tier)"
+    if [ -f "$skill_dir/eval.yaml" ]; then
+      local nt ni nd no
+      nt="$(yq -r '.trajectory_evals // [] | length' "$skill_dir/eval.yaml" 2>/dev/null || echo 0)"
+      ni="$(yq -r '.invocation_evals // [] | length' "$skill_dir/eval.yaml" 2>/dev/null || echo 0)"
+      nd="$(yq -r '.decision_evals // [] | length' "$skill_dir/eval.yaml" 2>/dev/null || echo 0)"
+      no="$(yq -r '.output_evals // [] | length' "$skill_dir/eval.yaml" 2>/dev/null || echo 0)"
+      evals="traj=$nt invo=$ni dec=$nd out=$no"
+    else
+      evals="(no eval.yaml)"
+    fi
+    printf '%-30s %-10s %s\n' "$name" "$tier" "$evals"
+  done
+}
+
+cmd_plan() {
+  local skill="$1"
+  local eval_file="$SKILLS_DIR/$skill/eval.yaml"
+
+  if [ -z "$skill" ]; then
+    echo "FAIL: --plan requires a skill name" >&2
+    exit 2
+  fi
+  if [ ! -f "$eval_file" ]; then
+    echo "FAIL: $eval_file not found" >&2
+    exit 1
+  fi
+  if ! yq -r '.' "$eval_file" >/dev/null 2>&1; then
+    echo "FAIL: $eval_file does not parse as YAML" >&2
+    exit 1
+  fi
+
+  echo "Eval plan for /$skill"
+  echo "============================================================"
+  echo "schema_version: $(yval "$eval_file" '.schema_version')"
+  echo "subagent_only:  $(yval "$eval_file" '.subagent_only')"
+  echo ""
+
+  local n
+  n="$(yq -r '.trajectory_evals // [] | length' "$eval_file")"
+  echo "Trajectory evals: $n"
+  local i=0
+  while [ "$i" -lt "$n" ]; do
+    echo "  [$i] $(yq -r ".trajectory_evals[$i].id" "$eval_file")"
+    echo "      scenario:    $(yq -r ".trajectory_evals[$i].scenario" "$eval_file")"
+    echo "      description: $(yq -r ".trajectory_evals[$i].description" "$eval_file")"
+    echo "      expected steps: $(yq -r ".trajectory_evals[$i].expected_sequence // [] | length" "$eval_file")"
+    echo "      must_cite:      $(yq -r ".trajectory_evals[$i].must_cite // [] | length" "$eval_file")"
+    echo "      must_recognize: $(yq -r ".trajectory_evals[$i].must_recognize // [] | length" "$eval_file")"
+    i=$((i+1))
+  done
+
+  n="$(yq -r '.invocation_evals // [] | length' "$eval_file")"
+  echo ""
+  echo "Invocation evals: $n"
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    echo "  [$i] $(yq -r ".invocation_evals[$i].id" "$eval_file")"
+    echo "      parent_skill: $(yq -r ".invocation_evals[$i].parent_skill" "$eval_file")"
+    echo "      expected:     $(yq -r ".invocation_evals[$i].expected" "$eval_file")"
+    i=$((i+1))
+  done
+
+  n="$(yq -r '.decision_evals // [] | length' "$eval_file")"
+  echo ""
+  echo "Decision-point evals: $n"
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    echo "  [$i] $(yq -r ".decision_evals[$i].id" "$eval_file")"
+    echo "      branch:          $(yq -r ".decision_evals[$i].branch" "$eval_file")"
+    echo "      expected_choice: $(yq -r ".decision_evals[$i].expected_choice" "$eval_file")"
+    i=$((i+1))
+  done
+
+  n="$(yq -r '.output_evals // [] | length' "$eval_file")"
+  echo ""
+  echo "Output evals: $n"
+  i=0
+  while [ "$i" -lt "$n" ]; do
+    echo "  [$i] $(yq -r ".output_evals[$i].id" "$eval_file")"
+    echo "      artifact_path_pattern: $(yq -r ".output_evals[$i].artifact_path_pattern" "$eval_file")"
+    i=$((i+1))
+  done
+
+  echo ""
+  echo "Phase 1: schema validated, plan printed."
+  echo "Phase 2: actual scenario execution + trajectory diff (not implemented in this version)."
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dispatch
+# ──────────────────────────────────────────────────────────────────────────────
+
+if [ "$#" -lt 1 ]; then
+  usage >&2
+  exit 2
+fi
+
+case "$1" in
+  --validate)
+    cmd_validate "${2:-}"
+    ;;
+  --validate-strict)
+    cmd_validate --strict
+    ;;
+  --list)
+    cmd_list
+    ;;
+  --plan)
+    cmd_plan "${2:-}"
+    ;;
+  --run|--report)
+    echo "FAIL: $1 is Phase 2 — not implemented in this harness version." >&2
+    echo "      See .claude/docs/skill-eval-spec.md § Phase 1 vs Phase 2." >&2
+    exit 1
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    echo "FAIL: unknown command '$1'" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

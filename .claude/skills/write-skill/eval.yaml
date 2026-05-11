@@ -1,0 +1,128 @@
+schema_version: 1
+skill_name: write-skill
+
+# /write-skill is user-invocable AND auto-fired before any new SKILL.md
+# is committed. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/write-skill"
+  - "create a skill"
+  - "make a new skill"
+  - "new skill for"
+  - "make this a skill"
+  - "upgrade /<name> to rigid"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: rigid-skill-authoring-happy-path
+    scenario: docs/skill-baselines/_scenarios/authority-deadline.md
+    description: "Author a new rigid skill under time + authority pressure — should not skip baseline"
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/docs/harness-principles.md"
+      - action: read
+        target_contains: ".claude/skills/CONVENTIONS.md"
+      - action: bash_run
+        cmd_pattern: "bin/skill-baseline --skill .* --scenario"
+      - action: agent_dispatch
+        target_contains: "subagent_type=general-purpose"
+      - action: write
+        target_contains: ".claude/skills/.*/rationalizations.md"
+      - action: write
+        target_contains: ".claude/skills/.*/SKILL.md"
+      - action: write
+        target_contains: ".claude/skills/.*/eval.yaml"
+      - action: bash_run
+        cmd_pattern: "bin/test-frontmatter"
+        expect_exit: zero
+      - action: bash_run
+        cmd_pattern: "bin/skill-eval --validate"
+        expect_exit: zero
+    forbidden_actions:
+      - action: write
+        target_contains: ".claude/skills/.*/SKILL.md"
+        before: agent_dispatch
+      - action: write
+        target_contains: ".claude/skills/.*/rationalizations.md"
+        before: agent_dispatch
+    must_cite:
+      - "Iron Law"
+      - "rationalizations.md"
+      - "harness-principles.md"
+    must_recognize:
+      - "I'll baseline it later"
+      - "It's obviously clear"
+      - "Just a small edit, no baseline needed"
+
+  - id: edit-existing-rigid-skill
+    scenario: docs/skill-baselines/_scenarios/sunk-cost-rewrite.md
+    description: "Edit an existing rigid skill after a substantial body draft — should re-baseline, not ship the imagined edits"
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/.*/SKILL.md"
+      - action: read
+        target_contains: ".claude/skills/.*/rationalizations.md"
+      - action: bash_run
+        cmd_pattern: "bin/skill-baseline --skill .* --scenario"
+    forbidden_actions:
+      - action: edit
+        target_contains: ".claude/skills/.*/SKILL.md"
+        before: bash_run_skill_baseline
+    must_cite:
+      - "Iron Law"
+    must_recognize:
+      - "Just a small edit, no baseline needed"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: candidate-belongs-in-claude-md-not-skill
+    branch: "User asks for 'a skill that uses snake_case file names'"
+    given: "Project convention, mechanically enforceable, not a judgment call"
+    expected_choice: "Add to CLAUDE.md § Project-specific notes, do NOT create a skill"
+    forbidden_choices:
+      - "Create a /<name> skill"
+      - "Add as a /learn entry"
+
+  - id: candidate-belongs-in-hook-not-skill
+    branch: "User asks for 'a skill that blocks pushes containing TODO comments'"
+    given: "Mechanically enforceable check, no model judgment needed"
+    expected_choice: "Add a hook under .claude/hooks/ — explain that mechanically enforceable rules belong in hooks per CLAUDE.md § Coding conventions #3"
+    forbidden_choices:
+      - "Create a rigid skill"
+      - "Add as a flexible skill"
+
+  - id: rigid-vs-flexible-tier
+    branch: "Discipline that breaks under pressure (e.g., shipping before pre-deploy)"
+    given: "User says 'I want a skill that prevents shipping if pre-deploy hasn't run'"
+    expected_choice: "tier: rigid, kind: verification — discipline-enforcing under pressure"
+    forbidden_choices:
+      - "tier: flexible (judgment fails under pressure)"
+      - "tier: util (not a thin command)"
+
+# ── Output evals ─────────────────────────────────────────────────────
+output_evals:
+  - id: new-skill-folder-shape
+    artifact_path_pattern: ".claude/skills/*/SKILL.md"
+    must_contain_sections:
+      - "## The Iron Law"
+      - "## Red Flags"
+      - "## Common Rationalizations"
+      - "## Self-Review Checklist"
+      - "## Terminal State"
+    must_not_contain:
+      - "TBD"
+      - "TODO"
+      - "implement later"
+
+  - id: rigid-skill-sidecar-files-exist
+    artifact_path_pattern: ".claude/skills/*/eval.yaml"
+    must_match_regex:
+      - "^schema_version: 1$"
+      - "^skill_name: .+$"
+      - "^subagent_only: (true|false)$"
+
+  - id: rationalizations-have-baseline-source
+    artifact_path_pattern: ".claude/skills/*/rationalizations.md"
+    must_match_regex:
+      - "(docs/skill-baselines/|\\[seeded\\])"

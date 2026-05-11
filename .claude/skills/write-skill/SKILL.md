@@ -24,25 +24,29 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 ```
 NO RIGID SKILL SHIPS WITHOUT (1) A NAMED FAILURE MODE FROM A SUBAGENT
 BASELINE, (2) A RATIONALIZATION TABLE QUOTING VERBATIM EXCUSES, (3) A
-TRIGGERS-ONLY DESCRIPTION, AND (4) A DECLARED TERMINAL STATE.
+TRIGGERS-ONLY DESCRIPTION, (4) A DECLARED TERMINAL STATE, AND (5) AN
+`eval.yaml` DECLARING AT LEAST ONE TRAJECTORY EVAL (OR ONE INVOCATION
+EVAL FOR SUBAGENT-ONLY SKILLS).
 ```
 
-Flexible and util skills are exempt from (1) and (2), but **never** from (3). Wrote the body before baselining? Delete the rationalization table. Don't keep imagined rows "as reference." (§3, §11.)
+Flexible/util skills are exempt from (1), (2), (5) — never from (3). Wrote the body before baselining? Delete the rationalization table; don't keep imagined rows "as reference." (§3, §11.) Missing `eval.yaml`? `bin/skill-eval --validate-strict` fails.
 
 ## The cycle
 
-1. **Decide.** Is this a skill at all? Most candidates belong in `CLAUDE.md` or a hook. See `checklist.md`.
-2. **RED.** Run `/skill-baseline --skill <name> --scenario <slug>` against a subagent without the target skill loaded. Capture verbatim transcript and excuses.
-3. **GREEN.** Copy `_template-rigid/TEMPLATE.md` (rigid) or write minimal frontmatter+body (flexible/util). Counter the *specific* baseline rationalizations. Verbatim excuses → `rationalizations.md`. Re-run *with* the skill; subagent should cite the section that prevented the failure.
-4. **REFACTOR.** New rationalization under stacked pressure (time + authority + sunk cost + exhaustion)? Add a row. Iterate until compliance holds.
-5. **Ship.** Bump `VERSION` (minor for new skill, patch for edits), commit, push, open a **draft** PR.
+1. **Decide.** Skill at all? Most candidates belong in `CLAUDE.md` or a hook (`checklist.md`).
+2. **RED.** `/skill-baseline` against a subagent *without* the skill. Capture verbatim excuses.
+3. **GREEN.** Copy `_template-rigid/{TEMPLATE.md,eval.yaml}`. Counter the baseline rationalizations verbatim → `rationalizations.md`. Translate GREEN trajectory → `eval.yaml`. Re-run with the skill; subagent should cite the section that prevented the failure.
+4. **REFACTOR.** New rationalization under stacked pressure? Add a row. Iterate until compliance holds.
+5. **Validate.** `bin/test-frontmatter` and `bin/skill-eval --validate` both pass.
+6. **Ship.** Bump `VERSION`, commit, push, open a **draft** PR.
 
-Full structure template + word budgets: `skill-md-template.md`. Full checklist: `checklist.md`.
+References: `skill-md-template.md`, `checklist.md`, `.claude/docs/skill-eval-spec.md`.
 
 ## Red Flags — STOP and Start Over
 
 - Description summarizes workflow instead of triggers (model follows the summary, skips the body).
-- Rationalization rows from imagination — no `docs/skill-baselines/` source link.
+- Rationalization rows or `eval.yaml` trajectories from imagination — no `docs/skill-baselines/` source link.
+- Rigid skill missing `eval.yaml` (`bin/skill-eval --validate-strict` fails).
 - Body > 700 words with content that belongs in a sibling.
 - Multi-language examples. One excellent example beats five mediocre ones.
 - `@`-loading a sibling (force-loads context) — use `**REQUIRED SUB-FILE:** Read foo.md`.
@@ -63,6 +67,7 @@ Before committing:
 - [ ] Description starts with `Use when`, lists concrete triggers, contains **zero** workflow summary.
 - [ ] `<update-check>` block present immediately after frontmatter.
 - [ ] If rigid: Iron Law, Red Flags, `rationalizations.md`, Self-Review Checklist, Terminal State all present. Every rationalization row traces to a file under `docs/skill-baselines/`.
+- [ ] If rigid: `eval.yaml` present with at least one trajectory eval (or one invocation eval for subagent-only skills). `bin/skill-eval --validate` passes.
 - [ ] Body word count: `wc -w SKILL.md` < 500 (target) / < 700 (hard ceiling). Overflow → siblings.
 - [ ] One excellent example, not five mediocre ones.
 - [ ] `VERSION` bumped.
@@ -71,8 +76,8 @@ Cannot check all boxes? You skipped this skill. Restart from the top.
 
 ## What this skill does NOT cover
 
-Hooks (`.claude/hooks/` — enforcement, different contract), commands (`.claude/commands/` — thin wrappers), memory entries (`docs/learnings/` — see `CLAUDE.md § Learnings`), and documentation-only edits (no baseline; still bump VERSION patch if user-visible).
+Hooks (different contract), commands (thin wrappers), memory entries (see `CLAUDE.md § Learnings`), and doc-only edits (no baseline; still bump VERSION patch if user-visible).
 
 ## Terminal State
 
-Terminal state is **a draft PR to `agent-harness` containing the new/edited skill, baseline transcripts under `docs/skill-baselines/`, and a `VERSION` bump**. Do NOT invoke `/ship` — the draft is on purpose. Do NOT use the new skill on real work until the user reviews the rationalization table and the PR merges.
+Terminal state is **a draft PR to `agent-harness` containing the new/edited skill, baseline transcripts under `docs/skill-baselines/`, the populated `eval.yaml`, and a `VERSION` bump**. `bin/test-frontmatter` and `bin/skill-eval --validate` must pass. Do NOT invoke `/ship` — the draft is on purpose. Do NOT use the new skill on real work until the user reviews the rationalization table and the PR merges.
