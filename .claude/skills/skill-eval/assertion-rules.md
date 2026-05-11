@@ -129,6 +129,29 @@ If `decision_evals[]` is non-empty in eval.yaml but the subagent returns `decisi
 
 `expect_exit: zero | nonzero` on bash_run steps describes the expected exit code. The subagent's trajectory report does NOT currently capture exit codes — that's Phase 3 (richer report schema with `result` field per action).
 
+## output_evals (Phase 3 — enforced)
+
+For each entry in `output_evals[]`:
+
+1. After the subagent dispatch returns, the orchestrator searches the working tree for files matching `artifact_path_pattern`. The pattern is a **glob** (NOT a regex). Use shell-style globbing — `*`, `**`, `?`, `[abc]`. The orchestrator runs the glob from the repo root (`git rev-parse --show-toplevel`). Use the Glob tool or Bash `ls`.
+2. If NO files match: FAIL with `output_evals[<i>] no artifacts found matching pattern '<pattern>'`.
+3. For each matched file, apply the three checks:
+   - **`must_contain_sections[]`**: each entry is a markdown heading. Match by exact-line equality after stripping trailing whitespace (e.g., `## Done Criteria` matches `## Done Criteria   `). Headings inside fenced code blocks DO NOT count. FAIL with `output_evals[<i>] file '<path>' missing section '<heading>'`.
+   - **`must_not_contain[]`**: each entry is a strict substring. Case-sensitive. If found anywhere in the file, FAIL with `output_evals[<i>] file '<path>' contains forbidden substring '<needle>'`.
+   - **`must_match_regex[]`**: each entry is a regex. `re.search` (not `re.fullmatch`); MULTILINE flag OFF by default — use `(?m)` in the pattern when needed. If no match, FAIL with `output_evals[<i>] file '<path>' did not match regex '<pattern>'`.
+
+### Why glob, not regex
+
+The `artifact_path_pattern` is for *discovery* (which artifacts to check), not validation. Globs are simpler, less error-prone, and align with how users describe paths (`docs/plans/*/sprint-plans/*.md`). Regex is reserved for `must_match_regex[]` which operates on file *contents*.
+
+### Why this works from the orchestrator
+
+The subagent's file ops are real Claude Code Read/Edit/Write — they touch the same filesystem the orchestrator sees. After the Agent dispatch returns, `Glob` from the orchestrator picks up artifacts the subagent produced. No special handoff needed.
+
+### Empty match-list edge case
+
+If `must_contain_sections[]`, `must_not_contain[]`, and `must_match_regex[]` are ALL empty (or absent) — the entry is a no-op that only asserts "at least one file matched the pattern". That is intentional and allowed; the FAIL on no-match (step 2) is the entire contract for those entries.
+
 ## Trajectory report parsing
 
 The orchestrator extracts the JSON between `<trajectory-report>` and `</trajectory-report>` tags. Failure modes:
