@@ -132,6 +132,8 @@ bash bin/skill-eval --validate >/dev/null 2>&1 && echo "PASS skill evals (defaul
 
 A FAIL here means at least one `eval.yaml` is missing required fields, has invalid `schema_version`, or a rigid skill's `eval.yaml` declares zero trajectory/invocation evals. WARN counts are visible in the per-skill output. The `--validate-strict` form fails on legacy rigid skills without `eval.yaml`; use that flag in CI after the back-fill workstream completes.
 
+**Manual follow-up (not auto-invoked):** for full-fidelity execution of trajectory evals (Phase 2), run `/skill-eval --report` inside Claude Code. The Phase 2 path dispatches a fresh subagent per scenario; `/harness-health` does NOT auto-invoke it because each subagent dispatch consumes context. The aggregate report tells you which skills' actual behavior under pressure has drifted from their declared trajectory.
+
 ## Output Format
 
 ```

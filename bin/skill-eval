@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# bin/skill-eval — runner for skill evaluations.
+# bin/skill-eval — static-analysis runner for skill evaluations.
 #
 # Spec: .claude/docs/skill-eval-spec.md
 #
-# Phase 1 (this script):
+# This script handles the *static* eval commands: schema validation, inventory,
+# and plan-printing. Actual scenario execution (Phase 2) is owned by the
+# `/skill-eval` skill, which dispatches a fresh Claude Code subagent per
+# scenario for full-fidelity execution. There is no headless `--run` here —
+# see the spec doc § "Why Claude Code, not headless".
+#
+# Commands:
 #   --validate            schema-validate every eval.yaml under .claude/skills/
 #                         (legacy rigid skills without eval.yaml: WARN, not FAIL)
 #   --validate-strict     same as --validate but FAIL on legacy rigid skills
@@ -11,9 +17,7 @@
 #   --list                inventory of skills with/without eval.yaml
 #   --plan <skill>        pretty-print what would run for one skill
 #
-# Phase 2 (follow-up PRs):
-#   --run <skill> [<id>]  execute scenarios + diff actual vs expected
-#   --report              aggregate report across all skills
+# For execution, run `/skill-eval <skill>` inside Claude Code.
 #
 # Exit codes:
 #   0  success / all evals in scope pass
@@ -48,9 +52,10 @@ Usage:
   bin/skill-eval --validate-strict     Same as --validate but FAIL on legacy rigid
                                        skills missing eval.yaml (post back-fill)
   bin/skill-eval --list                Inventory of skills with/without eval.yaml
-  bin/skill-eval --plan <skill>        Pretty-print what would run for one skill (Phase 1)
-  bin/skill-eval --run <skill> [<id>]  Execute scenarios + diff (Phase 2 — not implemented)
-  bin/skill-eval --report              Aggregate report (Phase 2 — not implemented)
+  bin/skill-eval --plan <skill>        Pretty-print what would run for one skill
+
+For scenario execution (Phase 2), use the `/skill-eval` skill inside Claude Code.
+The skill dispatches a fresh subagent per scenario for full-fidelity execution.
 EOF
 }
 
@@ -390,9 +395,10 @@ case "$1" in
     cmd_plan "${2:-}"
     ;;
   --run|--report)
-    echo "FAIL: $1 is Phase 2 — not implemented in this harness version." >&2
-    echo "      See .claude/docs/skill-eval-spec.md § Phase 1 vs Phase 2." >&2
-    exit 1
+    echo "FAIL: $1 is not handled by this script." >&2
+    echo "      Scenario execution lives in the /skill-eval skill (Claude Code subagent dispatch)." >&2
+    echo "      Run '/skill-eval ${2:-<skill>}' inside Claude Code instead." >&2
+    exit 2
     ;;
   -h|--help)
     usage

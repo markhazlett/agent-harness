@@ -37,7 +37,7 @@ Flexible/util skills are exempt from (1), (2), (5) — never from (3). Wrote the
 2. **RED.** `/skill-baseline` against a subagent *without* the skill. Capture verbatim excuses.
 3. **GREEN.** Copy `_template-rigid/{TEMPLATE.md,eval.yaml}`. Counter the baseline rationalizations verbatim → `rationalizations.md`. Translate GREEN trajectory → `eval.yaml`. Re-run with the skill; subagent should cite the section that prevented the failure.
 4. **REFACTOR.** New rationalization under stacked pressure? Add a row. Iterate until compliance holds.
-5. **Validate.** `bin/test-frontmatter` and `bin/skill-eval --validate` both pass.
+5. **Validate.** `bin/test-frontmatter` and `bin/skill-eval --validate` both pass. Then run `/skill-eval <new-skill>` to execute the first trajectory eval against a fresh subagent — confirms the eval contract is satisfiable, not just well-formed.
 6. **Ship.** Bump `VERSION`, commit, push, open a **draft** PR.
 
 References: `skill-md-template.md`, `checklist.md`, `.claude/docs/skill-eval-spec.md`.

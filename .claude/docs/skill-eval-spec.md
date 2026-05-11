@@ -184,27 +184,54 @@ output_evals:
       - "implement later"
 ```
 
-## Runner contract — `bin/skill-eval`
+## Two layers — static `bin/skill-eval` + dynamic `/skill-eval`
+
+The harness splits the eval surface into static analysis (a shell script) and dynamic execution (a Claude Code skill). They serve different audiences and live in different files.
+
+### Static: `bin/skill-eval` (shell)
 
 ```
-bin/skill-eval --validate                # Schema-validate every eval.yaml in .claude/skills/
-bin/skill-eval --list                    # List skills with/without evals + summary
-bin/skill-eval --plan <skill>            # Print the eval plan for one skill (Phase 1)
-bin/skill-eval --run <skill> [<eval-id>] # Execute scenarios + diff (Phase 2)
-bin/skill-eval --report                  # Aggregate report across all skills (Phase 2)
+bin/skill-eval --validate            # Schema-validate every eval.yaml in .claude/skills/
+bin/skill-eval --validate-strict     # Same but FAIL on legacy rigid skills without eval.yaml
+bin/skill-eval --list                # Inventory of skills with/without evals + counts
+bin/skill-eval --plan <skill>        # Print the eval plan for one skill
 ```
 
-Exit codes (matching the harness convention):
+Exit codes:
 
-- `0` — all evals (in scope) pass
-- `1` — one or more evals failed
-- `2` — usage error / repo not found / schema invalid
+- `0` — all evals (in scope) pass schema validation
+- `1` — one or more evals failed validation
+- `2` — usage error / repo not found
 
-The runner is consumed by:
+This script is fast, dependency-light (bash + `yq`), and safe to run unattended. `/harness-health` calls `--validate` as a check. CI can call `--validate-strict` once back-fill is complete.
 
-- `/harness-health` — runs `bin/skill-eval --validate` (Phase 1) and `--report --quick` (Phase 2).
-- `/write-skill` — the Iron Law mandates `eval.yaml` for rigid skills.
-- CI (when present) — runs `bin/skill-eval --validate` + `--run` on pre-merge.
+### Dynamic: `/skill-eval` (Claude Code skill)
+
+```
+/skill-eval                       # all skills, first trajectory each (quick mode)
+/skill-eval <skill>               # all trajectories for one skill
+/skill-eval <skill> <eval-id>     # one specific trajectory
+/skill-eval --report              # aggregate, all trajectories
+```
+
+This skill dispatches a fresh Claude Code subagent per trajectory eval via the `Agent` tool. The subagent runs in real Claude Code context with the target skill loaded; it self-reports its trajectory in a `<trajectory-report>` JSON block; the orchestrator diffs against `expected_sequence`, `must_cite`, `must_recognize`.
+
+### Why Claude Code, not headless
+
+An earlier sketch built `bin/skill-eval-run` in Python, calling the Anthropic Messages API directly with mock tools. We removed it because:
+
+1. **Fidelity loss.** Mock tool definitions are simplified — Claude Code's real tool descriptions include behavioral patches that shape model behavior (e.g., "avoid cat/head/tail", "don't sleep-poll"). The system prompt is proprietary and version-bound. A headless runner can only approximate.
+2. **Maintenance debt.** Every time Claude Code's system prompt or tool palette evolves, a mock runner drifts. The whole point of evals is to catch drift; the runner itself drifting catches the wrong thing.
+3. **Already authenticated.** Running inside Claude Code means no `ANTHROPIC_API_KEY` to manage and no Python deps.
+
+**The trade-off:** the subagent's trajectory is self-reported (via the `<trajectory-report>` block), not captured by a runtime trace. We accept that — the subagent has no incentive to misreport, and the orchestrator sanity-checks by looking for required citations in the free-text response.
+
+For long-term CI use (when we get there), the headless path may return — but as a separate adapter, not as the canonical execution layer. See `future-monitoring.md` in the `/skill-eval` skill folder.
+
+### Consumed by
+
+- `/harness-health` — runs `bin/skill-eval --validate` (always) and surfaces `/skill-eval --report --quick` as a manual next step (not auto-invoked, since dispatching subagents costs tokens).
+- `/write-skill` — the Iron Law mandates `eval.yaml` for rigid skills. After authoring, `/write-skill` step 5 also recommends running `/skill-eval <new-skill>` once to confirm the eval passes.
 
 ## Phase 1 vs Phase 2
 
@@ -218,14 +245,23 @@ The runner is consumed by:
 - ✅ Wired into `/harness-health`
 - ✅ Worked examples for `/write-skill`, `/tdd`
 
-**Phase 2 (follow-up PRs):**
+**Phase 2 (this PR — pivoted to Claude Code orchestrator):**
 
-- 🚧 `bin/skill-eval --run` — actual subagent dispatch + tool-trace capture + assertion engine
-- 🚧 Judge-LLM "close enough" matching for fuzzy assertions (e.g., synonym tool calls)
-- 🚧 LangSmith / external dashboards if needed
-- 🚧 CI integration (GitHub Actions) running `--run` on PRs that touch `.claude/skills/`
+- ✅ `/skill-eval` skill — dispatches fresh subagent per trajectory eval via the Agent tool
+- ✅ `<trajectory-report>` self-report contract (subagent emits a JSON block listing tool calls)
+- ✅ Assertion engine: expected_sequence in-order match, must_cite strict substring, must_recognize 3-word-window
+- ✅ Sibling files: `subagent-prompt.md` (dispatch template), `assertion-rules.md` (full diff rules), `future-monitoring.md` (watching for Claude Code drift)
 
-The Phase 1 schema is forward-compatible: every field documented above is consumed by Phase 2 without reshaping.
+**Phase 3 (follow-up PRs):**
+
+- 🚧 `forbidden_actions` enforcement (currently declared but not asserted)
+- 🚧 Decision/invocation/output eval execution (currently schema-validated only)
+- 🚧 Richer trajectory-report schema with per-action `result` field (capture exit codes, allowing `expect_exit: nonzero` assertions)
+- 🚧 Judge-LLM fuzzy matching for synonym tool calls (when strict diff fails)
+- 🚧 Headless adapter for CI (returns the Python runner idea, but as an opt-in adapter, not canonical)
+- 🚧 Back-fill `eval.yaml` for the 8 legacy rigid skills (`db-review`, `debug`, `e2e-verify`, `incident`, `lg-review`, `pre-deploy`, `security-review`, `ship`)
+
+The Phase 1 schema is forward-compatible: every field documented above is consumed by Phase 2 + 3 without reshaping.
 
 ## When evals are required
 
