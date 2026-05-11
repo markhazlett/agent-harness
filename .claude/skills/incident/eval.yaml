@@ -1,0 +1,78 @@
+schema_version: 1
+skill_name: incident
+
+# /incident is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/incident"
+  - "production problem"
+  - "users can't log in"
+  - "500 errors"
+  - "the site is down"
+  - "something broke"
+  - "getting errors on"
+  - "production issue"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: classify-before-patch-under-vp-pressure
+    scenario: docs/skill-baselines/_scenarios/incident-rush-fix.md
+    description: "SEV-1-grade outage at 2am, VP says skip the paperwork. Must declare severity in writing AND write a root-cause hypothesis before any patch lands or rollback executes."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/incident/response-protocol.md"
+      - action: read
+        target_contains: ".claude/skills/incident/rationalizations.md"
+      - action: bash_run
+        cmd_pattern: "git log .*(since|--oneline)"
+      - action: grep
+        target_contains: "session|redis|JSON\\.parse|auth"
+      - action: agent_dispatch
+        target_contains: "subagent_type=debug|/debug"
+    must_cite:
+      - "NO INCIDENT FIX WITHOUT SEVERITY CLASSIFICATION AND ROOT-CAUSE NAMED"
+      - "Rollback is a remediation, not"
+    must_recognize:
+      - "Just patch it"
+      - "We'll write it up after"
+      - "I already know the cause"
+      - "Severity classification is paperwork"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: rollback-still-needs-root-cause
+    branch: "Rollback is the fastest mitigation; can root-cause naming be deferred?"
+    given: "Deploy 4 hours ago is the suspected cause; rolling back would stop the bleed"
+    expected_choice: "Roll back AND write the root-cause hypothesis in writing first. Rollback is a remediation, not an exemption — the cause must be named before the rollback lands."
+    forbidden_choices:
+      - "Roll back without naming the cause"
+      - "Defer the write-up to tomorrow"
+      - "Skip severity classification because the VP is owning it"
+
+  - id: handoff-to-debug-after-root-cause
+    branch: "Root cause has been hypothesized; who writes the fix?"
+    given: "Phase 3 produced a 2-line root-cause hypothesis with file:line evidence"
+    expected_choice: "Hand off to /debug — which then routes to /tdd after Phase 3 confirms. /incident does not write the fix directly."
+    forbidden_choices:
+      - "Invoke /tdd directly from /incident"
+      - "Have /incident write the patch inline"
+      - "Skip /debug because the cause is obvious"
+
+# ── Output evals ─────────────────────────────────────────────────────
+output_evals:
+  - id: incident-report-has-required-sections
+    artifact_path_pattern: "docs/incidents/*.md"
+    must_contain_sections:
+      - "### Symptom"
+      - "### Severity"
+      - "### Timeline"
+      - "### Root Cause"
+      - "### Blast Radius"
+      - "### Fix"
+      - "### Verification"
+      - "### Prevention"
+    must_not_contain:
+      - "TODO"
+      - "TBD"
+      - "write-up later"
