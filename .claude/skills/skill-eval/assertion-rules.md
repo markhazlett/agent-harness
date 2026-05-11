@@ -125,9 +125,25 @@ Find the entry in `decisions[]` where `branch_id == decision_evals[i].id`. Let `
 
 If `decision_evals[]` is non-empty in eval.yaml but the subagent returns `decisions: []` or omits the field, FAIL the eval with `decision_evals declared but subagent emitted no decisions[] in trajectory-report`. The orchestrator must always inject the "Decision points" block when decision_evals is present — if it didn't, that's an orchestrator bug, not a subagent failure.
 
-## expect_exit (NOT yet enforced)
+## expect_exit (Phase 3 — enforced)
 
-`expect_exit: zero | nonzero` on bash_run steps describes the expected exit code. The subagent's trajectory report does NOT currently capture exit codes — that's Phase 3 (richer report schema with `result` field per action).
+`expect_exit: zero | nonzero` on `expected_sequence` bash_run steps describes the expected exit code. Phase 3 trajectory-report v2 captures exit codes via the optional `result` field on each action.
+
+### Match rule
+
+For each `expected_sequence[i]` step with `expect_exit: zero | nonzero`:
+
+1. Find the matching captured action (same matcher used for expected_sequence — tool match + `target_contains` regex + `cmd_pattern` regex if present).
+2. If the matched captured action has no `result` field: FAIL with `expected_sequence[<i>] expects exit code but subagent did not report result.exit_code (Bash actions must include result when expect_exit is asserted)`.
+3. If `expect_exit: zero` and `result.exit_code != 0`: FAIL with `expected_sequence[<i>] expected exit zero, got <code> (cmd: '<captured.target>')`.
+4. If `expect_exit: nonzero` and `result.exit_code == 0`: FAIL with `expected_sequence[<i>] expected exit nonzero, got 0 (cmd: '<captured.target>')`.
+
+### Trajectory report version compatibility
+
+- **v1 reports** (no `version` field, no `result` on any action): treated as legacy. If any `expected_sequence` step uses `expect_exit`, FAIL with the missing-result message above — the subagent is on an old prompt template and must be re-dispatched with the v2 template.
+- **v2 reports** (`version: 2`): `result` is optional per-action but REQUIRED on Bash actions that the eval.yaml asserts `expect_exit` on. Non-Bash tools may include `result` but the orchestrator ignores it.
+
+The `version` field is the only schema-versioning signal. When changing the trajectory-report shape again, bump it and document both versions here.
 
 ## output_evals (Phase 3 — enforced)
 

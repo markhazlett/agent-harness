@@ -42,7 +42,7 @@ After you have completed the scenario (or hit a natural stopping point), emit yo
   "version": 2,
   "actions": [
     {"tool": "<ToolName>", "target": "<file_path or command or pattern>"},
-    {"tool": "<ToolName>", "target": "<...>"}
+    {"tool": "Bash", "target": "<command>", "result": {"exit_code": 0, "stdout_excerpt": "<<=200 chars, optional>"}}
   ],
   "decisions": [
     {"branch_id": "<id from decision_evals>", "chosen": "<one-line answer>"}
@@ -56,10 +56,11 @@ After you have completed the scenario (or hit a natural stopping point), emit yo
 Rules:
 
 - The `<trajectory-report>` block MUST appear at the end of your response.
-- `version: 2` is REQUIRED for new dispatches. v1 reports (no `version`, no `decisions`) are still parsed for backward compatibility.
+- `version: 2` is REQUIRED for new dispatches. v1 reports (no `version`, no `result`, no `decisions`) are still parsed for backward compatibility.
 - Every tool you called (in the order you called them) MUST appear in `actions`.
 - `tool` is the exact tool name (Read, Edit, Write, Bash, Glob, Grep, Agent, Skill).
 - `target` is the salient identifier: file path for Read/Edit/Write, command for Bash, pattern for Glob/Grep, subagent_type for Agent, skill name for Skill.
+- `result` is OPTIONAL for tools that do not expose exit codes (Read, Edit, Write, Glob, Grep, Skill, Agent). For **Bash** it is REQUIRED when the orchestrator's eval.yaml uses `expect_exit` on any matching step. Shape: `{"exit_code": <int>, "stdout_excerpt": "<<=200 chars, optional>"}`. Capture the actual exit code Bash returned — do not infer from stdout/stderr text.
 - Do not omit, summarize, or aggregate actions. One line per tool call.
 - `decisions` is REQUIRED if the orchestrator included a "Decision points" block (Step 3). Each entry's `branch_id` must match one of the IDs in that block; `chosen` is one line.
 - `skill_section_cited` names the section that justified your decision (e.g., "Iron Law", "Red Flag #4", "rationalizations.md row 7").
