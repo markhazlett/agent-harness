@@ -42,11 +42,11 @@ This skill is FLEXIBLE — adapts to which skills are in scope. Static schema ch
 1. **Validate first.** Run `bin/skill-eval --validate`. Stop if it fails.
 2. **Load the eval.** Read `.claude/skills/<skill>/eval.yaml`. Select trajectory_evals in scope.
 3. **Load the scenario.** Open `<eval>.scenario` (a `docs/skill-baselines/_scenarios/*.md` file). Extract the "Setup prompt (paste verbatim to subagent)" section.
-4. **Compose the dispatch prompt** using `subagent-prompt.md` (sibling template). Key requirement: the subagent must end its response with a `<trajectory-report>` JSON block listing every tool call it made.
+4. **Compose the dispatch prompt** using `subagent-prompt.md` (sibling template). Key requirement: the subagent must end its response with a `<trajectory-report>` JSON block listing every tool call it made. If `decision_evals[]` is non-empty, inject the "## Decision points" block (template in `subagent-prompt.md`) carrying only `id` + `given` — never the expected/forbidden choices.
 5. **Dispatch** via the `Agent` tool, `subagent_type: general-purpose`, in a fresh context. Capture the full response.
 6. **Parse the trajectory-report.** If missing or unparseable, FAIL immediately with a diagnostic.
-7. **Assert** per `assertion-rules.md`: each expected_sequence step has a matching captured action in order; `forbidden_actions` did not appear (or appeared only after their `before:` anchor); `must_cite` strings appear in free-text; `must_recognize` strings have a 3-word-window match.
-8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step / forbidden action that fired / missing citation / unrecognized rationalization.
+7. **Assert** per `assertion-rules.md`: each expected_sequence step has a matching captured action in order; `forbidden_actions` did not appear (or appeared only after their `before:` anchor); `decisions[]` answers match `decision_evals[].expected_choice` and avoid `forbidden_choices`; `must_cite` strings appear in free-text; `must_recognize` strings have a 3-word-window match.
+8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step / forbidden action that fired / wrong decision / missing citation / unrecognized rationalization.
 
 References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (the full diff rules), `future-monitoring.md` (watching for Claude Code drift).
 

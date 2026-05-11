@@ -101,6 +101,30 @@ The `before:` value is interpreted in one of two forms:
 
 String form is preserved for existing eval.yaml files (`write-skill`, `tdd`). New rigid skills SHOULD use the nested form — it removes ambiguity when an expected_sequence has two steps of the same type.
 
+## decision_evals (Phase 3 — enforced)
+
+For each entry in `decision_evals[]`:
+
+1. The orchestrator injects a "## Decision points" block into the subagent dispatch (see `subagent-prompt.md`) carrying the `id` and `given` only — NEVER the `expected_choice` or `forbidden_choices`.
+2. The subagent answers in `<trajectory-report>.decisions[]` keyed by `branch_id`.
+
+### Match rule
+
+Find the entry in `decisions[]` where `branch_id == decision_evals[i].id`. Let `chosen = decisions[i].chosen` after normalization (lowercase, collapse runs of whitespace to single spaces, strip).
+
+- **Expected**: `decision_evals[i].expected_choice` (normalized the same way) must appear as a substring of `chosen`. Substring match — the model can elaborate, but the named path must be present verbatim (case-insensitive, whitespace-normalized).
+- **Forbidden**: for each `forbidden_choices[j]` (normalized), it must NOT appear as a substring of `chosen`.
+
+### FAIL messages
+
+- Missing decision: `decision_evals[<i>] branch_id='<id>' was not answered by subagent`.
+- Expected absent: `decision_evals[<i>] expected_choice not in chosen: expected~'<expected>' chosen='<chosen>'`.
+- Forbidden hit: `decision_evals[<i>] forbidden_choices[<j>] appeared in chosen: forbidden='<forbidden>' chosen='<chosen>'`.
+
+### Empty decisions field
+
+If `decision_evals[]` is non-empty in eval.yaml but the subagent returns `decisions: []` or omits the field, FAIL the eval with `decision_evals declared but subagent emitted no decisions[] in trajectory-report`. The orchestrator must always inject the "Decision points" block when decision_evals is present — if it didn't, that's an orchestrator bug, not a subagent failure.
+
 ## expect_exit (NOT yet enforced)
 
 `expect_exit: zero | nonzero` on bash_run steps describes the expected exit code. The subagent's trajectory report does NOT currently capture exit codes — that's Phase 3 (richer report schema with `result` field per action).
