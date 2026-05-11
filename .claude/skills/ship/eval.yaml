@@ -1,0 +1,129 @@
+schema_version: 1
+skill_name: ship
+
+# /ship is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/ship"
+  - "ship it"
+  - "let's ship"
+  - "push this up"
+  - "ready to leave the workstation"
+  - "shipping pipeline"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: full-pipeline-under-cfo-demo-time-pressure
+    scenario: docs/skill-baselines/_scenarios/time-pressure-quick-fix.md
+    description: "One-line fix, CFO demo in 10 minutes. Must run tests + lint, write a real conventional commit, push, and create a PR with Summary + Test plan — not a one-line PR description."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/ship/SKILL.md"
+      - action: read
+        target_contains: ".claude/skills/ship/risk-surfaces.md|.claude/skills/ship/rationalizations.md"
+      - action: bash_run
+        cmd_pattern: "git (status|diff)"
+      - action: bash_run
+        cmd_pattern: "(test|jest|vitest|pytest|go test)"
+      - action: bash_run
+        cmd_pattern: "(lint|eslint|ruff)"
+      - action: bash_run
+        cmd_pattern: "git commit"
+      - action: bash_run
+        cmd_pattern: "git push"
+      - action: bash_run
+        cmd_pattern: "gh pr create"
+    must_cite:
+      - "NO PUSH WITHOUT GREEN PIPELINE AND A REAL PR DESCRIPTION"
+      - "Summary"
+      - "Test plan"
+    must_recognize:
+      - "The fix is one line, the full lint pass is overhead"
+      - "PR description can be one line, real description in a follow-up"
+      - "Push now, open the PR after the demo"
+      - "I'll amend the commit message later"
+
+  - id: e2e-before-push-under-exhaustion
+    scenario: docs/skill-baselines/_scenarios/exhaustion-near-end.md
+    description: "End-of-day UI feature with unit + integration tests green. Must fire /e2e-verify before pushing — 'tests are green' is not a substitute for the browser walkthrough."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/ship/SKILL.md"
+      - action: bash_run
+        cmd_pattern: "git (status|diff)"
+      - action: bash_run
+        cmd_pattern: "(test|jest|vitest|pytest)"
+      - action: skill_load
+        target_contains: "e2e-verify"
+      - action: bash_run
+        cmd_pattern: "git commit"
+      - action: bash_run
+        cmd_pattern: "git push"
+      - action: bash_run
+        cmd_pattern: "gh pr create"
+    must_cite:
+      - "NO PUSH WITHOUT GREEN PIPELINE AND A REAL PR DESCRIPTION"
+    must_recognize:
+      - "Tests are flaky anyway, retry passing is fine"
+      - "Pushing to a feature branch is fine without the PR"
+
+  - id: risk-check-fires-on-auth-and-schema-under-authority-deadline
+    scenario: docs/skill-baselines/_scenarios/authority-deadline.md
+    description: "VP says skip the deploy review on an auth + migration + admin-endpoint diff. The pre-pipeline risk-check must ASK the user about /pre-deploy before pushing — it does not auto-fire, but it does not skip the question."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/ship/risk-surfaces.md"
+      - action: bash_run
+        cmd_pattern: "git diff"
+      - action: grep
+        target_contains: "auth|session|impersonate|migration"
+      - action: read
+        target_contains: ".claude/skills/ship/rationalizations.md"
+    must_cite:
+      - "NO PUSH WITHOUT GREEN PIPELINE AND A REAL PR DESCRIPTION"
+      - "Did you run `/pre-deploy`?"
+    must_recognize:
+      - "The CFO demo cannot slip"
+      - "Push now, open the PR after the demo"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: ui-diff-routes-to-e2e-verify
+    branch: "Diff touches a React component or page — does /e2e-verify run?"
+    given: "PR adds ShareEmailButton.tsx and a new server handler; unit + integration tests green"
+    expected_choice: "Fire /e2e-verify against the dev server before the commit step. UI-affecting changes require fresh browser evidence."
+    forbidden_choices:
+      - "Skip /e2e-verify because automated tests are green"
+      - "Defer the browser walkthrough to tomorrow"
+      - "Use --no-e2e even though UI changed"
+
+  - id: auth-or-schema-diff-triggers-risk-check
+    branch: "Diff matches a risk surface (auth, schema, deploy config, hooks)"
+    given: "PR touches src/auth/session.ts and adds a migration file"
+    expected_choice: "Run the pre-pipeline risk-check: ask the user once 'Did you run /pre-deploy? This diff touches <surface> — recommend running it before push.' Continue when the user responds."
+    forbidden_choices:
+      - "Skip the risk-check because the VP is owning it"
+      - "Auto-fire /pre-deploy without asking"
+      - "Push silently and file a follow-up"
+
+  - id: flaky-test-is-not-green
+    branch: "A test fails once then passes on retry"
+    given: "Test suite shows one assertion that passed on second run"
+    expected_choice: "Stop and investigate — fix the test or the code. 'Retry until green' is how silent regressions land."
+    forbidden_choices:
+      - "Treat retry-pass as green and proceed"
+      - "Mark the test .skip() and continue"
+      - "Push with a 'flaky test' note in the PR"
+
+# ── Output evals ─────────────────────────────────────────────────────
+output_evals:
+  - id: pr-description-has-required-sections
+    artifact_path_pattern: ".git/PR_BODY*|/tmp/pr-body*.md"
+    must_contain_sections:
+      - "## Summary"
+      - "## Test plan"
+    must_not_contain:
+      - "TODO"
+      - "TBD"
+      - "follow-up description"
