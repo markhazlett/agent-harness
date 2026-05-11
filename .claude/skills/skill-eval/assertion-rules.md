@@ -177,6 +177,18 @@ The orchestrator extracts the JSON between `<trajectory-report>` and `</trajecto
 - **`actions` missing or not a list.** FAIL: "trajectory-report missing `actions` array".
 - **`skill_section_cited` missing.** WARN (not FAIL) — the eval may still pass if other assertions hold, but surfacing the warning helps debug "the model did the right things but didn't know why".
 
+## Phase 4 — judge-LLM fuzzy matching (NOT YET IMPLEMENTED)
+
+Strict diffing is brittle: equivalent tool choices (`Glob` vs `Bash ls`) fail as missing-expected-step. A judge-LLM secondary pass would catch these — but the design needs in-the-loop decisions about when it fires, what it sees, how cost is capped, and how we red-team it.
+
+Full design questions: see `follow-ups.md` § E. Do NOT add `fuzzy_match`, `judge_*`, or any judge plumbing to eval.yaml or this file until the questions are resolved with the user.
+
+## Phase 4 — headless CI adapter (NOT YET IMPLEMENTED)
+
+`/skill-eval` requires Claude Code as the executor — that's the fidelity win. CI doesn't have Claude Code. A separate adapter (`bin/skill-eval-headless` or similar) could close the gap, but the Phase 2 deletion of the Python runner was deliberate and any resurrection needs intentionality.
+
+Full design questions: see `follow-ups.md` § F. Do NOT recreate any headless executor until the design conversation lands.
+
 ## On FAIL — what to surface
 
 A FAIL report itemizes:
