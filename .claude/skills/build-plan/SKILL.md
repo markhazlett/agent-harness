@@ -291,7 +291,7 @@ bin/conductor-status update phase=shipped pr_url="<pr-url>"
 
 ## Terminal State
 
-The terminal state of `/build` is **completion of every Done Criteria item in the plan, ending with a clean PR via `/ship`**. Quality skills are MANDATORY when their trigger conditions are met — silent skips are a violation of the plan, not an optimization (per `Harness Principles.md` §15: process before implementation, verification at the end).
+The terminal state of `/build` is **completion of every Done Criteria item in the plan, ending with a clean PR via `/ship`**. Quality skills are MANDATORY when their trigger conditions are met — silent skips are a violation of the plan, not an optimization (per `.claude/docs/harness-principles.md` §15: process before implementation, verification at the end).
 
 Required handoffs while executing the plan:
 

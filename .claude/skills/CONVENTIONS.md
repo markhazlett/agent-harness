@@ -96,6 +96,8 @@ Skills are advisors; the user is principal. When `CLAUDE.md` or a direct user in
 
 ## How to write a rigid skill
 
+**Use `/write-skill`.** It enforces the discipline below as a rigid skill with its own Iron Law, baseline, and rationalization table. The detail in this section is the contract `/write-skill` validates against — keep it here for reference and validator alignment.
+
 A rigid skill is a verification gate that must compel compliance under pressure. The shape is templated; the *content* must be specific to your skill and grounded in real failure modes.
 
 1. **Run baselines before writing.** Use `/skill-baseline` (or `bin/skill-baseline --skill <name> --scenario <slug>`) against scenarios that put pressure on this skill's discipline (time, authority, sunk cost, exhaustion). The point is to harvest the verbatim excuses an unaided agent generates. Inventing rationalizations from imagination defeats the purpose — agents under pressure recognize phrases they've actually used, not phrases someone imagined they might.

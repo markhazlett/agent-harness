@@ -2,6 +2,8 @@
 
 This is the source repo for the agent-harness itself. Changes here ship to other users via the update-check pattern in `bin/harness-update-check`.
 
+**Design philosophy:** see `.claude/docs/harness-principles.md` (63 principles distilled from operating inside the harness). When authoring or editing a skill, hook, or tool, the relevant principle section is cited inline. New skills go through `/write-skill` (rigid authoring discipline) + `/skill-baseline` (RED-phase runner).
+
 ## Instruction precedence
 
 When instructions conflict, this is the order:
