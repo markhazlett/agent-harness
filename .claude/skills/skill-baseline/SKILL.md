@@ -17,7 +17,9 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 TDD for skills. If a rigid skill's Rationalization Table comes from imagination, the rows are vague and the model rationalizes around them. If the rows come from real subagent transcripts under real pressure, the model recognizes its own excuses and complies. This skill walks you through the RED → GREEN → REFACTOR cycle for a skill, using `bin/skill-baseline` as the tooling.
 
-This skill is FLEXIBLE — the workflow adapts to the skill being authored — but the RED phase (capture real rationalizations before writing counters) is non-negotiable. Skipping RED is the whole reason rigid skills go stale. See principle §11 in `Harness Principles.md`.
+This skill is FLEXIBLE — the workflow adapts to the skill being authored — but the RED phase (capture real rationalizations before writing counters) is non-negotiable. Skipping RED is the whole reason rigid skills go stale. See principle §11 in `.claude/docs/harness-principles.md`.
+
+> **Relationship to `/write-skill`:** This is the *test runner* for skill authoring. `/write-skill` is the *authoring discipline* — it owns the Iron Law, four-corners structure, and shipping/PR rules. When you're authoring a new skill end-to-end, start with `/write-skill`; it invokes this skill for RED/GREEN/REFACTOR. Standalone invocations of `/skill-baseline` are for adding rationalization rows to an *existing* skill or re-baselining after content changes.
 
 ## Why baseline?
 
@@ -112,6 +114,17 @@ Capture the new transcript. Finalize as a *separate* baseline file (e.g. `<skill
 
 If the subagent still fails, you are in REFACTOR. Add the new rationalizations to `rationalizations.md` and iterate.
 
+## Step 7 — Translate the GREEN trajectory into `eval.yaml`
+
+Once GREEN passes, the GREEN transcript IS the regression spec. For each tool call the subagent made (Read, Edit, Bash, Agent dispatch), drop a corresponding entry into `.claude/skills/<skill>/eval.yaml` under `trajectory_evals[].expected_sequence`. Use `target_contains` (regex/substring) — don't pin exact paths that will drift.
+
+Also populate:
+
+- `must_cite` — strings the agent's reply contains (typically Iron Law text or `rationalizations.md` row content).
+- `must_recognize` — verbatim excuses from the RED transcript the agent caught itself rationalizing against.
+
+Run `bin/skill-eval --validate` and `bin/skill-eval --plan <skill>` to confirm the file parses and lists what Phase 2 will execute. Full schema: `.claude/docs/skill-eval-spec.md`.
+
 ## Pressure-stacking
 
 Real failures combine pressures (time + authority + exhaustion). Single-pressure scenarios are the unit test; stacked scenarios are the integration test.
@@ -151,4 +164,4 @@ Baselines are committed under `docs/skill-baselines/`. They have forensic value:
 - Worked example with extracted rationalizations and resulting table row: `rationalizations.md` (sibling file).
 - Scenario library: `docs/skill-baselines/_scenarios/`.
 - Methodology source: `~/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.7/skills/writing-skills/testing-skills-with-subagents.md`.
-- Principle §11 in `Harness Principles.md` — "Skills are TDD'd."
+- Principle §11 in `.claude/docs/harness-principles.md` — "Skills are TDD'd."

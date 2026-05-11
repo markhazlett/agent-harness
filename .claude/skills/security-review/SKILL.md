@@ -80,4 +80,4 @@ Cannot check all boxes? DO NOT DEPLOY. Run the missing pieces.
 
 ## What this skill does NOT cover
 
-Penetration testing (third-party engagement), threat modeling (separate exercise), and runtime detection (monitoring layer). For dual-use security tools or offensive testing context, see `Harness Principles.md` Part X.
+Penetration testing (third-party engagement), threat modeling (separate exercise), and runtime detection (monitoring layer). For dual-use security tools or offensive testing context, see `.claude/docs/harness-principles.md` Part X.

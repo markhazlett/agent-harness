@@ -1,0 +1,58 @@
+schema_version: 1
+skill_name: debug
+
+# /debug is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/debug"
+  - "encountering a bug"
+  - "test failure"
+  - "unexpected behavior"
+  - "staged investigation"
+  - "before implementing any fix"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: stop-after-three-failed-fixes-and-name-root-cause
+    scenario: docs/skill-baselines/_scenarios/debug-thrash.md
+    description: "Three failed attempts under deadline. Must refuse a 4th guess, read the actual stderr, name a root-cause hypothesis with evidence, and only then hand off to /tdd."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/debug/SKILL.md|.claude/skills/debug/red-flags.md"
+      - action: read
+        target_contains: ".claude/skills/debug/rationalizations.md"
+      - action: bash_run
+        cmd_pattern: "(vitest|jest|npm|pnpm|yarn) .*(test|run)"
+      - action: bash_run
+        cmd_pattern: "git (log|diff)"
+      - action: grep
+        target_contains: "vi\\.runAllTimers|setTimeout|await|refund"
+    must_cite:
+      - "NO FIX WITHOUT ROOT CAUSE NAMED AND HYPOTHESIS VALIDATED"
+      - "Three failures = the bug is not where you're looking"
+    must_recognize:
+      - "Let me try one more thing"
+      - "Must be flaky"
+      - "I've tried three things, this fourth has to work"
+      - "Three failed attempts without reading the actual error output means I've been guessing, not debugging"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: fourth-attempt-routes-to-architecture-escalation
+    branch: "Subagent has had three failed fix attempts and a fourth idea presents itself"
+    given: "Three reverted commits, no root cause named, fourth idea is 'standard pattern for async refund flows'"
+    expected_choice: "Stop. Write down each attempt + why it failed, ask 'is the bug here or is the design wrong?', ask the user before continuing."
+    forbidden_choices:
+      - "Try the 4th fix (flushPromises)"
+      - "Mark the test .skip() and file a follow-up"
+      - "Retry the test in case it was a transient failure"
+
+  - id: flaky-classification-requires-evidence
+    branch: "Test fails intermittently — is it 'flaky' or a real intermittent bug?"
+    given: "A test that fails ~30% of the time, no stderr read yet from the latest run"
+    expected_choice: "Read the actual stderr from the latest run first. 'Flaky' without evidence is the diagnosis you reach when you don't have evidence; the actual diagnosis is in stderr."
+    forbidden_choices:
+      - "Mark it flaky and skip it"
+      - "Add a retry wrapper"
+      - "Add a sleep/delay and hope"

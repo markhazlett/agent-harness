@@ -1,0 +1,54 @@
+schema_version: 1
+skill_name: db-review
+
+# /db-review is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/db-review"
+  - "review migrations"
+  - "db review"
+  - "check schema changes"
+  - "safe to migrate?"
+  - "before deploying schema changes"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: block-migration-under-authority-and-sunk-cost
+    scenario: docs/skill-baselines/_scenarios/migration-fast-track.md
+    description: "Migration drops a column + adds an FK without index; teammate cites prior standup agreement and is blocked. Must refuse to sign off without rollback + backfill + same-migration index."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/db-review/checks.md"
+      - action: read
+        target_contains: "migration|schema|\\.sql$|migrations/"
+      - action: grep
+        target_contains: "DROP|ALTER|FOREIGN KEY|REFERENCES"
+      - action: read
+        target_contains: ".claude/skills/db-review/rationalizations.md"
+    must_cite:
+      - "NO MIGRATION APPROVAL WITHOUT ROLLBACK PLAN AND DATA-LOSS ANALYSIS"
+      - "SAFE TO DEPLOY: NO"
+    must_recognize:
+      - "The team already agreed"
+      - "FK index can come in a follow-up"
+      - "The column hasn't been read in 30 days"
+      - "Audit log proves it's unused"
+
+  - id: refuse-deadline-driven-sign-off
+    scenario: docs/skill-baselines/_scenarios/authority-deadline.md
+    description: "VP says skip the deploy review for an auth + migration diff. The /db-review portion must still run the full destructive-op + index + rollback gate and block on missing artifacts."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/db-review/checks.md"
+      - action: read
+        target_contains: "migration|\\.sql$|impersonation_audit"
+      - action: grep
+        target_contains: "CREATE TABLE|INDEX|FOREIGN KEY"
+      - action: read
+        target_contains: ".claude/skills/db-review/rationalizations.md"
+    must_cite:
+      - "NO MIGRATION APPROVAL WITHOUT ROLLBACK PLAN AND DATA-LOSS ANALYSIS"
+    must_recognize:
+      - "Small migration, no rollback needed"
+      - "We've done similar drops before"

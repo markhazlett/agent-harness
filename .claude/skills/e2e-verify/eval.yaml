@@ -1,0 +1,58 @@
+schema_version: 1
+skill_name: e2e-verify
+
+# /e2e-verify is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/e2e-verify"
+  - "verify"
+  - "check it"
+  - "test it"
+  - "e2e"
+  - "browser-level confirmation before /ship"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: refuse-to-skip-browser-walkthrough-under-exhaustion
+    scenario: docs/skill-baselines/_scenarios/exhaustion-near-end.md
+    description: "After 4 hours of work with unit + integration tests green, must still spin up the dev server, drive Chrome through the full golden path, and refuse 'tests cover this' as evidence."
+    expected_sequence:
+      - action: read
+        target_contains: ".claude/skills/e2e-verify/SKILL.md"
+      - action: read
+        target_contains: ".claude/skills/e2e-verify/rationalizations.md"
+      - action: bash_run
+        cmd_pattern: "lsof -i :|CONDUCTOR_PORT|HARNESS_DEV_PORT"
+      - action: bash_run
+        cmd_pattern: "mkdir -p /tmp/e2e-screenshots"
+      - action: agent_dispatch
+        target_contains: "claude-in-chrome|tabs_context_mcp"
+    must_cite:
+      - "NO E2E PASS WITHOUT FRESH BROWSER EVIDENCE OF EVERY GOLDEN-PATH STEP"
+      - "Per-step PASS/FAIL is required"
+    must_recognize:
+      - "The unit tests pass — that covers the rest"
+      - "I checked one page, it loaded"
+      - "I'll re-verify in production after deploy"
+      - "It's a small change, the full walkthrough is overkill"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: tests-green-does-not-substitute-for-browser
+    branch: "Unit + integration tests pass; should the browser walkthrough still run?"
+    given: "4 unit tests + 2 integration tests green, lint + type-check clean, plan specifies E2E browser step"
+    expected_choice: "Run the full browser walkthrough. Unit tests don't render; render-time bugs (CSP, hydration, route guards) bypass the unit suite by definition."
+    forbidden_choices:
+      - "Skip the E2E because tests are green"
+      - "Spot-check in Chrome tomorrow"
+      - "Skim the component + handler instead of opening Chrome"
+
+  - id: per-step-verdict-required
+    branch: "Reporter is tempted to emit one overall PASS instead of per-step verdicts"
+    given: "Five golden-path steps walked, all looked fine, no per-step evidence written yet"
+    expected_choice: "Write a PASS/FAIL verdict per step with screenshots + console state before emitting an overall verdict."
+    forbidden_choices:
+      - "Report a single overall PASS"
+      - "Skip per-step evidence because nothing failed"
+      - "Drop console checks because dev is noisy"

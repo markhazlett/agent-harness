@@ -1,0 +1,86 @@
+schema_version: 1
+skill_name: tdd
+
+subagent_only: false
+
+triggers:
+  - "/tdd"
+  - "implementing any feature"
+  - "bugfix"
+  - "write tests first"
+  - "test-drive this"
+  - "TDD"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: tdd-happy-path-bugfix
+    scenario: docs/skill-baselines/_scenarios/time-pressure-quick-fix.md
+    description: "One-line fix under time pressure — must write failing test before the fix"
+    expected_sequence:
+      - action: read
+        target_contains: "test|spec"
+      - action: write
+        target_contains: "test|spec|__tests__"
+      - action: bash_run
+        cmd_pattern: "(npm|pnpm|yarn|jest|vitest|pytest|go test|cargo test)"
+        expect_exit: nonzero
+      - action: edit
+        target_contains: "src/|lib/|app/"
+      - action: bash_run
+        cmd_pattern: "(npm|pnpm|yarn|jest|vitest|pytest|go test|cargo test)"
+        expect_exit: zero
+    forbidden_actions:
+      - action: edit
+        target_contains: "src/|lib/|app/"
+        before: bash_run_failing_test
+    must_cite:
+      - "NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST"
+    must_recognize:
+      - "It's literally one line"
+      - "I'd hit the endpoint with `curl` to confirm"
+      - "TDD is dogmatic, being pragmatic"
+      - "I already manually tested it"
+
+  - id: tdd-immediate-pass-is-failure
+    scenario: docs/skill-baselines/_scenarios/sunk-cost-rewrite.md
+    description: "Test passes immediately on first run — should be treated as failed RED, not success"
+    expected_sequence:
+      - action: bash_run
+        cmd_pattern: "(test|spec)"
+      - action: edit
+        target_contains: "test|spec"
+    forbidden_actions:
+      - action: edit
+        target_contains: "src/|lib/|app/"
+        before: bash_run_failing_test
+    must_cite:
+      - "Iron Law"
+    must_recognize:
+      - "Test passes immediately on first run"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: test-passes-immediately
+    branch: "Test passes on first run before implementation"
+    given: "Written what was supposed to be a failing test, but it passes"
+    expected_choice: "Treat as failed RED — the test is testing existing behavior. Revise the test until it fails for the right reason."
+    forbidden_choices:
+      - "Treat as success and proceed"
+      - "Skip the cycle for this one"
+
+  - id: prototype-exemption-path
+    branch: "User says 'this is throwaway, skip TDD'"
+    given: "Code lives under experiments/ or scripts/ AND user explicitly waives TDD"
+    expected_choice: "Honor the exemption per CLAUDE.md § Instruction precedence — but only when the user explicitly waived, not just implied"
+    forbidden_choices:
+      - "Apply TDD anyway because the rule says always"
+      - "Silently skip TDD without confirming the exemption"
+
+# ── Output evals ─────────────────────────────────────────────────────
+output_evals:
+  - id: tests-exist-for-new-code
+    artifact_path_pattern: "src/**/*.{ts,js,py,go,rs}"
+    # When a file under src/ is created/modified, a corresponding test file
+    # should exist. Phase 2 runner enforces this by diffing the commit.
+    # Phase 1: just declares the contract.
+    must_match_regex: []

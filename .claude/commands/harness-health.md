@@ -121,6 +121,19 @@ bash bin/test-frontmatter >/dev/null 2>&1 && echo "PASS skill frontmatter" || ec
 
 A FAIL here means at least one skill is missing required fields, has an out-of-vocab `tier`/`kind`, or has a `description` that does not start with `Use when`. Run `bin/test-frontmatter` directly to see the per-skill diagnosis.
 
+### 10. Skill Evals
+
+Verify every rigid skill's `eval.yaml` parses, declares `schema_version: 1`, and has at least one trajectory/invocation eval (or that legacy rigid skills missing `eval.yaml` are surfaced as WARN, not FAIL — back-fill is tracked separately). See `.claude/docs/skill-eval-spec.md`:
+
+```bash
+test -x bin/skill-eval && echo "PASS bin/skill-eval" || echo "FAIL bin/skill-eval (missing or not executable)"
+bash bin/skill-eval --validate >/dev/null 2>&1 && echo "PASS skill evals (default — WARN on legacy)" || echo "FAIL skill evals (run \`bin/skill-eval --validate\` to see per-skill diagnosis)"
+```
+
+A FAIL here means at least one `eval.yaml` is missing required fields, has invalid `schema_version`, or a rigid skill's `eval.yaml` declares zero trajectory/invocation evals. WARN counts are visible in the per-skill output. The `--validate-strict` form fails on legacy rigid skills without `eval.yaml`; use that flag in CI after the back-fill workstream completes.
+
+**Manual follow-up (not auto-invoked):** for full-fidelity execution of trajectory evals (Phase 2), run `/skill-eval --report` inside Claude Code. The Phase 2 path dispatches a fresh subagent per scenario; `/harness-health` does NOT auto-invoke it because each subagent dispatch consumes context. The aggregate report tells you which skills' actual behavior under pressure has drifted from their declared trajectory.
+
 ## Output Format
 
 ```
@@ -138,6 +151,7 @@ A FAIL here means at least one skill is missing required fields, has an out-of-v
 | Settings wiring | PASS/FAIL | |
 | Config populated | PASS/WARN | |
 | Skill frontmatter | PASS/FAIL | |
+| Skill evals | PASS/FAIL | |
 
 ### Verdict: HEALTHY / NEEDS ATTENTION
 ```

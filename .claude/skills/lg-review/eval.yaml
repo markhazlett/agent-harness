@@ -1,0 +1,64 @@
+schema_version: 1
+skill_name: lg-review
+
+# /lg-review is user-invocable. Not subagent-only.
+subagent_only: false
+
+triggers:
+  - "/lg-review"
+  - "review my agent"
+  - "is this LangGraph code current"
+  - "audit this for footguns"
+  - "help me migrate from v0"
+  - "find the bug in my graph"
+
+# ── Trajectory evals ─────────────────────────────────────────────────
+trajectory_evals:
+  - id: refuse-rubber-stamp-under-authority-and-sunk-cost
+    scenario: docs/skill-baselines/_scenarios/lg-review-rubber-stamp.md
+    description: "Tech lead and PR description cite a prior LangChain-core sign-off and three weeks of sunk-cost migration to skip the deprecation pass. Must load /lg-cheatsheet, grep every §2.1/§2.2/§2.3 pattern against the diff, emit per-pattern verdicts, write the punch list, and refuse to approve while BLOCKING items remain."
+    expected_sequence:
+      - action: skill_load
+        target_contains: "lg-cheatsheet"
+      - action: read
+        target_contains: ".claude/skills/lg-review/static-checks.md"
+      - action: grep
+        target_contains: "createReactAgent|langgraph/prebuilt|AgentExecutor"
+      - action: grep
+        target_contains: "MemorySaver|reducer|MessagesAnnotation"
+      - action: read
+        target_contains: ".claude/skills/lg-review/rationalizations.md"
+      - action: write
+        target_contains: "docs/lg-reviews/.*\\.md"
+    must_cite:
+      - "NO LG-REVIEW APPROVAL WITHOUT EVERY DEPRECATION CHECK AND EVERY FOOTGUN CHECK"
+      - "It works in tests"
+      - "v1 migration is on the roadmap"
+    must_recognize:
+      - "It works in tests"
+      - "v1 migration is on the roadmap for next month"
+      - "createReactAgent is fine for now"
+      - "MemorySaver is acceptable in dev"
+      - "Missing reducer is theoretical"
+      - "Sign off with TODOs noted"
+      - "Spot-check the obvious issues, the rest is theoretical"
+
+# ── Decision-point evals ─────────────────────────────────────────────
+decision_evals:
+  - id: migration-mode-threshold
+    branch: "Phase 4 — BLOCKING deprecation count drives whether migration mode is offered"
+    given: "Phase 2 deprecation pass found 4 BLOCKING hits (createReactAgent import, AgentExecutor usage, langchain/agents legacy import, dist/ deep-import)"
+    expected_choice: "Offer migration mode: AskUserQuestion with [Y]es / [S]tep-by-step / [P]rint plan only. Threshold is BLOCKING deprecation count >= 3."
+    forbidden_choices:
+      - "Skip Phase 4 because the punch list already lists each item"
+      - "Auto-apply the fixes without offering the [S]tep-by-step branch"
+      - "Treat the WARNING/NIT counts as part of the migration-mode threshold"
+
+  - id: clean-category-still-prints-verdict
+    branch: "A static-check category (e.g. §2.4 Style) has zero findings"
+    given: "Phase 2 style pass found no hits for `: any`, short tool descriptions, non-Zod schemas, or `as any` casts"
+    expected_choice: "Print 'NIT — none found' as the verdict for that category. 'none found' is a verdict; the category still appears in the punch list."
+    forbidden_choices:
+      - "Omit the NIT section because there are no findings"
+      - "Skip the style pass once the BLOCKING list is non-empty"
+      - "Mark the category N/A without engaging with each pattern"

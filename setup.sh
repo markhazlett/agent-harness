@@ -254,6 +254,36 @@ if [ ! -f "$REPO_ROOT/.claude/settings.json" ]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
+# CLAUDE.md: offer the starter template if none exists; otherwise point at it
+# for manual merge. We never overwrite an existing CLAUDE.md.
+# ──────────────────────────────────────────────────────────────────────────────
+
+CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+TEMPLATE="$REPO_ROOT/.claude/docs/claude-md-template.md"
+
+if [ -f "$TEMPLATE" ]; then
+  if [ -f "$CLAUDE_MD" ]; then
+    echo ""
+    echo "CLAUDE.md already exists at the repo root — keeping it as-is."
+    echo "Starter template (with the 12 behavior rules) is at:"
+    echo "  .claude/docs/claude-md-template.md"
+    echo "Review it and merge sections marked [REQUIRED] or [RECOMMENDED] as needed."
+  else
+    read -p "No CLAUDE.md found. Copy the harness starter template? [Y/n]: " COPY_CHOICE
+    COPY_CHOICE="${COPY_CHOICE:-Y}"
+    case "$COPY_CHOICE" in
+      [Yy]*)
+        cp "$TEMPLATE" "$CLAUDE_MD"
+        echo "Wrote $CLAUDE_MD. Fill in the {{...}} placeholders for your project."
+        ;;
+      *)
+        echo "Skipped CLAUDE.md. Template available at .claude/docs/claude-md-template.md when you're ready."
+        ;;
+    esac
+  fi
+fi
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Summary
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -267,7 +297,7 @@ echo ""
 echo "Next steps:"
 echo "  1. Review .claude/hooks/harness.config.sh and adjust if needed"
 echo "  2. Add .claude/settings.json to your project if not already there"
-echo "  3. Add a CLAUDE.md to your project documenting conventions"
+echo "  3. Review CLAUDE.md (or merge from .claude/docs/claude-md-template.md)"
 echo "  4. Run: claude /harness-health"
 echo "     to verify everything is wired up correctly"
 echo ""
