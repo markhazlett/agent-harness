@@ -32,6 +32,10 @@ Steps:
 
 The agent clones the latest harness, copies it in, walks you through the setup wizard, and verifies the install. Prefer a manual copy or a symlinked dev environment? See [install options](#install-options-detail) below.
 
+### Updating
+
+Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/source`, diffs against your install, classifies each file (install / safe-update / unchanged / conflict), and walks you through any conflict before writing anything. Project-specific files (`harness.config.sh`, `settings.json`) and your local-only skills, agents, and commands are never touched. The first run on an existing install treats every divergence as a conflict so you can vouch for each file once; future runs are quiet because the script tracks provenance in `~/.agent-harness/installed-manifest.json`.
+
 ---
 
 ## What you get
