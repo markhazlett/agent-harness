@@ -47,3 +47,16 @@ Do the bump as part of the feature commit (or a `chore: bump version to X.Y.Z` c
 Captured by `/learn`; each entry lives at `docs/learnings/<slug>.md` with a `Rule / Why / How to apply` body.
 
 Avoid saving entries that fall in the anti-list — code patterns, file paths, git history, fix recipes, CLAUDE.md duplicates, ephemeral state, activity summaries. When a candidate looks like one of those, ask what was *surprising* and save the surprising framing instead. Memories that name a specific function, file, or flag should be re-verified (`Grep` / `test -e`) before being recommended — they describe a moment in time, not a current guarantee.
+
+## Coding conventions (working on this harness)
+
+Adapted from Karpathy's CLAUDE.md ([forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md)) and Mnimiy's 8-rule extension (`@Mnilax` on X, May 2026). Phrased for harness development specifically.
+
+1. **Surgical changes.** When editing a skill, hook, or doc, every changed line should trace to the requested change. Don't refactor adjacent skills, reformat sibling files, or "improve" unrelated content. Match the existing style of the file you're editing even when you'd write it differently. If you notice unrelated dead code or stale references, flag them — don't silently delete.
+2. **Simplicity first.** No new abstractions for single-use code. No "flexibility" knobs nobody asked for. If you wrote 200 lines and 50 would do, rewrite. The harness's own design philosophy (`.claude/docs/harness-principles.md` §§55-63) is the anti-pattern list — read it before adding new structure.
+3. **Use the model only for judgment calls.** Anything mechanically enforceable belongs in a hook (`.claude/hooks/`), a validator (`bin/test-frontmatter`, `bin/harness-update-check`), or a shell script — not in a skill body. Skills are for the cases where the model needs to *decide*. Principle §24 (tools as forcing functions).
+4. **Surface conflicts, don't average them.** When `CLAUDE.md` says X and a skill says Y, follow `CLAUDE.md` (§ Instruction precedence) — but *name* the conflict in your response. Don't try to half-satisfy both. The user is principal; the resolution is theirs to make.
+5. **Match conventions, even if you disagree.** The harness has a frontmatter contract (`.claude/skills/CONVENTIONS.md`), a rigid-skill template, a `<update-check>` block pattern, and a VERSION bump rule. Follow them. If you think a convention is wrong, raise it as a separate discussion, not as a silent deviation in your edit.
+6. **Fail loud.** Hooks, validators, and bin/ scripts should crash visibly on bad input — never swallow errors silently or return defaults that pretend nothing was wrong. `bin/test-frontmatter` failing 1/29 is more useful than passing 29/29 by skipping the broken one. The harness depends on these gates being honest.
+
+These rules apply to working on the harness itself. The shipped starter for consumer repos lives at `.claude/docs/claude-md-template.md` — a longer 12-rule contract scoped to user projects, not harness development.
