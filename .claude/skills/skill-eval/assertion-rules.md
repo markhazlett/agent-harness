@@ -44,9 +44,62 @@ This is intentionally permissive: the subagent may paraphrase but should engage 
 
 If no 3-word window matches: FAIL with `must_recognize not detected (no 3-word window from): <string>`.
 
-## forbidden_actions (NOT yet enforced)
+## forbidden_actions (Phase 3 — enforced)
 
-Declared in eval.yaml but the orchestrator does not assert on them in Phase 2 MVP. Phase 3 will add: for each forbidden_actions entry, verify the forbidden action did NOT appear before the named anchor.
+Each entry in `forbidden_actions[]` has the shape:
+
+```yaml
+forbidden_actions:
+  - action: <type>                    # required: read | edit | write | bash_run | glob | grep | agent_dispatch | skill_load
+    target_contains: "<regex>"        # required: regex matched against captured target string
+    before: <ref>                     # optional: ordering anchor (see below)
+```
+
+### Match resolution
+
+A captured action *matches* a forbidden_actions entry when:
+
+1. Its `tool` corresponds to the `action` type (same mapping table used by expected_sequence).
+2. `re.search(target_contains, captured.target)` is true.
+
+### Two assertion modes
+
+**Mode 1 — `before:` absent (global ban).**
+
+Fail if ANY captured action matches the entry. Use for "this action must never happen for this scenario at all".
+
+**Mode 2 — `before:` present (ordering ban).**
+
+The forbidden action must not appear BEFORE the resolved anchor index. Capture index 0 is the first action the subagent emitted.
+
+The `before:` value is interpreted in one of two forms:
+
+- **String form** (legacy / current eval.yaml usage). The string is a free-form label naming an anchor in the expected_sequence — e.g., `before: agent_dispatch` or `before: bash_run_failing_test`. The orchestrator resolves the anchor by scanning `expected_sequence` left-to-right and picking the FIRST step whose `action` type appears as a token in the label (split on `_`). For `before: bash_run_failing_test`, the tokens `bash_run` match the `action: bash_run` step. Once the orchestrator picks an expected step, it finds the FIRST captured action that matches that step (same matcher as expected_sequence) — that captured index becomes the anchor.
+
+  If no expected_sequence step is resolved by token-match, FAIL the eval with `forbidden_actions[<i>].before='<label>' did not resolve to any expected_sequence step (use nested form for clarity)`.
+
+- **Nested object form** (recommended for new eval.yaml files; more explicit):
+
+  ```yaml
+  forbidden_actions:
+    - action: edit
+      target_contains: "src/|lib/|app/"
+      before:
+        action: bash_run
+        target_contains: "(npm|pnpm|yarn|jest|vitest|pytest|go test|cargo test)"
+  ```
+
+  The orchestrator finds the FIRST captured action matching the nested descriptor (same `tool` + regex matcher) — that captured index becomes the anchor.
+
+### FAIL messages
+
+- Mode 1 (global ban hit): `forbidden_actions[<i>] matched captured action[<j>]: tool=<X> target='<captured>'`
+- Mode 2 (ordering ban hit): `forbidden_actions[<i>] appeared at captured[<j>] before anchor 'captured[<k>]' (anchor matched: tool=<X> target='<captured>')`
+- Mode 2 (anchor never appeared): WARN, not FAIL. If the anchor never appeared in the captured trajectory, ordering is undefined — surface the warning and let the expected_sequence diff fail loudly instead.
+
+### Backward compatibility
+
+String form is preserved for existing eval.yaml files (`write-skill`, `tdd`). New rigid skills SHOULD use the nested form — it removes ambiguity when an expected_sequence has two steps of the same type.
 
 ## expect_exit (NOT yet enforced)
 

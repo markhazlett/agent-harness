@@ -45,8 +45,8 @@ This skill is FLEXIBLE — adapts to which skills are in scope. Static schema ch
 4. **Compose the dispatch prompt** using `subagent-prompt.md` (sibling template). Key requirement: the subagent must end its response with a `<trajectory-report>` JSON block listing every tool call it made.
 5. **Dispatch** via the `Agent` tool, `subagent_type: general-purpose`, in a fresh context. Capture the full response.
 6. **Parse the trajectory-report.** If missing or unparseable, FAIL immediately with a diagnostic.
-7. **Assert** per `assertion-rules.md`: each expected_sequence step has a matching captured action in order; `must_cite` strings appear in free-text; `must_recognize` strings have a 3-word-window match.
-8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step / missing citation / unrecognized rationalization.
+7. **Assert** per `assertion-rules.md`: each expected_sequence step has a matching captured action in order; `forbidden_actions` did not appear (or appeared only after their `before:` anchor); `must_cite` strings appear in free-text; `must_recognize` strings have a 3-word-window match.
+8. **Report PASS/FAIL** with itemized diffs. One line per missing expected step / forbidden action that fired / missing citation / unrecognized rationalization.
 
 References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (the full diff rules), `future-monitoring.md` (watching for Claude Code drift).
 
@@ -73,9 +73,9 @@ References: `subagent-prompt.md` (the dispatch template), `assertion-rules.md` (
 ## What this skill does NOT cover
 
 - **Static schema validation** → `bin/skill-eval --validate` (run that first).
-- **Decision_evals, invocation_evals, output_evals** — schema-validated; execution is Phase 3.
-- **`forbidden_actions` enforcement** — declared in eval.yaml, not asserted yet (Phase 3).
-- **`expect_exit: nonzero` and tool-result-shape constraints** — Phase 3 will add a richer report schema with per-action `result` field.
+- **Invocation evals** — schema-validated; execution still deferred (cross-skill dispatch is its own design problem).
+- **Judge-LLM fuzzy matching** for synonym tool calls — Phase 4 (see `follow-ups.md`).
+- **Headless CI adapter** — Phase 4 (see `follow-ups.md`).
 - **Authoring new evals** → `/write-skill` step 5 + `/skill-baseline` step 7.
 
 ## Terminal State
