@@ -1004,6 +1004,8 @@ Use this as a starting point. Each item maps to one or more sections above.
 - [ ] Tier your context: per-turn, per-conversation, per-repo, per-user
 - [ ] Document instruction precedence (user > harness > defaults)
 - [ ] Provide a user-controlled override file (CLAUDE.md analog)
+- [ ] Use context window as primary execution state store; minimize auxiliary state (§65)
+- [ ] Route between workflows with deterministic code; reserve LLM calls for in-branch reasoning (§64)
 
 ### Skill system
 - [ ] Skills are loadable files with frontmatter (`name`, `description`)
@@ -1062,6 +1064,40 @@ Use this as a starting point. Each item maps to one or more sections above.
 
 ---
 
+## Part XIII — Field Research: Principles from External Harnesses
+
+Principles in this section are drawn from published engineering material outside this harness. Each is cited to a primary source and evaluated against the quality bar in the preamble.
+
+### 64. Deterministic Routing, LLM Reasoning
+
+**Use deterministic code to route between agent states; reserve LLM calls for reasoning within bounded decision points, not for choosing which workflow to run.**
+
+**Why it works.** LLMs are expensive and inconsistent routers: they sometimes pick the wrong branch, hallucinate options, or loop. Deterministic code for routing is fast, testable, and auditable — every branching decision is explicit code, not a token prediction. The LLM adds value *within* a branch (deciding what to say, how to handle an error, what tool to call) not *between* branches (which workflow to enter). The practical form is: classify the input first with a narrow LLM call, then route to a series of smaller, focused sub-prompts with fewer instructions and fewer available tools. The failure mode is over-prescribing branches before the workflow is understood — use LLM routing for genuinely novel situations and harden to code when a branch is well-understood.
+
+**Observed in.**
+- [humanlayer/12-factor-agents, Factor 8 "Own Your Control Flow" (GitHub, 2025)](https://github.com/humanlayer/12-factor-agents): "If you know what the workflow is, use actual control flow — classify the input, then feed it to a series of smaller, more-focused prompts with fewer instructions and fewer actions to choose from." Factor 8 describes three anti-patterns: (a) memory-based pausing with full restart, (b) restricting agents to only low-risk tasks, (c) unrestricted high-stakes access with no oversight.
+
+**How it could apply here.** The harness currently relies on LLM trigger-matching in skill frontmatter descriptions to decide which skill to invoke. For well-understood trigger patterns (e.g., `/ship` always means run the shipping pipeline), a deterministic dispatch table would be faster and more reliable than LLM inference. LLM-based skill matching should be reserved for ambiguous or novel invocations where the trigger is genuinely unclear.
+
+**Confidence.** High
+
+---
+
+### 65. Context Window as the Primary Execution State Store
+
+**Treat the context window as the canonical record of agent execution state; infer what step you're on and what's waiting from the accumulated event history, rather than maintaining a parallel state system.**
+
+**Why it works.** A separate state database introduces a classic consistency failure mode: the agent's model of what happened diverges from what's stored. When execution state — current step, wait conditions, retry counts — is inferred from the event history already in context, you get one source of truth that is trivially serializable, fully auditable, and naturally supports resumption from any checkpoint. Thread forking (running two branches from the same history) falls out for free. The cost appears at context overflow: very long sessions exhaust the window, at which point you need external storage for items that cannot fit (credentials, session IDs). Minimize auxiliary state to exactly that set.
+
+**Observed in.**
+- [humanlayer/12-factor-agents, Factor 5 "Unify Execution State and Business State" (GitHub, 2025)](https://github.com/humanlayer/12-factor-agents): "Execution state (current step, waiting status, etc.) is just metadata about what has happened so far." Advocates using the context window as the primary state store, with auxiliary state minimized to items that cannot feasibly enter context; enables resumption from any checkpoint and thread forking as natural side effects.
+
+**How it could apply here.** The harness uses `MEMORY.md` for cross-conversation state and `TodoWrite` for in-conversation progress, which is consistent with this principle. A future long-running agent extension — one whose task spans multiple context windows — should apply this pattern at the session boundary: serialize the event thread, not a separate state table, as the resumption artifact.
+
+**Confidence.** High
+
+---
+
 ## Closing Thought
 
 The thing that makes a great harness feel magical is not any single rule.
@@ -1077,3 +1113,13 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources Mined
+
+Each entry records a harness that has been researched at least once. Re-mining is only warranted if a materially new primary source has appeared since the last entry date.
+
+- **12-Factor Agents** (Dex Horthy / HumanLayer) (first mined: 2026-05-15): Twelve engineering principles for production LLM applications, derived from interviewing 100+ founders and engineers. Primary source: [github.com/humanlayer/12-factor-agents](https://github.com/humanlayer/12-factor-agents). Contributed §64 (Deterministic Routing) and §65 (Context as State Store).
+- **Cognition "Don't Build Multi-Agents"** (first mined: 2026-05-15): Researched; primary source (cognition.ai/blog) returned HTTP 403 and was not fetchable. Secondary sources describe context-compression and single-agent principles consistent with existing §5 and §36. No principle added this run; retry when primary source becomes accessible.
+- **Anthropic "Building Effective Agents" and "Effective Harnesses for Long-Running Agents"** (first mined: 2026-05-15): Researched; both anthropic.com/research and anthropic.com/engineering URLs returned HTTP 403. No principle added this run; retry when primary source becomes accessible.
