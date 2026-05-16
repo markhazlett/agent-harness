@@ -97,6 +97,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 
 **Why for agents specifically.** Agents have no continuity between sessions (HumanLayer 12-Factor §5, §12: stateless reducers; harness principle §39 on re-injection). A human absorbs tribal knowledge over weeks; the agent gets one shot per session. The CLAUDE.md / AGENTS.md pattern exists precisely because [GitHub's analysis of 2,500+ repos](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/) found this is the single highest-leverage file: "provide your agent a specific job or persona, exact commands to run, well-defined boundaries, and clear examples." OpenAI's [Codex AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md) and Roo Code's [adoption discussion](https://github.com/RooCodeInc/Roo-Code/issues/5966) corroborate from the other side: AGENTS.md is now the cross-tool standard, loaded by Codex, Cursor, Cline, Roo Code, Aider, and Continue.dev. Cognition's [DeepWiki](https://cognition.ai/blog/deepwiki) goes further — Devin auto-indexes repos into wikis with architecture diagrams; a `.devin/wiki.json` lets the user steer the generation, suggesting that even pre-built doc-generation tools want a small seed file in the repo.
 
+**Plain-English case.** A new engineer joining your team gets a Slack channel, a coffee, and a few days of pairing before they ship. An agent gets one file. Without an AGENTS.md / CLAUDE.md, every session starts from zero — the agent guesses commands, guesses directory conventions, and writes code that an unaided human would have known not to write. The cost isn't theoretical; you pay it on every task.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "Our team isn't using agents yet." | Fair — and AGENTS.md is a 50-line file. Cline, Cursor, Codex, Aider, Continue, and Roo Code all read it; once you have one, every tool your team tries works better with zero per-tool config. Cost of writing it: a couple of hours, front-loaded. Cost of not: paid every session, by every tool, forever. |
+| "Our README already covers this." | Most don't — READMEs are for humans landing on GitHub (narrative, why-we-exist). AGENTS.md is for the first 200 lines of an agent's session (copy-pasteable commands, "don't touch `legacy/`" rules). If your README is genuinely both, symlinking `AGENTS.md → README.md` is a perfectly valid pass on this dimension. |
+| "We have an internal wiki." | The agent can't read it. If commands live in Notion or Confluence, the session starts with the agent guessing — or worse, running stale ones it cached from training data. |
+
+**Cost of leaving this alone.** Conservatively, a cold agent session burns 10–30k tokens (~$0.03–$0.09 at Sonnet input rates ~$3/M) just orienting itself before the first real edit. That's small. The bigger cost is degraded output: the agent runs `npm test` when you use `pnpm test`, treats the resulting error as a code issue rather than a tooling issue, and you spend 20 minutes reviewing a wrong-shaped PR. At 50 agent-assisted PRs/month, even a 10% rate of these mismatches costs you ~10 review-hours.
+
 **Signals.**
 
 | Signal | Measurement |
@@ -120,6 +132,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 **Definition.** Can the agent run the project, exercise it, lint it, and get fast honest feedback — with **one command each**.
 
 **Why for agents specifically.** This is the agent's verification loop. Without it the agent falls back to claiming success without evidence (harness principle §33). Willison: "Linters, type checkers, auto-formatters — give coding agents helpful tools to run and they'll use them." [Augment's harness engineering writeup](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents) and Böckeler's [*Harness engineering and agent feedback*](https://www.thoughtworks.com/en-au/insights/blog/generative-ai/harness-engineering-agent-feedback-exploring-ai-coding-sensors) both frame these tools as "sensors" — without sensors the agent guesses. [Cognition's Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) credits tightening these gates as a top driver of throughput gains. The [SWE-agent ACI paper](https://arxiv.org/abs/2405.15793) makes the same point at the interface level: agents that get fast, bounded tool feedback solve 5× more SWE-bench tasks than agents using a raw shell. Crawshaw's [sketch.dev posts](https://crawshaw.io/blog/programming-with-agents) confirm: "compiler feedback reduces syntax errors and hallucinated interfaces" — an order-of-magnitude effect.
+
+**Plain-English case.** Every iteration where the agent can't verify its work is an iteration where it guesses, claims success, and ships a regression. The test loop is the agent's only honest source of "did this work?" — if it takes 4 minutes or requires manual setup, the agent will skip it, narrate confidence, and you'll catch the bug in review (or production). One-command, fast, exit-coded feedback is the difference between agents that compound and agents that backslide.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "Our tests are slow because integration matters." | Real integration matters. The fix isn't "don't have integration tests" — it's: (a) separate a fast unit tier (<30s) the agent runs every iteration from the slow integration tier it runs once before PR, (b) parallelise the slow tier, (c) containerise infra so it boots from cold in <60s. DORA 2024's small-batch finding applies here: agents amplify the cost of slow loops; they don't change the underlying math. |
+| "We don't have a single test command — different services have different runners." | That's the cost. Add a top-level `make test` / `pnpm test` that runs each service's command; budget two hours for the script. The alternative is that every agent session has to learn the matrix afresh and gets it wrong half the time. |
+| "Strict lint config slows our team down." | Loose lint costs more than strict, with agents — every PR re-introduces five style variants and review burns on cosmetic comments. The fix is to bias strict + autofix on save, so humans pay the friction once at write-time and agents inherit consistency for free. |
+
+**Cost of leaving this alone.** Token math: agents typically run 3–5 iterations per task. A 4-minute test suite × ~200k cumulative tokens/iteration × $3/M input ≈ $0.60–$1.00 per failed iteration in tokens alone, plus wall-clock. A 30s suite is ~10× cheaper and 8× faster. The bigger cost is silent: when the loop is slow, agents skip it and ship work they didn't verify. SWE-agent's 5× SWE-bench gain from improved interface feedback is the empirical anchor — fast honest feedback is the largest single intervention you can make in an agent's working environment.
 
 **Signals.**
 
@@ -146,6 +170,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 
 **Why for agents specifically.** [SWE-Bench Pro's trajectory analysis](https://arxiv.org/abs/2509.16941) found that even strong models fail predominantly on "navigating large, unfamiliar codebases" and "high-precision edits across multiple files" — and the gap between the public benchmark (~43%) and the commercial set (<20%) is largely a navigation gap. Aider's [repo-map design](https://aider.chat/docs/repomap.html) and AutoCodeRover's [AST-aware retrieval](https://arxiv.org/pdf/2404.05427) both treat code locality as a first-class retrieval problem — code connected by call edges gets included together. Augment's [Context Engine](https://workos.com/blog/augment-code-context-is-the-new-compiler) and Sourcegraph's [Cody indexing](https://sourcegraph.com/blog/how-cody-understands-your-codebase) make the same bet from the retrieval side; the codebase wants to be cleanly chunkable. GitHub's [Octoverse 2025](https://github.blog/news-insights/octoverse/octoverse-a-new-developer-joins-github-every-second-as-ai-leads-typescript-to-1/) finding — TypeScript overtaking Python on GitHub, attributed to "developers shifting toward typed languages that make agent-assisted coding more reliable" — is the field-scale signal for the typed-language signal below.
 
+**Plain-English case.** Every change the agent makes loads context — files, types, callers. When that context is locally contained and types are honest, the agent edits one folder, runs the loop, ships. When it's spread across five directories with implicit cross-file globals and dynamic dispatch, the agent loads half the repo, runs out of useful context, and starts guessing at function signatures. Locality is what keeps the agent's window full of *relevant* code instead of speculative breadcrumbs.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "Indexing tools (Sourcegraph, Augment, Cody) solve this already." | They help — but the SWE-Bench Pro enterprise gap (43% public → <20% commercial) is largely a navigation gap on repos that *do* have indexing. Indexing surfaces candidates; locality determines whether editing one of them is a single-file change or a 12-file change. Augment's Context Engine and Aider's repo-map both work better on locality-disciplined repos; they don't replace the discipline. |
+| "Strict types add prototype friction." | Yes — for genuine prototypes (`experiments/`, throwaway scripts), this dimension legitimately doesn't apply, and the rubric explicitly says scope-appropriate caveats are valid. For anything that lives past a quarter, the Octoverse field signal is direct: TypeScript adoption is rising specifically because typed languages give agents the schema they need to write correct code on the first try. |
+| "We have 5000-line files but they're well-organised internally." | A 5000-line file with clean sections is fine — the rubric explicitly says so. The signal flags files >1000 lines because *most* of them aren't well-organised, not because length itself is the problem. If yours genuinely is, the judgment sample will catch it and you get the points back. |
+
+**Cost of leaving this alone.** Hard to put a token cost on directly; it shows up as multi-file PRs that take 5 review-rounds instead of 1, and as agent attempts that abandon halfway because the context window fills with the wrong files. The empirical anchor is SWE-Bench Pro: even frontier models lose 20+ percentage points on enterprise codebases vs. the public benchmark, with "navigating large unfamiliar codebases" cited as the dominant failure mode. If your repo is in that category, the agent's success rate on non-trivial tasks halves, regardless of model quality.
+
 **Signals.**
 
 | Signal | Measurement |
@@ -171,6 +207,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 
 **Why for agents specifically.** Forcing functions beat guidance (harness principle §2). The harness's `pre-deploy`, `tdd`, `verification-before-completion` skills exist because the model alone won't self-impose them. The codebase needs the same. [Phoebe](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase): "What can be inferred from the codebase should be handled by the Context Engine; rules files are reserved for what cannot be inferred." For everything else, ship enforcement. This is precisely Ford & Parsons's [fitness-function](https://nealford.com/books/buildingevolutionaryarchitectures.html) framing — an objective architectural integrity check, run in CI, that fails loudly when drift occurs. DORA 2024's finding (39% of respondents distrust AI-generated code) underwrites the urgency: gates are how trust is rebuilt mechanically.
 
+**Plain-English case.** Code review doesn't scale to agent-generated PR volume. If a tireless agent can open 20 PRs/day, your reviewers can't be the only thing standing between drift and main. Anything mechanically enforceable — formatter, type-check, lint, architectural rules, secret scan — needs to be a CI gate that fails the build. That's not paranoia; it's the only way trust holds up under the new throughput.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "We trust our team to follow conventions." | Maybe — but agents aren't your team. They follow the conventions they can *see in code or CI*, and ignore conventions that exist only in tribal knowledge. The DORA 2024 stability drop (−7.2%) under AI adoption is the field signal: undocumented norms degrade fastest under high-velocity output. Gates encode the norms agents (and rushed humans) skip. |
+| "Strict gates slow us down." | They slow you down at write-time and save you 5× at review-time. Agents amplify this asymmetry: a `--max-warnings 0` lint catches 100 trivial nits before review, which is exactly what you don't want a human spending review attention on. Reviewers should be reviewing logic, not whitespace. |
+| "We have CI already." | Many "CI" setups are advisory — `continue-on-error: true`, warnings-as-suggestions, jobs marked `[skip ci]` routinely. The signal here is specifically *gates that fail the build*. If your existing CI is honest, you're already passing; if it has `continue-on-error` on the type check, the agent will exploit it (not maliciously — it just sees a green check and ships). |
+
+**Cost of leaving this alone.** Cost shows up in review hours, not tokens. A repo without gates incurs ~5–20 minutes of nit review per PR (formatting, import order, type-narrowing, unused exports) that the gates would have caught in 2 seconds of CI. At 20 PRs/week × 10 minutes × 4 weeks = ~13 review-hours/month spent on cosmetic comments instead of architecture. With agent-generated PRs that ratio gets worse: the agent has no muscle memory for your conventions, so every nit reappears unless the gate enforces it.
+
 **Signals.**
 
 | Signal | Measurement |
@@ -195,6 +243,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 
 **Why for agents specifically.** Willison: "If a manual or automated test fails the more information you can return back to the model the better." Harness principle §6 (Fail Loud): silent failures are future incidents; for agents they're also debugging dead-ends — the agent re-runs, sees the same vague output, and either guesses or claims success. [SWE-EVO's failure analysis](https://arxiv.org/pdf/2512.18470) identifies "swallowed errors" and "generic exception handlers" as top reasons agents fail to converge on a fix. Kent Beck reinforces this from the other side: ["AI genies are astonishingly bad at safe sequencing"](https://tidyfirst.substack.com/p/exploring-ai) — they need every step to surface its own success/failure or they cascade. The "what to include" piece moved into D10 (the structured-logging signal there overlaps with D5; this dimension is now strictly about error-site honesty).
 
+**Plain-English case.** Errors are the agent's debugging surface. When `catch (e) { return null }` swallows the actual failure, the agent re-runs, sees the same vague "returned null" result, and either guesses or claims success. Honest errors — specific identifiers (which user, which file), stack traces preserved across boundaries, structured details — are what turn a failed iteration into a useful one. Without them every bug looks like the same generic "didn't work."
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "Generic catches are defensive — they prevent crashes." | They also prevent diagnosis. The defensive-programming case is real for *some* boundaries (top-level request handlers, queue consumers) where you genuinely want a fallback. The problem is when every internal function catches everything and returns `null` — the original error vanishes, and every downstream layer makes decisions on `null` instead of failing fast. SWE-EVO's failure analysis cites "swallowed errors and generic exception handlers" as a top reason agents fail to converge on a fix. |
+| "We log errors to Sentry, that's enough." | Sentry catches what reaches it. A `catch { return null }` in your code path never reaches Sentry — it just silently degrades behaviour. The signal here is that errors at the *source* carry enough context to act on, not that telemetry exists at the edge. |
+| "Adding identifiers to error messages is busywork." | One-time busywork. The payoff is multiplied across every future debug session — agent or human. The cheapest version: a project-wide error wrapper (`errors.Wrap(err, "loading user %d", id)`) added at boundaries; an afternoon of work for a permanent debugging speedup. |
+
+**Cost of leaving this alone.** Cost is paid in time-to-diagnose, not tokens. When agents debug a vague failure, they typically run 2–3 extra iterations probing for context — 6–12k extra tokens each, plus the wall-clock cost of the longer loop. On a flaky-error-prone codebase, ~30–50% of agent iterations are spent on diagnosis rather than fix. The human version: a 20-minute Sentry-archaeology session for what should have been a 2-minute glance at a stack trace with the user_id attached.
+
 **Signals.**
 
 | Signal | Measurement |
@@ -216,6 +276,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 **Definition.** Can the agent get to a working environment from a clean machine, deterministically, and rerun a failure?
 
 **Why for agents specifically.** Agents (Devin, OpenHands, sandboxed Claude Code, Codex cloud, Replit Agent) operate in fresh containers constantly. Hermeticity isn't a luxury — it's the precondition for autonomous operation. Replit's [Agent docs](https://docs.replit.com/replitai/agent) make this concrete: the filesystem is ephemeral and resets on every publish. [Cognition's Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) cites environment-setup investment as one of the highest-leverage things they did to their own codebase. OpenHands's [ICLR 2025 paper](https://arxiv.org/pdf/2407.16741) builds the whole runtime on the "arbitrary Docker image + injected execution API" pattern — a codebase that can't be containerised cleanly can't be agented at all. The [12-Factor App](https://12factor.net/) (dependencies, config, dev/prod parity), [Bazel hermeticity](https://bazel.build/basics/hermeticity), and [reproducible-builds.org](https://reproducible-builds.org/) are the upstream theoretical sources.
+
+**Plain-English case.** Cloud agents — Devin, Codex cloud, sandboxed Claude Code, Replit Agent — boot a fresh container every session. If your repo needs a 3-step manual setup (install Postgres locally, edit `.env`, run a seed script), the agent can't do it. The bar isn't "perfect Bazel hermeticity"; it's "fresh `git clone` → one command → working environment in under 5 minutes." Below that bar, autonomous agents can't run at all, and human onboarding stays slow.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "We're not Google, we don't need Bazel." | Agreed — Bazel is overkill for most repos. The signal here is a *lockfile + a runnable container* (`docker-compose up` or a `devcontainer.json`), not full hermetic build graphs. Most teams pass this dimension with `package-lock.json` + a Dockerfile + a `make dev` target. The bar is "fresh agent boots into working env" not "byte-reproducible builds." |
+| "Our setup is documented in the README." | Documentation is necessary but not sufficient — the agent (and new humans) follow the doc, hit an error on step 4, and stall. The signal here is *executable* setup: a script the agent can run, error and all, instead of prose it has to interpret. If the README says "install Postgres 14," that's prose; if it says `./scripts/setup.sh`, that's a tool the agent can use and fail loudly with. |
+| "We can't containerise our prod stack — it depends on AWS." | Local dev doesn't need prod parity — it needs *something* the agent can boot. LocalStack, MinIO, or a `testcontainers` recipe gives the agent a runnable sandbox. The signal isn't "reproduces prod"; it's "boots from cold without manual steps." |
+
+**Cost of leaving this alone.** Hard cost: cloud agents (Devin, Codex cloud) simply can't operate on the repo at all — the engineering team is locked out of an entire class of tooling. Soft cost: every new hire loses 0.5–2 days to environment setup, which compounds as Postgres/Redis/Node versions drift on individual machines and "works on my laptop" bugs proliferate. The Cognition Devin-on-Devin post cites environment-setup investment as one of their highest-leverage internal projects; their team-of-engineers-using-agents pattern fundamentally requires this dimension.
 
 **Signals.**
 
@@ -240,6 +312,18 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 **Definition.** Can the agent make a change, prove it didn't break anything, and recover when it does — with mechanisms the codebase provides rather than ones the agent invents?
 
 **Why for agents specifically.** Hashimoto's Ghostty pattern: ["over-aggressively create commits"](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto) so the agent has cheap rollback. Harness principle §30 (bite-sized tasks) + §32 (user review gates). Agents thrash without checkpoints; with them they self-bound. Karpathy's "Surgical Changes" principle in [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) — the agent needs to know where the blast radius ends. Kent Beck's [augmented-coding posts](https://tidyfirst.substack.com/p/augmented-coding-beyond-the-vibes) frame the same observation as "small safe reversible changes" being the load-bearing discipline. The [trunk-based development](https://trunkbaseddevelopment.com/) literature provides the team-level analogue: small PRs, branch protection, merge queues — all of which become more important, not less, when an agent is generating PRs at scale (Octoverse 2025: 1M+ Copilot-agent PRs in 5 months). Spec-driven dev (GitHub Spec Kit, Specmatic, OpenSpec) is the proactive form: spec-first contracts give the agent a target before it writes code.
+
+**Plain-English case.** Agents make mistakes — confidently, frequently, in volume. Whether the agent is net-positive depends on how cheap it is to *undo* each mistake. Frequent commits, small PRs, feature flags, branch protection, and migration safety all do the same job: bound the blast radius so that an agent's wrong turn costs minutes, not hours. Without these affordances every agent task is a high-stakes gamble; with them, agents compound.
+
+**Common objections.**
+
+| Objection | Honest response |
+|---|---|
+| "Smaller PRs slow throughput." | Empirically the opposite — the trunk-based-development literature has 15+ years of data showing small PRs ship faster because review cost drops super-linearly with diff size. With agents the asymmetry sharpens: a 400-line agent-generated PR is unreviewable in any honest sense, so it either gets rubber-stamped (drift) or sits forever (waste). 30–80 line PRs are reviewable in minutes. |
+| "Feature flags add complexity." | Yes — and the alternative for agent-generated work is shipping unhedged. Pair flags with a removal SLA (e.g., delete after 14 days at 100% rollout) and the maintenance burden stays bounded. That's discipline mature teams already practice; agents don't change the rule. |
+| "ADRs are overhead for our team size." | For a 3-person team in week 1, agreed — skip them. For a 10+ person team or a codebase older than a year, the agent (and new humans) regularly re-decide questions you already settled, badly, because the rationale isn't in the repo. A single `docs/adr/0001-why-postgres.md` is enough to start; the adr.github.io movement's central finding is that discoverability is the operational backbone of decisions. |
+
+**Cost of leaving this alone.** The dominant cost is "wrong-turn cost" — wall-clock time from realising an agent change broke something to having it reverted. With small commits + branch protection + cheap rollback: ~5 minutes (revert a commit, agent retries). Without: 30–120 minutes manually unpicking a sprawling diff while production is degraded. Multiply by frequency of wrong turns (currently 5–20% of agent attempts depending on task complexity) and the math becomes obvious. Octoverse 2025's "1M+ Copilot-agent PRs in 5 months" makes this concrete: at that throughput, the cost of each wrong turn matters operationally, not just theoretically.
 
 **Signals.**
 
