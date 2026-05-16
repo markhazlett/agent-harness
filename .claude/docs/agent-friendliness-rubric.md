@@ -10,56 +10,108 @@ The grade has one consumer (the user reading the report) and two purposes: (a) o
 
 ## 2. Methodology notes
 
-**Sources surveyed.** Internal: `.claude/docs/harness-principles.md` (63 principles), the harness's `claude-md-template.md`, and the skills under `.claude/skills/` (notably `tdd`, `pre-deploy`, `debug`). External, anchored:
+**Sources surveyed.** Internal: `.claude/docs/harness-principles.md` (63 principles), the harness's `claude-md-template.md`, and the skills under `.claude/skills/` (notably `tdd`, `pre-deploy`, `debug`). External sources are organised by cluster below. The v2 deepening pass roughly tripled the citation count (~17 → ~60+); §9 catalogues additions and what changed.
 
-- Anthropic, [*Best practices for Claude Code*](https://www.anthropic.com/engineering/claude-code-best-practices) and [*How Claude Code works in large codebases*](https://claude.com/blog/how-claude-code-works-in-large-codebases-best-practices-and-where-to-start).
-- Simon Willison, [*Setting up a codebase for working with coding agents*](https://simonwillison.net/2025/Oct/25/coding-agent-tips/) — the tightest practitioner write-up we found.
-- HumanLayer, [*12-Factor Agents*](https://github.com/humanlayer/12-factor-agents) — the production-reliability lens.
-- The [AGENTS.md spec](https://agents.md/) (Agentic AI Foundation, Linux Foundation) and GitHub's [*How to write a great agents.md: lessons from over 2,500 repositories*](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/).
-- Cognition, [*How Cognition uses Devin to build Devin*](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) — what they changed in their *own* codebase to make it tractable.
-- Mitchell Hashimoto, [*Vibing a Non-Trivial Ghostty Feature*](https://mitchellh.com/writing/non-trivial-vibing) and the [Zed conversation](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto) — the architect-over-coder model.
-- Aider, [Repository map](https://aider.chat/docs/repomap.html) — what an agent retrieval system actually wants from your tree.
-- Sourcegraph, [*Lessons from building AI coding assistants: context retrieval and evaluation*](https://sourcegraph.com/blog/lessons-from-building-ai-coding-assistants-context-retrieval-and-evaluation) and [*How Cody understands your codebase*](https://sourcegraph.com/blog/how-cody-understands-your-codebase).
-- Cursor, [Rules docs](https://cursor.com/docs/rules); [Karpathy's CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md); Phoebe, [*Enforcing Architecture in an Agent-Driven Codebase*](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase); Augment, [*Harness Engineering for AI Coding Agents*](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents); Martin Fowler / Birgitta Böckeler, [*Context Engineering for Coding Agents*](https://martinfowler.com/articles/exploring-gen-ai/context-engineering-coding-agents.html).
-- Failure-mode literature: [*SWE-Bench Pro*](https://arxiv.org/abs/2509.16941) (long-horizon trajectory analysis), [*A Survey on Code Generation with LLM-based Agents*](https://arxiv.org/html/2508.00083v1), [SWE-EVO](https://arxiv.org/pdf/2512.18470).
-- Hamel Husain, [*Evals Skills for Coding Agents*](https://hamel.dev/blog/posts/evals-skills/).
+**Vendor / lab engineering writing.**
+- Anthropic, [*Best practices for Claude Code*](https://www.anthropic.com/engineering/claude-code-best-practices), [*How Claude Code works in large codebases*](https://claude.com/blog/how-claude-code-works-in-large-codebases-best-practices-and-where-to-start), [*Building Effective AI Agents: Architecture Patterns*](https://resources.anthropic.com/hubfs/Building%20Effective%20AI%20Agents-%20Architecture%20Patterns%20and%20Implementation%20Frameworks.pdf), [*Agent Skills overview*](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), the [Claude Code worktrees docs](https://code.claude.com/docs/en/worktrees), and the [Claude Code sandboxing release](https://www.infoq.com/news/2025/11/anthropic-claude-code-sandbox/).
+- OpenAI, [Codex product page](https://openai.com/codex/), [Codex AGENTS.md custom-instructions guide](https://developers.openai.com/codex/guides/agents-md), [Codex Best Practices](https://developers.openai.com/codex/learn/best-practices), [Codex cloud](https://developers.openai.com/codex/cloud).
+- GitHub, [*How to write a great agents.md (lessons from 2,500+ repos)*](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/), the [AGENTS.md spec](https://agents.md/) (Agentic AI Foundation / Linux Foundation), [Copilot Workspace](https://githubnext.com/projects/copilot-workspace/) and the [coding agent / Spaces launches](https://github.blog/news-insights/product-news/github-copilot-workspace/), [GitHub Spec Kit](https://github.com/topics/spec-driven-development), [Octoverse 2025 AI section](https://github.blog/news-insights/octoverse/octoverse-a-new-developer-joins-github-every-second-as-ai-leads-typescript-to-1/).
+
+**Coding-agent product engineering.**
+- Cognition, [*How Cognition uses Devin to build Devin*](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin), [*Devin 2.0*](https://cognition.ai/blog/devin-2), [*Devin 2025 Performance Review*](https://cognition.ai/blog/devin-annual-performance-review-2025), [*DeepWiki*](https://cognition.ai/blog/deepwiki), [DeepWiki MCP server](https://cognition.ai/blog/deepwiki-mcp-server).
+- Mitchell Hashimoto, [*Vibing a Non-Trivial Ghostty Feature*](https://mitchellh.com/writing/non-trivial-vibing), the [Zed agentic-engineering conversation](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto), [*My AI Adoption Journey*](https://mitchellh.com/writing/my-ai-adoption-journey).
+- Aider, [Repository map](https://aider.chat/docs/repomap.html) (PageRank-weighted tree-sitter map) and Paul Gauthier's [HISTORY notes](https://github.com/paul-gauthier/aider/blob/main/HISTORY.md).
+- Sourcegraph, [*Lessons from building AI coding assistants*](https://sourcegraph.com/blog/lessons-from-building-ai-coding-assistants-context-retrieval-and-evaluation), [*How Cody understands your codebase*](https://sourcegraph.com/blog/how-cody-understands-your-codebase), Steve Yegge's [*Revenge of the junior developer*](https://sourcegraph.com/blog/revenge-of-the-junior-developer).
+- Cursor, [Rules docs](https://cursor.com/docs/rules), [*Best practices for coding with agents*](https://cursor.com/blog/agent-best-practices) (plan mode, worktree-isolated parallel agents).
+- Continue.dev, [*Codebase awareness*](https://docs.continue.dev/guides/codebase-documentation-awareness), [@Codebase indexing](https://docs.continue.dev/customize/context/codebase).
+- Cline / Roo Code, [Custom Instructions](https://docs.roocode.com/features/custom-instructions), [AGENTS.md adoption discussion](https://github.com/RooCodeInc/Roo-Code/issues/5966).
+- Augment, [*Harness Engineering for AI Coding Agents*](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents), [*Context is the new compiler*](https://workos.com/blog/augment-code-context-is-the-new-compiler), [*Real-time codebase index*](https://www.augmentcode.com/blog/a-real-time-index-for-your-codebase-secure-personal-scalable), [*100M-line quantized vector search*](https://www.augmentcode.com/blog/repo-scale-100M-line-codebase-quantized-vector-search), [*AI Agent Loop Token Costs*](https://www.augmentcode.com/guides/ai-agent-loop-token-cost-context-constraints).
+- Factory.ai, [*Droid sets SOTA on Terminal-Bench*](https://factory.ai/news/terminal-bench), [Custom Droids docs](https://docs.factory.ai/cli/configuration/custom-droids).
+- JetBrains, [*Junie now integrated into AI Chat*](https://blog.jetbrains.com/ai/2025/12/junie-now-integrated-into-the-ai-chat/), [*The Agentic AI Era at JetBrains*](https://blog.jetbrains.com/junie/2025/07/the-agentic-ai-era-at-jetbrains-is-here/).
+- Replit, [Agent docs](https://docs.replit.com/replitai/agent) (ephemeral filesystem; agent works best on fresh projects).
+- OpenHands, [ICLR 2025 paper](https://arxiv.org/pdf/2407.16741), [custom sandbox guide](https://docs.openhands.dev/openhands/usage/advanced/custom-sandbox-guide).
+- David Crawshaw (sketch.dev), [*Programming with Agents*](https://crawshaw.io/blog/programming-with-agents), [*Eight more months of agents*](https://crawshaw.io/blog/eight-more-months-of-agents).
+- Sentry, [*Seer Agent*](https://thenewstack.io/sentrys-seer-agent-debug/), [*Scaling observability for multi-agent AI*](https://blog.sentry.io/scaling-observability-for-multi-agent-ai-systems/).
+- Conductor / parallel-agent worktrees: [Ry Walker research notes](https://rywalker.com/research/conductor); the harness's own `/worktree` skill.
+
+**Academic — coding-agent evals and architecture.**
+- [SWE-bench Verified leaderboard](https://www.swebench.com/verified.html) (best public models ~43% in 2026).
+- [SWE-Bench Pro](https://arxiv.org/abs/2509.16941) — long-horizon trajectory analysis; "navigating large unfamiliar codebases" and "high-precision multi-file edits" identified as dominant failure modes; <20% on commercial enterprise set.
+- [SWE-agent (NeurIPS 2024)](https://arxiv.org/abs/2405.15793) — Agent-Computer Interface design: tailored search/navigation and bounded file viewers raise SWE-bench score 5×+ over naive shell access.
+- [AutoCodeRover](https://arxiv.org/pdf/2404.05427) — AST-aware code search outperforms string search; fault localisation using tests boosts repair rate (46% on SWE-bench Verified).
+- [SWE-EVO](https://arxiv.org/pdf/2512.18470) — swallowed errors and generic exception handlers identified as top reasons agents fail to converge.
+- [*Survey on Code Generation with LLM-based Agents*](https://arxiv.org/html/2508.00083v1) and [*Retrieval-Augmented Code Generation: a Survey*](https://arxiv.org/html/2510.04905v1).
+- Microsoft, [*Magentic-One*](https://www.microsoft.com/en-us/research/articles/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/) — Task Ledger / Progress Ledger orchestrator pattern.
+- Benchmarks: [LiveCodeBench](https://livecodebench.github.io/), [BigCodeBench (ICLR'25)](https://bigcode-bench.github.io/), [LiveCodeBench Pro](https://livecodebenchpro.com/).
+
+**Practitioner / researcher writing.**
+- Simon Willison, [*Setting up a codebase for working with coding agents*](https://simonwillison.net/2025/Oct/25/coding-agent-tips/), [*Agentic Engineering Patterns*](https://simonw.substack.com/p/agentic-engineering-patterns), [*Claude Skills are awesome*](https://simonwillison.net/2025/Oct/16/claude-skills/).
+- Hamel Husain, [*Your AI Product Needs Evals*](https://hamel.dev/blog/posts/evals/), [*LLM-as-a-Judge complete guide*](https://hamel.dev/blog/posts/llm-judge/index.html), [*Field Guide to Rapidly Improving AI Products*](https://hamel.dev/blog/posts/field-guide/), [*Evals Skills for Coding Agents*](https://hamel.dev/blog/posts/evals-skills/).
+- Martin Fowler / Birgitta Böckeler, [*Context Engineering for Coding Agents*](https://martinfowler.com/articles/exploring-gen-ai/context-engineering-coding-agents.html) and Thoughtworks's [*Harness engineering and agent feedback*](https://www.thoughtworks.com/en-au/insights/blog/generative-ai/harness-engineering-agent-feedback-exploring-ai-coding-sensors).
+- Andrej Karpathy, [CLAUDE.md / skills file](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) — "hypertrophy of code and abstractions" as a first-class agent failure mode.
+- Kent Beck, [*Augmented Coding: Beyond the Vibes*](https://tidyfirst.substack.com/p/augmented-coding-beyond-the-vibes), [*Exploring AI*](https://tidyfirst.substack.com/p/exploring-ai) — "AI genies are astonishingly bad at safe sequencing."
+- Charity Majors (Honeycomb), [Pragmatic Engineer observability conversation](https://newsletter.pragmaticengineer.com/p/observability-the-present-and-future); the Honeycomb 10-year [*Observability in a World of AI*](https://www.honeycomb.io/blog/honeycomb-10-year-manifesto-part-1) manifesto.
+- Phoebe, [*Enforcing Architecture in an Agent-Driven Codebase*](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase) — "what can be inferred from the codebase should be handled by the Context Engine; rules files are for what cannot."
+- Hillel Wayne, [*Using Formal Methods at Work*](https://www.hillelwayne.com/post/using-formal-methods/), [*Business Case for Formal Methods*](https://www.hillelwayne.com/post/business-case-formal-methods/).
+- Steve Yegge, [*The Future of Coding Agents*](https://steve-yegge.medium.com/the-future-of-coding-agents-e9451a84207c) (waves: chat → agents → clusters → fleets); [Latent.space "Normsky" episode](https://www.latent.space/p/sourcegraph).
+- Chip Huyen, [*AI Engineering*](https://www.oreilly.com/library/view/ai-engineering/9781098166298/) — Agent Failure Modes chapter.
+- Geoffrey Litt, [*Malleable software in the age of LLMs*](https://www.geoffreylitt.com/2023/03/25/llm-end-user-programming.html).
+
+**Adjacent disciplines.**
+- [12-Factor App](https://12factor.net/) (Wiggins) and HumanLayer's [12-Factor Agents](https://github.com/humanlayer/12-factor-agents) — config-as-env, lockfiles, stateless processes.
+- Neal Ford / Rebecca Parsons, [*Building Evolutionary Architectures*](https://nealford.com/books/buildingevolutionaryarchitectures.html) — fitness functions = mechanical gates.
+- Bazel [Hermeticity](https://bazel.build/basics/hermeticity); the [reproducible-builds.org](https://reproducible-builds.org/) project.
+- Trunk-based development: [trunkbaseddevelopment.com](https://trunkbaseddevelopment.com/), [Aviator's TBD guide](https://www.aviator.co/blog/trunk-based-development/).
+- Spec-driven dev: [GitHub Spec Kit launch coverage](https://www.marktechpost.com/2026/05/08/meet-github-spec-kit-an-open-source-toolkit-for-spec-driven-development-with-ai-coding-agents/), [Specmatic article](https://specmatic.io/article/spec-driven-development-beyond-the-first-feature-with-api-design-first/), [OpenSpec](https://github.com/Fission-AI/OpenSpec).
+- ADRs: [adr.github.io](https://adr.github.io/); [Cognitect's ADR post](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions); [joelparkerhenderson/architecture-decision-record](https://github.com/joelparkerhenderson/architecture-decision-record).
+- Architecture-rule linters: [dependency-cruiser](https://github.com/sverweij/dependency-cruiser), [import-linter](https://github.com/seddonym/import-linter), [Nx module-boundary rules](https://www.stefanos-lignos.dev/posts/nx-module-boundaries).
+- Observability: [OpenTelemetry Logs spec](https://opentelemetry.io/docs/specs/otel/logs/) — trace-correlated structured logs.
+- Storybook visual regression: [visual tests docs](https://storybook.js.org/docs/writing-tests/visual-testing).
+- Database safety under agents: [Prisma Migrate deploy guide](https://www.prisma.io/docs/orm/prisma-client/deployment/deploy-database-changes-with-prisma-migrate); [*Type-Safe Database Access for AI-Paired Codebases*](https://suparbase.com/blog/type-safe-database-for-ai-paired-code).
+- Agent-security posture: NVIDIA's [*Practical Security Guidance for Sandboxing Agentic Workflows*](https://developer.nvidia.com/blog/practical-security-guidance-for-sandboxing-agentic-workflows-and-managing-execution-risk/); the [Google Antigravity sandbox-escape report](https://cyberscoop.com/google-antigravity-pillar-security-agent-sandbox-escape-remote-code-execution/); Microsoft Security's [*When prompts become shells*](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/); OpenAI's [*Designing AI agents to resist prompt injection*](https://openai.com/index/designing-agents-to-resist-prompt-injection/).
+
+**Industry reports / capability evals.**
+- [DORA 2024 *Accelerate State of DevOps*](https://dora.dev/research/2024/dora-report/) — AI adoption correlates with +productivity but −1.5% throughput and −7.2% delivery stability; small batch sizes and robust testing remain crucial.
+- [METR *Early-2025 AI on Experienced OSS Developers*](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) — 19% slowdown despite perceived 20% speedup, in large unfamiliar codebases.
+- [GitHub Octoverse 2025](https://github.blog/news-insights/octoverse/octoverse-a-new-developer-joins-github-every-second-as-ai-leads-typescript-to-1/) — Copilot coding agent authored 1M+ PRs in 5 months; TypeScript overtook Python (typed-language premium under agents).
 
 **Deliberately excluded.**
 
-- *Test coverage percentage.* Coverage is a vanity metric; agents care that tests **run fast, fail loud, and are trivially invocable** — not that they touch 90% of lines. (Willison emphasizes runnability, not coverage.)
+- *Test coverage percentage.* Coverage is a vanity metric; agents care that tests **run fast, fail loud, and are trivially invocable** — not that they touch 90% of lines. (Willison emphasizes runnability, not coverage; Anthropic's Claude Code best practices similarly stress TDD as a *workflow*, not a coverage ratio.)
 - *Lines of code, file count, repo age, star count, commit cadence.* Vanity signals that don't predict agent productivity. A 5000-line file with clear sections is fine; a 200-line file that imports half the codebase is not.
 - *Presence of a LICENSE, CODE_OF_CONDUCT, or pretty README.* Human-facing hygiene, not agent-facing.
-- *Monorepo vs. polyrepo* as a global verdict. Each architecture has agent-friendly and agent-hostile variants; we grade the *symptoms* (cross-cutting changes, dependency clarity) not the shape.
+- *Monorepo vs. polyrepo* as a global verdict. Each architecture has agent-friendly and agent-hostile variants; we grade the *symptoms* (cross-cutting changes, dependency clarity, boundary discipline) not the shape. Graphite's [polyglot-monorepo guide](https://graphite.com/guides/managing-multiple-languages-in-a-monorepo) makes the same case for language mixing.
 - *Documentation volume.* Willison: "LLMs can read code faster than humans … comprehensive documentation is useful for humans, less helpful for coding agents." We grade *runnable* docs (commands that work) and *triggering* docs (CLAUDE.md / AGENTS.md), not narrative prose.
 
-**Bias to mechanical signals.** Where a signal can be measured by a shell command, we write the command. Judgment signals are kept to a strict minority (§5) so the skill stays auditable.
+**Bias to mechanical signals.** Where a signal can be measured by a shell command, we write the command. Judgment signals are kept to a strict minority (§5) so the skill stays auditable. Fitness-function framing (Ford & Parsons) supports this: every dimension should ideally be enforceable by a passing/failing check.
 
 ## 3. Dimensions
 
-Eight dimensions, weights sum to 100%. Each dimension has signals (with measurement), an anti-signal list, and a rationale tied to a specific agent failure mode.
+Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (with measurement), an anti-signal list, and a rationale tied to a specific agent failure mode. The two new dimensions (D9 Token-economy / context efficiency, D10 Agent-vantage security & runtime observability) absorbed signals that were previously scattered across D3, D5, and D7. Existing weights were re-balanced accordingly (see §9).
 
 ---
 
-### D1. Onboarding context (15%)
+### D1. Onboarding context (13%)
 
 **Definition.** Can the agent learn the project from a cold start using only files in the repo — no oral tradition, no Slack, no "ask the team."
 
-**Why for agents specifically.** Agents have no continuity between sessions (HumanLayer 12-Factor §5, §12: stateless reducers; harness principle §39 on re-injection). A human absorbs tribal knowledge over weeks; the agent gets one shot per session. The CLAUDE.md / AGENTS.md pattern exists precisely because [GitHub's analysis of 2,500+ repos](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/) found this is the single highest-leverage file: "provide your agent a specific job or persona, exact commands to run, well-defined boundaries, and clear examples."
+**Why for agents specifically.** Agents have no continuity between sessions (HumanLayer 12-Factor §5, §12: stateless reducers; harness principle §39 on re-injection). A human absorbs tribal knowledge over weeks; the agent gets one shot per session. The CLAUDE.md / AGENTS.md pattern exists precisely because [GitHub's analysis of 2,500+ repos](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/) found this is the single highest-leverage file: "provide your agent a specific job or persona, exact commands to run, well-defined boundaries, and clear examples." OpenAI's [Codex AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md) and Roo Code's [adoption discussion](https://github.com/RooCodeInc/Roo-Code/issues/5966) corroborate from the other side: AGENTS.md is now the cross-tool standard, loaded by Codex, Cursor, Cline, Roo Code, Aider, and Continue.dev. Cognition's [DeepWiki](https://cognition.ai/blog/deepwiki) goes further — Devin auto-indexes repos into wikis with architecture diagrams; a `.devin/wiki.json` lets the user steer the generation, suggesting that even pre-built doc-generation tools want a small seed file in the repo.
 
 **Signals.**
 
 | Signal | Measurement |
 |---|---|
-| `AGENTS.md` or `CLAUDE.md` at repo root | `test -f AGENTS.md || test -f CLAUDE.md` |
+| `AGENTS.md` or `CLAUDE.md` at repo root | `test -f AGENTS.md \|\| test -f CLAUDE.md` |
 | File covers Commands / Testing / Project structure / Code style / Git workflow / Boundaries | grep for section headers; GitHub recommends [these six core areas](https://github.blog/ai-and-ml/github-copilot/how-to-write-a-great-agents-md-lessons-from-over-2500-repositories/) |
-| Length 50–500 lines (not empty, not a novel) | `wc -l` — over ~2 screens the middle gets ignored (`claude-md-template.md`) |
+| Length 50–500 lines (not empty, not a novel) | `wc -l` — over ~2 screens the middle gets ignored (`claude-md-template.md`); Cursor's rules guide separately caps at 500 lines |
 | Hierarchical agent docs in major subdirs (monorepo case) | `find . -name AGENTS.md -o -name CLAUDE.md` returns >1 in deep workspaces |
 | Commands are copy-pasteable (real flags, no `<your-project>` placeholders) | run a sample; `grep -E '<[a-z-]+>'` |
 | README "Quickstart" ends in a runnable command in <10 lines | judgment + grep |
+| If the project ships an OpenAPI / GraphQL / protobuf contract, it is in the repo (not an external Confluence) | `find . -name 'openapi*.{yaml,yml,json}' -o -name '*.proto' -o -name 'schema.graphql'` |
 
-**Weight justification (15%).** The single most-cited recommendation across every external source we surveyed. The agent reads this *first* every session; getting it wrong poisons the rest.
+**Weight justification (13%, was 15%).** Still the highest-leverage single artifact for cold-start sessions, but we shaved 2 points to fund D9 (token economy) — Augment's [token-cost analysis](https://www.augmentcode.com/guides/ai-agent-loop-token-cost-context-constraints) shows that even a perfect AGENTS.md is wasted if the rest of the repo bloats the context window. Cross-vendor support: AGENTS.md is recognised by Claude Code, Codex, Cursor, Cline, Roo Code, Aider, Continue.dev, JetBrains Junie (via MCP context), and GitHub Spec Kit's 29 integrations.
 
-**Anti-signals.** A 100-page README. A wiki link with no content in the repo. Aspirational instructions ("we plan to add tests"). Generic AGENTS.md copy-pasted from a template with no project content. Commands written as prose rather than code blocks.
+**Anti-signals.** A 100-page README. A wiki link with no content in the repo. Aspirational instructions ("we plan to add tests"). Generic AGENTS.md copy-pasted from a template with no project content (GitHub's analysis explicitly flags this as worse than nothing). Commands written as prose rather than code blocks. A `.cursorrules` / `CLAUDE.md` / `AGENTS.md` that contradicts one of its siblings.
 
 ---
 
@@ -67,7 +119,7 @@ Eight dimensions, weights sum to 100%. Each dimension has signals (with measurem
 
 **Definition.** Can the agent run the project, exercise it, lint it, and get fast honest feedback — with **one command each**.
 
-**Why for agents specifically.** This is the agent's verification loop. Without it the agent falls back to claiming success without evidence (harness principle §33 — the most common LLM coding failure). Willison: "Linters, type checkers, auto-formatters — give coding agents helpful tools to run and they'll use them." [Augment's harness engineering writeup](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents): LLM compliance is probabilistic; only deterministic outer-harness gates make it reliable at scale. Cognition's [Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) credits tightening these gates as a top reason their PR throughput jumped.
+**Why for agents specifically.** This is the agent's verification loop. Without it the agent falls back to claiming success without evidence (harness principle §33). Willison: "Linters, type checkers, auto-formatters — give coding agents helpful tools to run and they'll use them." [Augment's harness engineering writeup](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents) and Böckeler's [*Harness engineering and agent feedback*](https://www.thoughtworks.com/en-au/insights/blog/generative-ai/harness-engineering-agent-feedback-exploring-ai-coding-sensors) both frame these tools as "sensors" — without sensors the agent guesses. [Cognition's Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) credits tightening these gates as a top driver of throughput gains. The [SWE-agent ACI paper](https://arxiv.org/abs/2405.15793) makes the same point at the interface level: agents that get fast, bounded tool feedback solve 5× more SWE-bench tasks than agents using a raw shell. Crawshaw's [sketch.dev posts](https://crawshaw.io/blog/programming-with-agents) confirm: "compiler feedback reduces syntax errors and hallucinated interfaces" — an order-of-magnitude effect.
 
 **Signals.**
 
@@ -80,42 +132,44 @@ Eight dimensions, weights sum to 100%. Each dimension has signals (with measurem
 | CI runs the same commands the agent runs locally | inspect `.github/workflows`, compare with AGENTS.md |
 | Test failures include enough context to act on without re-running | sample; Willison: "stuffing extra data in the assertion is inexpensive" |
 | Pre-commit hooks fail loud (don't silently auto-fix) | `.pre-commit-config.yaml` / `.husky` |
+| Dev-server reload / incremental compile <5s for typical edit | judgment + sample |
 
-**Weight justification (18%).** The single biggest determinant of whether an agent can work unattended. A codebase with no test command is one where the agent must trust itself.
+**Weight justification (18%, unchanged).** Still the single biggest determinant. DORA 2024 explicitly notes that "small batch sizes and robust testing remain crucial" under AI adoption, and the −7.2% delivery-stability drop they observed is exactly what happens when the test loop is too slow or too vague for an agent to use as ground truth.
 
-**Anti-signals.** Tests requiring manual setup (start a DB, set env vars, log into VPN) with no documented one-liner. Tests that pass when code is broken (no assertions). A 10-minute test suite. Lint config so strict the agent spends every iteration fighting style — or so absent it writes in five styles.
+**Anti-signals.** Tests requiring manual setup (start a DB, set env vars, log into VPN) with no documented one-liner. Tests that pass when code is broken (no assertions). A 10-minute test suite. Lint config so strict the agent spends every iteration fighting style — or so absent it writes in five styles. A `--watch` mode that exists for humans but no one-shot command for agents (the agent needs an exit code, not a TUI).
 
 ---
 
-### D3. Code navigability & locality (15%)
+### D3. Code navigability & locality (14%)
 
 **Definition.** Can the agent locate symbols, follow types, and change one thing without secret coupling pulling in five others.
 
-**Why for agents specifically.** [SWE-Bench Pro's trajectory analysis](https://arxiv.org/abs/2509.16941) found that even strong models fail predominantly on "navigating large, unfamiliar codebases" and "high-precision edits across multiple files." Aider's [repo-map design](https://aider.chat/docs/repomap.html) treats code locality as a first-class retrieval problem — files connected by call edges get included together. HumanLayer's 12-Factor §3 warns that context past ~40% utilization enters a "dumb zone"; the agent must change things while loading only a few files. Hidden coupling is the killer.
+**Why for agents specifically.** [SWE-Bench Pro's trajectory analysis](https://arxiv.org/abs/2509.16941) found that even strong models fail predominantly on "navigating large, unfamiliar codebases" and "high-precision edits across multiple files" — and the gap between the public benchmark (~43%) and the commercial set (<20%) is largely a navigation gap. Aider's [repo-map design](https://aider.chat/docs/repomap.html) and AutoCodeRover's [AST-aware retrieval](https://arxiv.org/pdf/2404.05427) both treat code locality as a first-class retrieval problem — code connected by call edges gets included together. Augment's [Context Engine](https://workos.com/blog/augment-code-context-is-the-new-compiler) and Sourcegraph's [Cody indexing](https://sourcegraph.com/blog/how-cody-understands-your-codebase) make the same bet from the retrieval side; the codebase wants to be cleanly chunkable. GitHub's [Octoverse 2025](https://github.blog/news-insights/octoverse/octoverse-a-new-developer-joins-github-every-second-as-ai-leads-typescript-to-1/) finding — TypeScript overtaking Python on GitHub, attributed to "developers shifting toward typed languages that make agent-assisted coding more reliable" — is the field-scale signal for the typed-language signal below.
 
 **Signals.**
 
 | Signal | Measurement |
 |---|---|
-| Statically-typed language, or strict type checker on (TypeScript strict, mypy strict, Sorbet) | `tsconfig.json` `"strict": true`; mypy strict config |
+| Statically-typed language, or strict type checker on (TypeScript strict, mypy strict, Sorbet, Pyright strict) | `tsconfig.json` `"strict": true`; mypy strict config |
 | Symbol search returns one definition for ~unique names | sample 5 functions; `grep -rn "def foo\b"` ≤2 sites |
 | Module/feature folders are colocated (one feature = one folder, not split by tech layer across 5 dirs) | tree inspection; judgment |
-| Average file <600 lines | `find . -name '*.ts' | xargs wc -l | awk '$1>1000'` |
+| Average file <600 lines | `find . -name '*.ts' \| xargs wc -l \| awk '$1>1000'` |
 | Imports explicit (no wildcards, no auto-loaders) | `grep -rE 'from .* import \*'` ~0 |
-| Public API boundaries surfaced (`__all__`, barrel `index.ts`) | inspection |
+| Public API boundaries surfaced (`__all__`, barrel `index.ts`, explicit re-exports) | inspection |
 | Names are honest: `validate_email` validates email | judgment; sampled |
+| Architectural rules encoded as a linter (folded from D4 — these are also a navigation aid) | `dependency-cruiser` / `import-linter` / Nx module-boundary rules |
 
-**Weight justification (15%).** Locality directly governs how much context the agent must load to make a change. Bad locality = every change touches the dumb zone.
+**Weight justification (14%, was 15%).** Shaved 1 point because the architecture-rule signal moved into D3's measurable set rather than D4's gates. SWE-Bench Pro's enterprise-set gap is the single strongest piece of evidence we have for D3's importance; if anything 14% may be light.
 
-**Anti-signals.** Dynamic dispatch / DI containers without compile-time guarantees. Generated code with no clear regeneration command. "God objects." Same name used for 4 different things. Heavy metaclass/decorator/AST manipulation that hides control flow. Implicit cross-file globals.
+**Anti-signals.** Dynamic dispatch / DI containers without compile-time guarantees. Generated code with no clear regeneration command (cf. D8). "God objects." Same name used for 4 different things. Heavy metaclass/decorator/AST manipulation that hides control flow. Implicit cross-file globals. Three different ORMs in one tree (Augment specifically calls this out for [polyglot monorepos](https://www.augmentcode.com/tools/monorepo-vs-multi-repo-ai-architecture-based-ai-tool-selection)).
 
 ---
 
-### D4. Deterministic mechanical gates (12%)
+### D4. Deterministic mechanical gates (11%)
 
 **Definition.** Non-model gates that catch the agent's specific failure modes — drift, hallucination, style violations, half-done work.
 
-**Why for agents specifically.** Forcing functions beat guidance (harness principle §2). The harness's `pre-deploy`, `tdd`, `verification-before-completion` skills exist because the model alone won't self-impose them. The codebase needs the same. [Phoebe](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase): "What can be inferred from the codebase should be handled by the Context Engine; rules files are reserved for what cannot be inferred." For the rest, ship enforcement.
+**Why for agents specifically.** Forcing functions beat guidance (harness principle §2). The harness's `pre-deploy`, `tdd`, `verification-before-completion` skills exist because the model alone won't self-impose them. The codebase needs the same. [Phoebe](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase): "What can be inferred from the codebase should be handled by the Context Engine; rules files are reserved for what cannot be inferred." For everything else, ship enforcement. This is precisely Ford & Parsons's [fitness-function](https://nealford.com/books/buildingevolutionaryarchitectures.html) framing — an objective architectural integrity check, run in CI, that fails loudly when drift occurs. DORA 2024's finding (39% of respondents distrust AI-generated code) underwrites the urgency: gates are how trust is rebuilt mechanically.
 
 **Signals.**
 
@@ -124,68 +178,68 @@ Eight dimensions, weights sum to 100%. Each dimension has signals (with measurem
 | Formatter runs in CI in `--check` mode and fails the build | grep CI config |
 | Type check is a hard gate in CI | grep CI for `tsc`, `mypy`, `cargo check` |
 | Lint warnings cap (`--max-warnings 0` or equivalent) | grep |
-| Architectural rules encoded (`eslint-plugin-import`, `import-linter`, `dependency-cruiser`, workspace dependency rules) | file + config inspection |
-| Schema/migration validation is a gate (Prisma diff, Alembic, sqlc) | inspection |
+| Schema/migration validation is a gate (Prisma diff, Alembic, sqlc) — Prisma now ships [explicit AI safety checks](https://www.prisma.io/docs/orm/prisma-client/deployment/deploy-database-changes-with-prisma-migrate) for agent workflows | inspection |
 | Secrets scanner on (gitleaks, trufflehog, GitHub secret scanning) | `.gitleaks.toml`, gh API |
 | `git status` clean after a successful build (no untracked generated leakage) | run build, diff |
+| Pre-merge contract diff: spec/OpenAPI/protobuf is the source of truth, drift fails CI (cf. [GitHub Spec Kit](https://github.com/topics/spec-driven-development) / Specmatic) | grep CI |
 
-**Weight justification (12%).** Lower than the build/test loop because tests catch most of what a missing gate would miss. But for high-velocity agent work (many PRs/day) gates are the difference between net-positive and net-negative productivity.
+**Weight justification (11%, was 12%).** Architecture-rule linters moved to D3 (where they more naturally measure navigability). 11% reflects that gates are necessary but not sufficient — the test loop (D2) catches most of what a missing gate would miss. For high-velocity agent work (many PRs/day) gates remain the difference between net-positive and net-negative productivity. DORA 2024's reported delivery-stability drop (−7.2%) under AI adoption is the empirical case for keeping this weight non-trivial.
 
-**Anti-signals.** "Warnings as suggestions." Project-wide `eslint-disable`. CI checks with `continue-on-error: true`. A formatter installed but not enforced. Pre-commit hooks that auto-fix but never fail — agents silently bypass them.
+**Anti-signals.** "Warnings as suggestions." Project-wide `eslint-disable`. CI checks with `continue-on-error: true`. A formatter installed but not enforced. Pre-commit hooks that auto-fix but never fail — agents silently bypass them. A migration tool installed but no CI step that validates schema drift (Prisma users specifically: not running `prisma migrate diff` in CI).
 
 ---
 
-### D5. Failure honesty (10%)
+### D5. Failure honesty (9%)
 
 **Definition.** When something breaks, the codebase says what broke, where, and why. Errors are loud, specific, and reproducible.
 
-**Why for agents specifically.** Willison: "If a manual or automated test fails the more information you can return back to the model the better." Harness principle §6 (Fail Loud): silent failures are future incidents; for agents they're also debugging dead-ends — the agent re-runs, sees the same vague output, and either guesses or claims success. [SWE-EVO's failure analysis](https://arxiv.org/pdf/2512.18470) identifies "swallowed errors" and "generic exception handlers" as top reasons agents fail to converge on a fix.
+**Why for agents specifically.** Willison: "If a manual or automated test fails the more information you can return back to the model the better." Harness principle §6 (Fail Loud): silent failures are future incidents; for agents they're also debugging dead-ends — the agent re-runs, sees the same vague output, and either guesses or claims success. [SWE-EVO's failure analysis](https://arxiv.org/pdf/2512.18470) identifies "swallowed errors" and "generic exception handlers" as top reasons agents fail to converge on a fix. Kent Beck reinforces this from the other side: ["AI genies are astonishingly bad at safe sequencing"](https://tidyfirst.substack.com/p/exploring-ai) — they need every step to surface its own success/failure or they cascade. The "what to include" piece moved into D10 (the structured-logging signal there overlaps with D5; this dimension is now strictly about error-site honesty).
 
 **Signals.**
 
 | Signal | Measurement |
 |---|---|
-| No bare `except:` / `catch (_)` / `catch (e) {}` blocks | `grep -rnE 'except:|catch \(\)|catch \(_\)'` ≈ 0 |
+| No bare `except:` / `catch (_)` / `catch (e) {}` blocks | `grep -rnE 'except:\|catch \(\)\|catch \(_\)'` ≈ 0 |
 | Errors include identifiers (which user, which file, which row), not just types | sample; judgment |
-| Logging is structured (JSON or key=value), not freeform prose | inspect log call sites |
 | Test assertions include messages, expected/actual diffs, repro hints | sample 10 tests |
 | Stack traces survive boundaries (`raise X from e`, `errors.Wrap`, error wrapping) | grep |
 | Reproducible bug-report format (issue template, or `--debug` flag dumping env+versions) | inspection |
 
-**Weight justification (10%).** Critical but not high-leverage at the rubric level — the failure-honesty payoff compounds inside D2 (the loop) and D3 (debugging). 10% is enough to penalize codebases that swallow exceptions.
+**Weight justification (9%, was 10%).** 1 point migrated to D10 where structured logging lives; failure-honesty here is now strictly about authored error sites, not runtime telemetry. Critical but not high-leverage at the rubric level — the failure-honesty payoff compounds inside D2 (the loop) and D3 (debugging). 9% is still enough to penalize codebases that swallow exceptions.
 
-**Anti-signals.** Sentry tags as the only error context. `console.log("error")` with no detail. `try { … } catch { return null }`. Defaulting to empty string instead of throwing on missing config.
+**Anti-signals.** Sentry tags as the only error context. `console.log("error")` with no detail. `try { … } catch { return null }`. Defaulting to empty string instead of throwing on missing config. Errors logged but not raised (loses stack trace).
 
 ---
 
-### D6. Reproducibility & environment hermeticity (8%)
+### D6. Reproducibility & environment hermeticity (7%)
 
 **Definition.** Can the agent get to a working environment from a clean machine, deterministically, and rerun a failure?
 
-**Why for agents specifically.** Agents (Devin, OpenHands, sandboxed Claude Code) operate in fresh containers constantly. Hermeticity isn't a luxury — it's the precondition for autonomous operation. [Cognition's Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) cites environment-setup investment as one of the highest-leverage things they did to their own codebase. Sourcegraph's [agent context retrieval lessons](https://sourcegraph.com/blog/lessons-from-building-ai-coding-assistants-context-retrieval-and-evaluation) emphasize the same on the eval side.
+**Why for agents specifically.** Agents (Devin, OpenHands, sandboxed Claude Code, Codex cloud, Replit Agent) operate in fresh containers constantly. Hermeticity isn't a luxury — it's the precondition for autonomous operation. Replit's [Agent docs](https://docs.replit.com/replitai/agent) make this concrete: the filesystem is ephemeral and resets on every publish. [Cognition's Devin-on-Devin post](https://cognition.ai/blog/how-cognition-uses-devin-to-build-devin) cites environment-setup investment as one of the highest-leverage things they did to their own codebase. OpenHands's [ICLR 2025 paper](https://arxiv.org/pdf/2407.16741) builds the whole runtime on the "arbitrary Docker image + injected execution API" pattern — a codebase that can't be containerised cleanly can't be agented at all. The [12-Factor App](https://12factor.net/) (dependencies, config, dev/prod parity), [Bazel hermeticity](https://bazel.build/basics/hermeticity), and [reproducible-builds.org](https://reproducible-builds.org/) are the upstream theoretical sources.
 
 **Signals.**
 
 | Signal | Measurement |
 |---|---|
-| Pinned dependency versions (lockfile committed) | `test -f package-lock.json || yarn.lock || pnpm-lock.yaml || poetry.lock || uv.lock || Cargo.lock || go.sum` |
+| Pinned dependency versions (lockfile committed) | `test -f package-lock.json \|\| yarn.lock \|\| pnpm-lock.yaml \|\| poetry.lock \|\| uv.lock \|\| Cargo.lock \|\| go.sum` |
 | Runtime version pinned | `.nvmrc`, `.python-version`, `rust-toolchain.toml`, `go.mod` go directive |
 | Container or devcontainer config | `Dockerfile`, `.devcontainer/`, `flake.nix` |
 | `.env.example` is the only env onboarding step | `test -f .env.example` |
 | One command boots databases/queues/infra | `docker compose up`, `make dev-up` |
+| Build is bit-reproducible OR hermeticity equivalent (Bazel/Nix), or repo has a stated reproducibility target | inspection |
 | No "ask Bob for the API key" instructions | grep for personal names in setup docs |
 
-**Weight justification (8%).** A pinned lockfile is necessary but rarely sufficient. Weighting reflects that "environment broken" is a binary disqualifier for autonomous agents but rarely the *only* problem.
+**Weight justification (7%, was 8%).** Lockfile + container has become near-table-stakes — the marginal weight here is lower than it was a year ago because most production repos already pass. 1 point migrated to D9. A pinned lockfile is necessary but rarely sufficient; environment broken is a binary disqualifier for autonomous agents but rarely the *only* problem.
 
-**Anti-signals.** "Works with Node 14 or 18 or 20." Unpinned `latest` Docker base images. Secret-manager dependencies that can't be stubbed for tests. Floating-point dependency on the developer's local Postgres. Setup scripts that assume macOS.
+**Anti-signals.** "Works with Node 14 or 18 or 20." Unpinned `latest` Docker base images. Secret-manager dependencies that can't be stubbed for tests. Floating-point dependency on the developer's local Postgres. Setup scripts that assume macOS. Required services (Stripe, Auth0, S3) with no local sandbox/mock.
 
 ---
 
-### D7. Change-safety affordances (12%)
+### D7. Change-safety affordances (11%)
 
 **Definition.** Can the agent make a change, prove it didn't break anything, and recover when it does — with mechanisms the codebase provides rather than ones the agent invents?
 
-**Why for agents specifically.** Hashimoto's Ghostty pattern: ["over-aggressively create commits"](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto) so the agent has cheap rollback. Harness principle §30 (bite-sized tasks) + §32 (user review gates). Agents thrash without checkpoints; with them they self-bound. Karpathy's "Surgical Changes" principle in [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) — the agent needs to know where the blast radius ends.
+**Why for agents specifically.** Hashimoto's Ghostty pattern: ["over-aggressively create commits"](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto) so the agent has cheap rollback. Harness principle §30 (bite-sized tasks) + §32 (user review gates). Agents thrash without checkpoints; with them they self-bound. Karpathy's "Surgical Changes" principle in [CLAUDE.md](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) — the agent needs to know where the blast radius ends. Kent Beck's [augmented-coding posts](https://tidyfirst.substack.com/p/augmented-coding-beyond-the-vibes) frame the same observation as "small safe reversible changes" being the load-bearing discipline. The [trunk-based development](https://trunkbaseddevelopment.com/) literature provides the team-level analogue: small PRs, branch protection, merge queues — all of which become more important, not less, when an agent is generating PRs at scale (Octoverse 2025: 1M+ Copilot-agent PRs in 5 months). Spec-driven dev (GitHub Spec Kit, Specmatic, OpenSpec) is the proactive form: spec-first contracts give the agent a target before it writes code.
 
 **Signals.**
 
@@ -194,22 +248,23 @@ Eight dimensions, weights sum to 100%. Each dimension has signals (with measurem
 | Feature flags / gates for in-progress work | grep for a flag library (`unleash`, `launchdarkly`, `posthog`, `OpenFeature`) or convention |
 | Migrations are atomic with rollback (or forward-only with documented backfill) | `find migrations -name '*down*'` or inspection |
 | Branch protection on `main` (CI must pass, no force push) | `gh api repos/:owner/:repo/branches/main/protection` |
-| Snapshot tests / golden files for stable-output surfaces | `find . -name '*.snap' -o -name '__snapshots__'` |
-| Contracts/types at I/O boundaries (OpenAPI, GraphQL, protobuf, zod, pydantic) | file existence |
+| Snapshot / visual-regression tests for stable-output surfaces (Storybook + Chromatic, jest snapshots, image-diff) | `find . -name '*.snap' -o -name '__snapshots__' -o -name 'chromatic*'` |
+| Contracts/types at I/O boundaries (OpenAPI, GraphQL, protobuf, zod, pydantic); the codebase has a "spec is source of truth" stance, not "code is" | file existence + grep for codegen step |
 | Commits small and rebaseable (median <300 LOC over recent 50 commits) | `git log --shortstat -50` + awk |
 | `git bisect` works (no flaky-by-time tests, no time-bombs) | judgment |
+| ADRs / decision records colocated in the repo, not in Confluence | `find docs -name 'adr-*' -o -name '*.adr.md' -o -path '*/decisions/*'` |
 
-**Weight justification (12%).** Directly governs the cost of an agent's wrong turn. A codebase where each agent mistake costs an hour to undo is one where agents are a liability; where each costs 30 seconds, agents compound.
+**Weight justification (11%, was 12%).** 1 point migrated to D9. Still directly governs the cost of an agent's wrong turn. A codebase where each agent mistake costs an hour to undo is one where agents are a liability; where each costs 30 seconds, agents compound. The ADR signal is new (per the [adr.github.io](https://adr.github.io/) movement's "discoverability is the operational backbone" finding) — ADRs in the repo work as just-in-time context the agent can read at decision time. The spec-driven signal moved here from D4 because contracts are change-safety devices first, gates second.
 
-**Anti-signals.** Long-lived feature branches drifting for weeks. Manual migration steps in production. PRs requiring 5 reviewers. No way to deploy a small thing without a release train. Tests that depend on time/network/random without seeding.
+**Anti-signals.** Long-lived feature branches drifting for weeks. Manual migration steps in production. PRs requiring 5 reviewers. No way to deploy a small thing without a release train. Tests that depend on time/network/random without seeding. ADRs in a Confluence space the agent can't read.
 
 ---
 
-### D8. Conventions discoverable from code, not lore (10%)
+### D8. Conventions discoverable from code, not lore (8%)
 
 **Definition.** When the agent needs to know "how do we do X here?" it can find the answer by reading the codebase, not by being told.
 
-**Why for agents specifically.** Willison: "even having just one or two tests in the style you like means agents will write tests in the style you like. There's a lot to be said for keeping your codebase high quality because the agent will then add to it in a high quality way." [Cursor's rules docs](https://cursor.com/docs/rules) and [Phoebe's writeup](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase) converge on: "What can be inferred from the codebase should be handled by the Context Engine; rules files are reserved for what cannot be inferred." Agents pattern-match; if the codebase contains one canonical example of every pattern, the agent reproduces it.
+**Why for agents specifically.** Willison: "even having just one or two tests in the style you like means agents will write tests in the style you like. There's a lot to be said for keeping your codebase high quality because the agent will then add to it in a high quality way." [Cursor's rules docs](https://cursor.com/docs/rules) and [Phoebe's writeup](https://www.phoebe.work/blog/enforcing-architecture-in-an-agent-driven-codebase) converge on: "What can be inferred from the codebase should be handled by the Context Engine; rules files are reserved for what cannot be inferred." Agents pattern-match; if the codebase contains one canonical example of every pattern, the agent reproduces it. Sourcegraph's [Cody indexing](https://sourcegraph.com/blog/how-cody-understands-your-codebase) and Augment's [Context Engine](https://workos.com/blog/augment-code-context-is-the-new-compiler) confirm from the retrieval side: their retrieval systems reward repos with one good example over repos with five inconsistent ones. Karpathy's [hypertrophy](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) observation gives the drift case: agents accelerate convention erosion just as fast as they accelerate convention adoption — so conventions must be exemplified *and* enforced.
 
 **Signals.**
 
@@ -220,11 +275,64 @@ Eight dimensions, weights sum to 100%. Each dimension has signals (with measurem
 | Tests live alongside code, or in a 1:1 mirror directory | `find` for `_test.{js,ts,py,go}` adjacent to source |
 | Config centralized (one `config/`, one `settings.py`, not 30 scattered env reads) | grep env reads; should cluster |
 | Common operations (logging, error wrapping, db access) go through one helper, not 5 | judgment + grep |
+| Generated code clearly marked (`// CODE GENERATED — DO NOT EDIT`) and has a documented regenerate command | grep header strings; `find` for codegen scripts |
 | A "where new code goes" answer is obvious from the tree | inspection |
 
-**Weight justification (10%).** This is the dimension that scales: a well-conventioned codebase compounds *with* agent contributions; a poorly-conventioned one entropies *faster* with them. Lower than D1/D2 because effects show up over weeks, not minutes.
+**Weight justification (8%, was 10%).** Shaved 2 points to fund D9 and D10. Still the dimension that compounds: a well-conventioned codebase compounds *with* agent contributions; a poorly-conventioned one entropies *faster* with them. Effects show up over weeks, not minutes — which is why we don't weight it higher than D1/D2/D3. The generated-code signal is new — Karpathy and the Suparbase ["type-safety as load-bearing"](https://suparbase.com/blog/type-safe-database-for-ai-paired-code) post both stress that AI-paired codebases must keep generated artifacts in git (not `.gitignore`), with regeneration commands documented, or the agent will either invent the types or edit the generated files.
 
-**Anti-signals.** Three different ORMs. Five HTTP-client patterns. Conventions documented but not exemplified. Conventions exemplified but contradicted by half the codebase. A `utils/` folder with 60 files.
+**Anti-signals.** Three different ORMs. Five HTTP-client patterns. Conventions documented but not exemplified. Conventions exemplified but contradicted by half the codebase. A `utils/` folder with 60 files. Generated code committed without provenance header. Inconsistent test-collocation across packages.
+
+---
+
+### D9. Token-economy / context efficiency (5%) — NEW
+
+**Definition.** How much of an agent's context window does the codebase eat per typical task? Are files chunkable, retrievable, and free of irrelevant bloat?
+
+**Why for agents specifically.** Augment's [*AI Agent Loop Token Costs*](https://www.augmentcode.com/guides/ai-agent-loop-token-cost-context-constraints) makes the quantitative case: agent loops accumulate context quadratically because the entire history is re-serialized at every step — a 20-step loop with 1k-token steps produces 210k cumulative input tokens, not 20k. Dead context is paid for on every subsequent call. HumanLayer's 12-Factor §3 frames the same problem qualitatively (the "dumb zone" past 40% context utilisation). Aider's [PageRank-weighted repo map](https://aider.chat/docs/repomap.html) and Augment's [100M-line quantised vector search](https://www.augmentcode.com/blog/repo-scale-100M-line-codebase-quantized-vector-search) are the retrieval-side responses; the codebase side is the focus of this dimension. Karpathy's [hypertrophy observation](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) is the slow-burn case: AI-generated dead code accumulates, and every future agent run pays for it. Hashimoto's [Zed conversation](https://zed.dev/blog/agentic-engineering-with-mitchell-hashimoto) corroborates: "Gemini produces a monumental amount of text… not efficient to me" — token economy is felt at the user level, not just the bill.
+
+**Signals.**
+
+| Signal | Measurement |
+|---|---|
+| No vendored dependency trees committed (`node_modules/`, `vendor/`, `.venv/` excluded via `.gitignore`) | inspect `.gitignore` and `find` for them |
+| Repo source tree under ~500k LOC OR has clear sub-package boundaries an agent can scope into | `cloc` / `tokei` |
+| No `cat`-able 5k-line autogenerated files in the agent's path (move them, mark `linguist-generated`, or exclude from search) | `find . -size +200k -name '*.{ts,py,go,rs}'` |
+| `.gitattributes` marks generated files with `linguist-generated=true` (keeps them out of GitHub diffs and many index passes) | `grep linguist-generated .gitattributes` |
+| Dead-code is pruned (no large quarantines of "kept for reference"); a deadcode scanner runs in CI | `grep` for deadcode tools (`knip`, `unimport`, `cargo udeps`, `vulture`) |
+| Files exceed 1500 LOC only by deliberate exception | `find . -name '*.{ts,py,go,rs}' \| xargs wc -l \| awk '$1>1500'` |
+| Hot-path config / fixtures are small enough to inline-read (<500 LOC) | inspection |
+
+**Weight justification (5%, NEW).** A new dimension carved from previously-scattered signals in D3, D8, and D6. 5% reflects that the token bill matters even for unmetered users (the dumb-zone effect degrades quality, not just cost), but token economy is downstream of D3 (locality) and D8 (conventions) — bad locality and bad conventions are the upstream causes of token bloat. We weighted the upstream dimensions higher and gave the symptom dimension a modest 5%. The strongest empirical case is Augment's quadratic-cost demonstration; the strongest qualitative case is Karpathy's hypertrophy framing.
+
+**Anti-signals.** Megabytes of fixtures committed to the repo with no `.gitattributes`. Mile-long type definitions inlined into source instead of imported from a typed contract package. 3MB single-file React components (the agent loads the whole thing). Vendored copies of upstream libraries with no clear "this is vendored" marker. Tests committed without sharding when the suite is 100k+ LOC. "Snapshot tests" that are actually 10MB blobs of serialised HTML.
+
+---
+
+### D10. Agent-vantage security & runtime observability (4%) — NEW
+
+**Definition.** Two adjacent concerns that didn't fit cleanly elsewhere: (a) can the agent operate without ambient credentials it shouldn't have or being weaponised by prompt injection in repo files, and (b) can the agent see what its code did at runtime (structured logs, traces) to verify success and triage failure?
+
+**Why for agents specifically.**
+
+*Security side.* Agents now routinely execute arbitrary shell, write files, and call APIs. NVIDIA's [*Practical Security Guidance for Sandboxing Agentic Workflows*](https://developer.nvidia.com/blog/practical-security-guidance-for-sandboxing-agentic-workflows-and-managing-execution-risk/) lays out the mandatory controls (network egress allow-list, write-jail, no-config-write). The [Google Antigravity sandbox-escape report](https://cyberscoop.com/google-antigravity-pillar-security-agent-sandbox-escape-remote-code-execution/) and Microsoft Security's [*When prompts become shells*](https://www.microsoft.com/en-us/security/blog/2026/05/07/prompts-become-shells-rce-vulnerabilities-ai-agent-frameworks/) are the demonstrations that this is not hypothetical. A codebase contributes here mainly by *not* embedding credentials inline, not relying on developer-local secrets, and not loading untrusted markdown/YAML into prompts. Claude Code's [sandboxing release](https://www.infoq.com/news/2025/11/anthropic-claude-code-sandbox/) and OpenAI's [*Designing AI agents to resist prompt injection*](https://openai.com/index/designing-agents-to-resist-prompt-injection/) frame the runtime side; the codebase side is the focus of this dimension.
+
+*Observability side.* Sentry's [Seer Agent](https://thenewstack.io/sentrys-seer-agent-debug/) and Charity Majors's [*Observability in a World of AI*](https://www.honeycomb.io/blog/honeycomb-10-year-manifesto-part-1) manifesto make the same point from opposite ends: agents that deploy code into a system without telemetry are flying blind. The [OpenTelemetry Logs spec](https://opentelemetry.io/docs/specs/otel/logs/) — trace-correlated structured logs — is the open-standard substrate. Without runtime visibility, the agent's "is it working?" check is whatever was true at PR time.
+
+**Signals.**
+
+| Signal | Measurement |
+|---|---|
+| No secrets in repo (`.env` git-ignored; `.env.example` only); secret scanner in CI | `git log --all --full-history -- '*.env'` empty; `.gitleaks.toml` present |
+| Repo doesn't load untrusted external content into prompts/configs without sanitisation (e.g. markdown from third-party PRs is not in skill bodies) | judgment + inspection |
+| Structured logging library in use (`pino`, `structlog`, `zap`, `slog`, OTel SDK) — not freeform `print` / `console.log` | grep |
+| Runtime observability integration exists (Sentry, Honeycomb, Datadog, OTel exporter) and is wired at least for errors | `grep -r 'Sentry\|honeycomb\|opentelemetry'` |
+| Trace IDs propagate request → log → error → response (so an agent can stitch a session together) | grep for `trace_id` / `request_id` in error sites |
+| Agent-runtime jail: a documented allow-list of network egress / writable paths exists for sandboxed agent invocations | `find .claude -name '*.sh'` etc.; judgment |
+| Generated code (Prisma client, sqlc output) is the only path to the DB; raw SQL strings are rare or behind a typed wrapper (limits prompt-injection blast radius via SQLi) | grep raw `execute(` calls |
+
+**Weight justification (4%, NEW).** A new low-weight dimension intentionally — most of the agent-security and observability work happens *outside* the codebase (in the agent runtime, in CI, in the prod environment). The codebase contributes meaningfully but not dominantly. 4% is enough to flag repos that hardcode `OPENAI_API_KEY` in source or have no structured logging anywhere, without overstating the codebase's leverage on what is largely an operational problem.
+
+**Anti-signals.** API keys committed (even rotated, even "for dev"). `.env` files in git history. Setup steps that expose long-lived credentials to the agent's shell environment. `console.log` as the only error surface. No structured logging anywhere. Prompts/skills load arbitrary contents of `~/Downloads` or third-party gists without provenance. Direct `psql` calls in production paths (means the agent can be tricked into writing raw SQL).
 
 ---
 
@@ -247,7 +355,9 @@ Each dimension is scored A/B/C/D/F. The overall grade is the *weighted* letter a
 - **B**: ≥60% of signals present. ≤1 minor anti-signal.
 - **C**: ≥40% of signals or critical mechanical signals fail. Anti-signals visible but not dominant.
 - **D**: <40% of signals or a critical-path signal fails (e.g., no test command at all for D2).
-- **F**: Dimension materially absent (no AGENTS.md/CLAUDE.md *and* no README for D1; tests don't run for D2).
+- **F**: Dimension materially absent (no AGENTS.md/CLAUDE.md *and* no README for D1; tests don't run for D2; no lockfile *and* no container for D6).
+
+**Empirical calibration footnote.** Weights remain expert-judgment; the v2 deepening pass did not change that. DORA 2024, METR's 19%-slowdown study, the SWE-Bench Pro public/commercial gap, and Augment's quadratic-cost evidence all *constrain* the weights (we'd have to argue with one of them to move D2, D3, or D9 substantially), but they don't pin them to a number. §8 retains this as a known weakness; a real empirical tune would require running a fixed task suite against representative repos at each grade and measuring success rate.
 
 ## 5. Mechanical vs. judgment signals
 
@@ -255,14 +365,15 @@ The skill should automate the left column; it must ask the model for the right c
 
 | Mechanical (run a command) | Judgment (model assesses) |
 |---|---|
-| File existence (`AGENTS.md`, lockfile, `.env.example`, CI config) | Whether `AGENTS.md` is *useful* vs. a stub |
+| File existence (`AGENTS.md`, lockfile, `.env.example`, CI config, ADR folder) | Whether `AGENTS.md` is *useful* vs. a stub |
 | Command runtime (test, lint, build) | Whether error messages are *informative* |
-| Line counts, file counts, file size distribution | Whether modules are *cohesive* |
+| Line counts, file counts, file size distribution, token-count proxy via `tokei` / `cloc` | Whether modules are *cohesive* |
 | Lockfile and runtime-version pinning | Whether names are *honest* |
-| Grep for anti-patterns (`from x import *`, bare `except:`) | Whether conventions are *consistent* |
+| Grep for anti-patterns (`from x import *`, bare `except:`, hardcoded keys) | Whether conventions are *consistent* |
 | `git log --shortstat` averages | Whether the canonical example is actually canonical |
 | Branch protection via `gh api` | Whether feature flags are *used*, not just *installed* |
 | Test suite exit code + wall time | Whether failure messages give enough context to act on |
+| `git log --all -- '*.env'` for committed secrets | Whether structured logging is *populated* with the right keys |
 
 Where a judgment signal is unavoidable, it counts for at most 50% of a dimension's score.
 
@@ -272,34 +383,116 @@ Any one of these caps the *overall* grade at C, regardless of other dimensions. 
 
 1. **No test command, or test command doesn't work on a clean checkout.** The agent cannot self-verify.
 2. **No lockfile or pinned runtime.** The agent's environment is non-deterministic between sessions.
-3. **CI runtime >20 minutes for unit tests.** Feedback loop too slow; agent guesses.
+3. **CI runtime >20 minutes for unit tests.** Feedback loop too slow; agent guesses. (DORA 2024's −1.5% throughput finding under AI is the macro signal here — slow loops + AI is strictly worse than slow loops alone.)
 4. **Tests that mutate shared state and require manual cleanup.** Agent stuck after first run.
 5. **Secrets required for tests with no documented stub.** Agent cannot run anything end-to-end.
-6. **Generated code committed without a regeneration command.** Agent edits the generated file; conflicts forever.
+6. **Generated code committed without a regeneration command** — *or*, conversely, **generated types in `.gitignore` so the agent reads stale/missing definitions** (per the Suparbase argument: generated types must live in git for the agent to read them as truth).
 7. **`main` where `git log -p` shows >50% of recent commits broke the build.** Agent's "is it working" reference is unreliable.
 8. **Bare `except:` / empty `catch` in hot paths.** Errors vanish; debugging impossible.
 9. **`AGENTS.md`/`CLAUDE.md` contradicts the actual codebase** (says `npm test` when real is `yarn test`). Worse than no doc — actively misleads.
 10. **A dependency on a developer's local machine state** (locally-installed CLI, `~/.config` file, login session) not part of setup.
+11. **AI-generated dead-code drift visible in `git log`** — file count or LOC has grown >2× in 6 months with no commensurate feature increase (Karpathy's hypertrophy). Drift caps the grade until pruned.
+12. **API keys committed to git history**, even if rotated. The repo is now a poisoned input for any agent that indexes history (DeepWiki and similar tools do).
+13. **Unbounded retry loops without a documented kill switch.** An agent reading the codebase as the canonical pattern will reproduce them.
+14. **Test fixtures pull live data from production** with no local stub. Agent can't reproduce failures offline.
 
 ## 7. Backlog generation hints
 
 For each dimension, the kinds of tasks that move the grade up. The `/grade-codebase` skill's "full report" mode turns these into an agent-actionable backlog.
 
-- **D1 Onboarding context.** Add `AGENTS.md` with the six core sections (Commands, Testing, Project structure, Code style, Git workflow, Boundaries). Trim README to <2 screens. Replace placeholders with real commands. For monorepos, add per-package `AGENTS.md`.
-- **D2 Build/test/lint loop.** Add a `make help` / `pnpm run` index of canonical commands. Parallelize the test suite under 30s. Add in-memory or containerized fixtures for the database. Move slow integration tests behind a `--slow` flag.
-- **D3 Code navigability & locality.** Turn on strict mode in the type-checker. Split files >1000 LOC into named modules. Replace barrel re-exports with direct imports on hot paths. Add an `eslint-plugin-import` / `import-linter` boundary check.
-- **D4 Mechanical gates.** Enable formatter `--check` in CI. Add `--max-warnings 0`. Adopt a secret scanner. Add an architecture-rules linter (`dependency-cruiser`, `import-linter`, `arch-unit`).
-- **D5 Failure honesty.** Audit `except`/`catch` for swallowed errors. Add structured logging. Write a "what to include in a bug report" issue template. Add error-context wrapping at boundaries.
-- **D6 Reproducibility & hermeticity.** Pin the runtime. Commit a lockfile. Add a `Dockerfile` + `docker compose` for infra. Replace personal API keys with stubs or local-only secrets.
-- **D7 Change-safety affordances.** Adopt feature flags for unfinished work. Enforce branch protection on `main`. Add snapshot tests for stable-output surfaces. Document migration rollback. Encourage smaller commits.
-- **D8 Conventions discoverable from code.** Build one canonical example for each common operation (one CRUD endpoint, one job, one form). Consolidate to one helper for logging / errors / DB. Add a `docs/conventions.md` *only* with rules not enforceable by linter (per Phoebe's rule).
+- **D1 Onboarding context.** Add `AGENTS.md` with the six core sections (Commands, Testing, Project structure, Code style, Git workflow, Boundaries). Trim README to <2 screens. Replace placeholders with real commands. For monorepos, add per-package `AGENTS.md`. If you use Devin, seed `.devin/wiki.json` to steer DeepWiki.
+- **D2 Build/test/lint loop.** Add a `make help` / `pnpm run` index of canonical commands. Parallelize the test suite under 30s. Add in-memory or containerized fixtures for the database. Move slow integration tests behind a `--slow` flag. Make dev-server reload < 5s.
+- **D3 Code navigability & locality.** Turn on strict mode in the type-checker. Split files >1000 LOC into named modules. Replace barrel re-exports with direct imports on hot paths. Add an `eslint-plugin-import` / `import-linter` / `dependency-cruiser` boundary check. For monorepos, add Nx module-boundary tags.
+- **D4 Mechanical gates.** Enable formatter `--check` in CI. Add `--max-warnings 0`. Adopt a secret scanner. Add a schema-diff gate (Prisma / sqlc / Atlas). Wire spec/OpenAPI drift checks (Specmatic).
+- **D5 Failure honesty.** Audit `except`/`catch` for swallowed errors. Add structured logging. Write a "what to include in a bug report" issue template. Add error-context wrapping at boundaries (`raise X from e` everywhere).
+- **D6 Reproducibility & hermeticity.** Pin the runtime. Commit a lockfile. Add a `Dockerfile` + `docker compose` for infra. Replace personal API keys with stubs or local-only secrets. Consider Bazel/Nix if hermeticity is critical.
+- **D7 Change-safety affordances.** Adopt feature flags for unfinished work. Enforce branch protection on `main`. Add snapshot / Storybook+Chromatic tests for stable-output surfaces. Document migration rollback. Encourage smaller commits. Start an ADR folder in `docs/decisions/`.
+- **D8 Conventions discoverable from code.** Build one canonical example for each common operation (one CRUD endpoint, one job, one form). Consolidate to one helper for logging / errors / DB. Add a `docs/conventions.md` *only* with rules not enforceable by linter (per Phoebe's rule). Mark generated files with `linguist-generated`.
+- **D9 Token-economy.** Run a deadcode scanner (`knip`, `cargo udeps`, `vulture`); delete what's unused. Move vendored dependencies out of source paths. Mark generated files `linguist-generated=true`. Split mega-files. Audit `.gitignore` for committed `node_modules`/`vendor` slip-ins.
+- **D10 Agent-security / observability.** Scan history for committed secrets (`gitleaks`, `trufflehog`); rotate and rewrite if found. Wire Sentry/OTel at least for errors. Add `trace_id` to log lines. Document the agent runtime's network/write jail.
 
 ## 8. Open questions / known weaknesses
 
-- **Eval gap.** This rubric grades the *substrate* (the codebase), not the *outcome* (how well a given agent does in it). A rigorous validation would run a fixed set of well-scoped tasks against representative repos at each grade and measure success rate. Until then, the weights are informed but not empirically tuned. Hamel Husain's [coding-agent evals work](https://hamel.dev/blog/posts/evals-skills/) is the closest analog and a potential future input.
+- **Eval gap (still open).** This rubric grades the *substrate* (the codebase), not the *outcome* (how well a given agent does in it). A rigorous validation would run a fixed set of well-scoped tasks against representative repos at each grade and measure success rate. Until then, the weights are informed but not empirically tuned. Hamel Husain's [coding-agent evals work](https://hamel.dev/blog/posts/evals-skills/) plus [SWE-Bench Pro](https://arxiv.org/abs/2509.16941) and METR's [productivity study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) are the closest analogs and the natural future input.
 - **Domain bias.** The rubric tilts toward web/services repos (TypeScript, Python, Go). Embedded, ML-training, infra-as-code, and game-engine codebases have different ergonomics (a CUDA codebase's "test" is a benchmark; a Terraform module's "verification" is a `plan` diff). The skill should branch on detected stack.
-- **Conflict between agent and human ergonomics.** Mostly they align (Willison's thesis). Two exceptions we couldn't fully resolve: (a) **documentation volume** — humans want more, agents want less; (b) **abstraction depth** — humans tolerate dynamic dispatch and DI containers, agents lose track of them. We've sided with the agent in both cases (D1 caps length at 500 lines; D3 penalizes hidden control flow), but a human-only reviewer would push back.
-- **Monorepo vs. polyrepo.** We deliberately avoided a verdict. Nx's [argument that monorepos are 4× faster for cross-cutting changes](https://nx.dev/blog/the-missing-multiplier-for-ai-agent-productivity) is real but downstream of D3 (locality) and D8 (conventions). A polyrepo with strong contracts at boundaries can score as well as a monorepo with tangled imports. We grade the symptoms, not the shape — meaning a polyrepo org running a fleet of related repos may score each one well individually while still suffering cross-repo friction the rubric doesn't see.
-- **Tool-loop weight.** [The 12-Factor "small focused agents"](https://github.com/humanlayer/12-factor-agents) and the [SWE-Bench Pro long-horizon results](https://arxiv.org/abs/2509.16941) both argue that *task scoping* matters as much as codebase quality. We don't grade task scoping because it's not a property of the codebase — but a codebase that *invites* small tasks (well-modularized, good D3+D8) will look better than one forcing every change to span 12 files. The current weights probably under-credit this compounding.
-- **Drift over time.** Karpathy's observation that agents introduce ["hypertrophy of code and abstractions"](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) means an A-graded codebase under continuous agent contribution can drift to B or C without anyone noticing. The rubric is a snapshot; it does not yet include a "drift detector" signal like "did the file-count grow 3× in 6 months without a commensurate feature increase?"
-- **AGENTS.md vs. CLAUDE.md vs. .cursorrules.** [AGENTS.md is now the cross-tool open standard](https://agents.md/) (Linux Foundation), but Claude Code still preferentially reads `CLAUDE.md`, Cursor reads `.cursor/rules`. We treat any of them as evidence for D1; the skill should detect the user's primary agent and not penalize redundancy.
+- **Conflict between agent and human ergonomics.** Mostly they align. Two exceptions we couldn't fully resolve: (a) **documentation volume** — humans want more, agents want less; (b) **abstraction depth** — humans tolerate dynamic dispatch and DI containers, agents lose track of them. We've sided with the agent in both cases. The deeper-pass research surfaced a third tension: (c) **vendored dependencies** — humans (and supply-chain security) sometimes want vendored copies; agents pay the token bill. We've sided with the agent (D9) but a security-conscious reviewer would push back.
+- **Source disagreement: indexing vs. plain reading.** Augment's [Context Engine](https://workos.com/blog/augment-code-context-is-the-new-compiler) and Sourcegraph's [Cody indexing](https://sourcegraph.com/blog/how-cody-understands-your-codebase) argue that strong external indexing makes codebase locality matter less (you index your way out of bad colocation). Anthropic's Claude Code and the [SWE-agent paper](https://arxiv.org/abs/2405.15793) take the opposite stance — that bounded, simple tools beat fancier indexing, and the codebase still needs to be navigable by `grep`/`find`. We sided with the read-first camp (D3 weights stayed high) on the grounds that not every agent will be paired with a sophisticated index, and indexers can be wrong. If a future where every agent has Augment-grade retrieval comes to pass, D3 weight could fall.
+- **Monorepo vs. polyrepo.** Still no global verdict. Nx's [monorepo-AI argument](https://nx.dev/blog/the-missing-multiplier-for-ai-agent-productivity) is real but downstream of D3 (locality) and D8 (conventions). A polyrepo with strong contracts at boundaries can score as well as a monorepo with tangled imports. We grade the symptoms, not the shape — meaning a polyrepo org running a fleet of related repos may score each one well individually while still suffering cross-repo friction the rubric doesn't see. The [Augment polyglot-vs-monorepo writeup](https://www.augmentcode.com/tools/monorepo-vs-multi-repo-ai-architecture-based-ai-tool-selection) is the most current take we found and reinforces this neutrality.
+- **Tool-loop weight.** [The 12-Factor "small focused agents"](https://github.com/humanlayer/12-factor-agents) and the [SWE-Bench Pro long-horizon results](https://arxiv.org/abs/2509.16941) both argue that *task scoping* matters as much as codebase quality. We don't grade task scoping because it's not a property of the codebase — but a codebase that *invites* small tasks (well-modularized, good D3+D8+D9) will look better than one forcing every change to span 12 files. The current weights probably under-credit this compounding.
+- **Drift over time.** Karpathy's observation that agents introduce ["hypertrophy of code and abstractions"](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md) means an A-graded codebase under continuous agent contribution can drift to B or C without anyone noticing. Anti-pattern #11 catches the gross case (file-count or LOC 2× in 6 months) but a finer-grained drift detector (per-file growth rate) would be more honest. Open work.
+- **Parallel-agent / multi-agent friendliness.** Conductor, Claude Code worktrees, OpenHands fleets, Factory.ai droid orchestration — the field is rapidly moving toward many agents on one repo at once. Worktree-compatibility (no global state that conflicts across branches; no `localhost:3000`-only assumptions; no `node_modules`-mutation in scripts) is becoming load-bearing. We've folded the signals into D6 and D7 rather than adding a fourth dimension because the underlying issues (hermeticity, change-safety) are not new — but if multi-agent becomes the default workload in the next year, this may need its own dimension.
+- **AGENTS.md vs. CLAUDE.md vs. .cursorrules.** [AGENTS.md is now the cross-tool open standard](https://agents.md/) and recognised by Codex, Cursor, Cline, Roo Code, Aider, Continue.dev, and via Spec Kit; Claude Code still preferentially reads `CLAUDE.md`. We treat any of them as evidence for D1; the skill should detect the user's primary agent and not penalize redundancy.
+- **DORA / METR contradiction.** DORA 2024 reports AI gives individual productivity but hurts throughput and stability. METR finds AI makes experienced devs 19% slower on their own repos. The Octoverse 2025 numbers (1M+ Copilot-agent PRs, 80% of new devs using Copilot week-1) appear to contradict both. We took the side that *codebase shape determines which outcome you get*: a codebase scoring A on this rubric trends toward the Octoverse case; one scoring D trends toward METR. This is the rubric's most defensible-but-untested claim and the eval-gap above is the way to test it.
+
+## 9. Changelog — v2 deepening pass
+
+### Sources added
+
+The original ~17 anchored citations grew to ~60+. New source clusters:
+
+- **Vendor / lab.** OpenAI Codex docs (4 URLs), Anthropic Building Effective Agents PDF, Agent Skills overview, worktrees docs, sandboxing release; GitHub Copilot Workspace / Spaces / Spec Kit / Octoverse 2025.
+- **Coding-agent products.** Continue.dev codebase-awareness + indexing docs; Cline / Roo Code AGENTS.md adoption; Factory.ai Droid + custom-droids; JetBrains Junie; Replit Agent; OpenHands ICLR paper + sandbox guide; Cognition Devin 2.0, Annual Performance Review, DeepWiki, DeepWiki MCP; Crawshaw's sketch.dev posts; Sentry Seer + multi-agent observability; Conductor parallel-agent worktrees.
+- **Academic.** SWE-bench Verified leaderboard, SWE-agent NeurIPS 2024 paper, AutoCodeRover paper, Microsoft Magentic-One, LiveCodeBench / BigCodeBench / LiveCodeBench Pro.
+- **Practitioner.** Hamel Husain (3 additional posts), Simon Willison (2 additional), Kent Beck Augmented Coding posts, Charity Majors observability writing, Hillel Wayne formal-methods posts, Steve Yegge Future-of-Coding-Agents + Normsky, Chip Huyen AI Engineering, Geoffrey Litt malleable-software post.
+- **Adjacent disciplines.** 12-Factor App original; Building Evolutionary Architectures (Ford / Parsons); Bazel Hermeticity + reproducible-builds.org; trunk-based development (trunkbaseddevelopment.com + Aviator); GitHub Spec Kit / Specmatic / OpenSpec; adr.github.io + Cognitect ADR post + joelparkerhenderson/architecture-decision-record; dependency-cruiser, import-linter, Nx boundary rules; OpenTelemetry Logs spec; Storybook visual testing; Prisma deploy guide + Suparbase type-safety-as-load-bearing; NVIDIA agentic-sandboxing guide; Google Antigravity sandbox-escape report; Microsoft "When prompts become shells"; OpenAI "Designing AI agents to resist prompt injection"; Augment AI Agent Loop Token Costs.
+- **Industry reports.** DORA 2024 Accelerate State of DevOps; METR Early-2025 OSS-Dev Productivity study.
+
+### Dimensions added, folded, kept, removed
+
+- **Added (2).**
+  - **D9 Token-economy / context efficiency (5%).** Strongest empirical case is Augment's quadratic-cost demonstration; Karpathy's hypertrophy is the qualitative complement.
+  - **D10 Agent-vantage security & runtime observability (4%).** Sentry's Seer + Honeycomb's AI-observability writing on one side; NVIDIA / Microsoft / OpenAI prompt-injection literature on the other. Two themes were small enough to belong together at 4% rather than as separate 2-3% dimensions.
+- **Kept and substantially deepened (6).** D1, D2, D3, D4, D7, D8 all gained new signals and rationale citations; their definitions are unchanged.
+- **Kept with light deepening (2).** D5 and D6 had less marginal evidence to add — D6 in particular is a mature, well-understood dimension and the new sources mostly corroborated existing signals.
+- **Rejected (5).**
+  - *Front-end-specific ergonomics as its own dimension.* Folded into D7 (snapshot/Storybook signal). Storybook visual testing is real and useful but the underlying property (stable-output surfaces have automated baselines) is dimension-agnostic.
+  - *Multi-agent / parallel-work friendliness as its own dimension.* Folded into D6 (hermeticity) and D7 (change-safety). Worktree compatibility is mostly downstream of those; if multi-agent becomes the default workload it may earn its own dimension later (§8).
+  - *Database / data-layer ergonomics as its own dimension.* Folded into D4 (migration validation gate) and D8 (one canonical DB-access helper). The Prisma "AI safety checks" feature is best captured as a D4 signal, not a new dimension.
+  - *Polyglot friction as its own dimension.* Folded into D3 anti-signals ("three different ORMs"). The Augment polyglot writeup and Graphite monorepo guide make the case but the underlying property is dimension D3 (navigability) and D8 (conventions).
+  - *Performance during agent operation as its own dimension.* Folded into D2 (dev-server reload signal) and D9 (token economy). The literature treats this as a sub-property, not a free-standing concern.
+  - *Cost economics as its own dimension.* Too soft to grade as a property of the codebase; the proxy (source-tree size) lives in D9.
+
+### Weight changes
+
+| Dimension | v1 | v2 | Δ | Rationale |
+|---|---|---|---|---|
+| D1 Onboarding | 15% | 13% | −2 | Cross-vendor AGENTS.md standardisation lowers the marginal cost of getting this right; weight migrates to D9 where the cost of *not* doing it accrues. |
+| D2 Build/test/lint | 18% | 18% | 0 | DORA 2024's small-batch finding + SWE-agent ACI paper both reinforce; no reason to move. |
+| D3 Navigability | 15% | 14% | −1 | Architecture-rule linters folded in (was a D4 signal); 1 point migrates to D9. SWE-Bench Pro's enterprise gap argues this could even rise; we left it conservatively at 14%. |
+| D4 Gates | 12% | 11% | −1 | Architecture-rule linters moved to D3; spec-drift signal moved to D7. |
+| D5 Failure honesty | 10% | 9% | −1 | 1 point migrates to D10 where structured-logging now lives. |
+| D6 Reproducibility | 8% | 7% | −1 | Lockfile + container is now near-table-stakes; marginal weight lower than a year ago. |
+| D7 Change-safety | 12% | 11% | −1 | ADR + spec-drift signals added; 1 point migrates to D9. |
+| D8 Conventions | 10% | 8% | −2 | Generated-code-hygiene signal added; 2 points migrate to D9 (1) and D10 (1). |
+| D9 Token-economy (NEW) | — | 5% | +5 | Carved from D3/D6/D7/D8. |
+| D10 Security/observability (NEW) | — | 4% | +4 | Carved from D5/D8. |
+| **Total** | **100%** | **100%** | **0** | |
+
+### Signals added / refined per dimension
+
+- **D1.** Added OpenAPI/GraphQL/protobuf in-repo signal.
+- **D2.** Added dev-server reload-time signal.
+- **D3.** Folded architecture-rule linters into the signal set; explicit reference to Octoverse TypeScript trend.
+- **D4.** Added spec-drift gate signal (Spec Kit / Specmatic) and explicit Prisma AI-safety reference.
+- **D5.** Reframed scope to "authored error sites only"; runtime telemetry moved to D10.
+- **D6.** Added bit-reproducibility / hermeticity-equivalent signal.
+- **D7.** Added ADRs-colocated signal and visual-regression (Storybook/Chromatic) signal.
+- **D8.** Added generated-code-marker + regenerate-command signal.
+- **D9.** All signals new.
+- **D10.** All signals new.
+
+### New anti-patterns
+
+- #11 AI-generated dead-code drift (>2× growth in 6 months).
+- #12 API keys committed to git history.
+- #13 Unbounded retry loops without a kill switch.
+- #14 Test fixtures pull live production data with no local stub.
+
+### Things the deeper pass did *not* change (and why)
+
+- **D2 weight stays at 18%.** Every new source we looked at reinforced this. DORA, METR, Anthropic, Cognition, SWE-agent, sketch.dev, Augment — all of them, independently, treat the build/test/lint loop as the single most important thing. The v1 weight was already right.
+- **D1's six AGENTS.md sections.** GitHub's 2,500-repo analysis remains the strongest empirical basis we have; nothing in the new sources contradicted it. Codex, Cline, and Roo Code all converged on the same structure independently.
+- **The "don't grade documentation volume" exclusion.** Willison's argument held up under every new source; not one of the new practitioner posts argued for more prose docs. If anything the deeper-pass evidence is more emphatic (Karpathy's "delete what isn't needed"; Crawshaw's "compiler feedback beats documentation").
+- **The "don't grade monorepo vs. polyrepo" exclusion.** The Augment polyglot writeup actively reinforced this — they grade per-repo properties (boundary discipline, contract typing) regardless of shape.
+- **The mechanical-bias rule (§5).** Ford & Parsons's fitness-function framing gave us a stronger theoretical foundation but didn't change the practice: anything that can be a passing/failing check should be.
+- **The 50%-judgment cap.** Held up against every source.

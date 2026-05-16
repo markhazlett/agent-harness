@@ -18,14 +18,16 @@
 
 | Dim | Dimension | Weight | Grade | Numeric | Top drivers |
 |---|---|---|---|---|---|
-| D1 | Onboarding context | 15% | {{D1_GRADE}} | {{D1_NUM}} | {{D1_DRIVERS}} |
+| D1 | Onboarding context | 13% | {{D1_GRADE}} | {{D1_NUM}} | {{D1_DRIVERS}} |
 | D2 | Build/test/lint loop | 18% | {{D2_GRADE}} | {{D2_NUM}} | {{D2_DRIVERS}} |
-| D3 | Code navigability & locality | 15% | {{D3_GRADE}} | {{D3_NUM}} | {{D3_DRIVERS}} |
-| D4 | Deterministic mechanical gates | 12% | {{D4_GRADE}} | {{D4_NUM}} | {{D4_DRIVERS}} |
-| D5 | Failure honesty | 10% | {{D5_GRADE}} | {{D5_NUM}} | {{D5_DRIVERS}} |
-| D6 | Reproducibility & hermeticity | 8% | {{D6_GRADE}} | {{D6_NUM}} | {{D6_DRIVERS}} |
-| D7 | Change-safety affordances | 12% | {{D7_GRADE}} | {{D7_NUM}} | {{D7_DRIVERS}} |
-| D8 | Conventions discoverable from code | 10% | {{D8_GRADE}} | {{D8_NUM}} | {{D8_DRIVERS}} |
+| D3 | Code navigability & locality | 14% | {{D3_GRADE}} | {{D3_NUM}} | {{D3_DRIVERS}} |
+| D4 | Deterministic mechanical gates | 11% | {{D4_GRADE}} | {{D4_NUM}} | {{D4_DRIVERS}} |
+| D5 | Failure honesty | 9% | {{D5_GRADE}} | {{D5_NUM}} | {{D5_DRIVERS}} |
+| D6 | Reproducibility & hermeticity | 7% | {{D6_GRADE}} | {{D6_NUM}} | {{D6_DRIVERS}} |
+| D7 | Change-safety affordances | 11% | {{D7_GRADE}} | {{D7_NUM}} | {{D7_DRIVERS}} |
+| D8 | Conventions discoverable from code | 8% | {{D8_GRADE}} | {{D8_NUM}} | {{D8_DRIVERS}} |
+| D9 | Token-economy / context efficiency | 5% | {{D9_GRADE}} | {{D9_NUM}} | {{D9_DRIVERS}} |
+| D10 | Agent-vantage security & runtime observability | 4% | {{D10_GRADE}} | {{D10_NUM}} | {{D10_DRIVERS}} |
 
 ---
 
@@ -66,6 +68,14 @@ For each dimension, list the mechanical and judgment signals that were measured,
 *(...)*
 
 ### D8 — Conventions discoverable from code — {{D8_GRADE}}
+
+*(...)*
+
+### D9 — Token-economy / context efficiency — {{D9_GRADE}}
+
+*(...)*
+
+### D10 — Agent-vantage security & runtime observability — {{D10_GRADE}}
 
 *(...)*
 
