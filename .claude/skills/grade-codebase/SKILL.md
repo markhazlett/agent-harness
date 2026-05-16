@@ -15,122 +15,85 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 # Grade Codebase
 
-Score this repository against the agent-friendliness rubric and produce a dated report. Designed to be re-run monthly so the user can see drift or improvement, and pointed at by other agents as a source of cleanup tasks.
+> _Override: see `CLAUDE.md` § Instruction precedence. User is principal; this skill is advisory._
+
+Score this repo against the agent-friendliness rubric and produce a dated report. Re-run monthly to track drift; other agents read the report for cleanup tasks.
 
 <input_document> #$ARGUMENTS </input_document>
 
-## What this skill produces
+## Output
 
-A markdown report at `docs/agent-grade/<YYYY-MM-DD>.md` plus a copy at `docs/agent-grade/latest.md` (so other skills / agents can find the most recent grade without globbing). Two modes:
+Report at `docs/agent-grade/<YYYY-MM-DD>.md` + copy at `latest.md`. Modes:
 
-- **quick** (default) — overall grade, per-dimension grades, top 3 issues, ~1 page. Use when re-running monthly to track drift.
-- **full** — quick output **plus** prioritized backlog of fix-tasks and a diff against the previous report (if one exists). Use the first time, or when planning a cleanup sprint.
+- **quick** (default) — overall + per-dimension grades + top 3 issues, ~1 page.
+- **full** — quick **plus** prioritised backlog and diff vs prior report.
 
-Mode comes from `$ARGUMENTS`: empty or `quick` → quick; `full` → full. Anything else → ask.
+`$ARGUMENTS` empty or `quick` → quick; `full` → full; anything else → ask.
 
-## Authoritative rubric
+## Rubric
 
-**Always read `.claude/docs/agent-friendliness-rubric.md` first.** It defines the eight dimensions, weights, signals (with concrete shell commands), grading scale, anti-patterns, and backlog hints. This skill does not duplicate the rubric — it executes it. If the rubric file is missing, stop and tell the user — do not grade without it.
+**Read `.claude/docs/agent-friendliness-rubric.md` first.** It defines dimensions, weights, signals, grading scale, anti-patterns. This skill executes it; doesn't duplicate it. Missing rubric → stop and tell the user.
 
 ## Workflow
 
-### 1. Confirm mode and check for prior report
+### 1. Confirm mode and prior report
 
-- Parse `$ARGUMENTS` for mode. Default to `quick`.
-- `ls docs/agent-grade/` to find the most recent prior report (if any). Note its date for the diff.
+Parse `$ARGUMENTS`. `ls docs/agent-grade/` for the most recent prior report (for the diff in full mode).
 
-### 2. Detect the stack
+### 2. Discover the toolchain — **before any signals run**
 
-Before running signals, identify what kind of repo this is — the rubric has domain bias notes (§8). Look for: `package.json`, `pyproject.toml` / `requirements*.txt`, `go.mod`, `Cargo.toml`, `Gemfile`, `pom.xml` / `build.gradle*`, `*.csproj`, `flake.nix`, `Dockerfile`. Note the primary language and any monorepo signals (workspaces, lerna, nx, turbo, pnpm-workspace, cargo workspace).
+**REQUIRED SUB-FILE:** Read `discovery.md`. Detect forge, CI host, task runner, branch-protection source, containerisation, lockfiles, and secret scanners *from this repo's files* — do not assume GitHub Actions, npm, or any specific stack. Emit a "Discovery preamble" block that the report renders verbatim.
 
-If the stack is outside web/services (e.g., embedded, CUDA/ML training, Terraform-only, game engine), say so up front and flag which signals don't translate cleanly. Don't fake-grade them.
+If a category comes back empty (e.g. no CI host detected), that is itself a finding for the relevant dimension — record `none detected`, never substitute a default. If the stack is outside web/services (embedded, ML-training, IaC-only, game engine), flag it up front per rubric §8.
 
-### 3. Run mechanical signals (parallel where possible)
+### 3. Run mechanical signals against the discovered toolchain
 
-For each dimension in the rubric, run the commands listed in its "Mechanical" column. Batch independent shell calls into a single tool message. Capture exit codes, command runtimes (for D2 — the rubric requires test/lint wall-time), and file existence checks. Don't run anything destructive; don't `npm install` unless the user authorized it.
+For each rubric dimension, run measurement commands **against the toolchain from step 2, not against hardcoded paths**:
 
-Specifically:
+- D2's "one-command test" → the discovered runner's test target.
+- D4's "CI runs the agent's local commands" → the discovered CI config (whichever forge/host was found).
+- D7's "branch protection" → the forge-appropriate CLI (`gh`/`glab`/`tea`); "not measured" if unavailable — never penalise unmeasurability.
 
-- **D1 onboarding** — `test -f` for AGENTS.md / CLAUDE.md, `wc -l`, section-header grep, placeholder grep.
-- **D2 build/test/lint** — read scripts from `package.json` / `Makefile` / `pyproject.toml`; **try** the canonical test command with a tight timeout (60–120s); record exit code + wall time. If running tests is risky or slow, ask before invoking.
-- **D3 navigability** — strict-mode greps, file-size distribution, wildcard-import grep, sample 3–5 symbols and count definitions.
-- **D4 gates** — read `.github/workflows/`, `.pre-commit-config.yaml`, lint configs.
-- **D5 failure honesty** — grep for bare excepts / empty catches; sample a few error sites.
-- **D6 reproducibility** — lockfile existence, runtime-pin files, Dockerfile, `.env.example`.
-- **D7 change-safety** — `gh api` for branch protection (if available — skip silently if not), snapshot-test glob, recent-commit-size from `git log --shortstat -50`.
-- **D8 conventions** — file-casing histogram, helper-consolidation grep, tests-alongside-code check.
+Batch independent calls into one tool message. Capture exit codes and wall times. No destructive commands; no dependency installs without user OK.
 
 ### 4. Apply judgment signals
 
-For the "Judgment" column (rubric §5), sample real files and make a call. Be specific: cite the file path you sampled. Judgment signals contribute at most 50% of a dimension's score (rubric §5).
+Sample real files; cite the path. Judgment caps at 50% of a dimension's score (rubric §5).
 
-### 5. Check anti-patterns / red flags (rubric §6)
+### 5. Anti-patterns
 
-If any of the ten anti-patterns fires, the overall grade caps at C. Surface which one and where.
+If any rubric §6 anti-pattern fires, the overall grade caps at C. Surface which and where.
 
 ### 6. Score and roll up
 
-- Per-dimension letter using rubric §4 ("Per-dimension scoring rubric").
-- Convert letters to midpoints (A=95, B=82, C=67, D=52, F=30), weighted-average, map back.
-- Apply the C-cap if a red flag fired.
+Per-dimension letter from rubric §4. Letters → midpoints (A=95, B=82, C=67, D=52, F=30), weighted-average, map back. Apply the C-cap if triggered.
 
-### 7. Write the per-dimension narrative (THE PERSUASION LAYER)
+### 7. Write the per-dimension narrative
 
-A letter grade lands as judgment. Defend it. **For every dimension you scored**, write a short narrative section that does four things:
-
-1. **Translate the rubric's "Plain-English case" into this codebase.** Don't just quote the rubric — name the specific files / commands / patterns in *this* repo that the case applies to.
-2. **Cite the evidence that drove the letter.** Specific file paths, command runtimes, grep counts. "D2 scored C because `npm test` ran in 4m 17s; the agent will run this 3–5× per task." Numbers beat adjectives.
-3. **Quantify the cost where you can.** Use the rubric's "Cost of leaving this alone" framings, with the actual numbers from this codebase plugged in. State your assumptions ("at Claude Sonnet token rates ~$3/M output"). Where quantification would be fake-precise, say "the cost shows up as…" and describe the failure mode.
-4. **Acknowledge the most likely objection.** Pull from the rubric's "Common objections" table — pick the one most likely to apply to this codebase, not the textbook one. If you saw evidence of an objection's *legitimate* part (e.g., this repo is a prototype, this team isn't using agents yet), say so up front.
-
-Audience: a skeptical senior engineer and their engineering manager. They've heard agent pitches and bounced. Tone is direct, technical, no salesy language ("supercharge", "10x"). Concede tradeoffs honestly.
-
-Length: 100–200 words per dimension. The skeptic should finish reading and either agree, or have a *specific* counter-argument — not a vague "this feels like overkill."
+**REQUIRED SUB-FILE:** Read `narrative-spec.md`. Four moves per dimension: translate the rubric's Plain-English case into this repo, cite specific evidence, quantify cost honestly, acknowledge the most likely objection. 100–200 words per dimension.
 
 ### 8. Generate the backlog (full mode only)
 
-Same persuasion shape applied to each fix-task. For every item:
-
-- **Title** — verb-first ("Add `make test` target", not "Test command improvement").
-- **Why this, why now** — 1–2 sentences. Pull from the rubric's §7 "Why it's still worth doing" column, grounded in this repo's evidence.
-- **Common objection it answers** — pull from the rubric §7 objection column. State it verbatim so the user recognises themselves saying it.
-- **Effort** — S (under a day) / M (under a week) / L (multi-week).
-- **Agent handoff line** — one sentence the user can paste to an agent. "Read `docs/agent-grade/latest.md` D2 §, then implement: ..."
-
-Order by leverage: dimension weight × gap-from-A × inverse-effort. Surface the top 3 as "highest-leverage" at the top.
+**REQUIRED SUB-FILE:** Read `backlog-spec.md`. Same persuasion shape, ordered by `weight × gap × inverse-effort`. Top 3 surfaced as "highest-leverage". Backlog items must reference the discovered toolchain, not the rubric's example tools.
 
 ### 9. Write the report
 
-Use the template in `report-template.md` (sibling file). Always include:
+Use `report-template.md`. Include header (date, commit SHA, branch, mode), the Discovery preamble from step 2, the overall grade and verdict, per-dimension table + narrative, anti-pattern flags. Full mode also includes the backlog and the diff vs prior report.
 
-- Header (date, commit SHA from `git rev-parse --short HEAD`, branch, mode, stack notes).
-- Overall grade + one-sentence verdict from the rubric's plain-English scale.
-- Per-dimension section (table row + narrative from step 7).
-- Anti-pattern flags (if any).
+Write to `docs/agent-grade/<YYYY-MM-DD>.md`, then copy to `latest.md`. Create the directory if missing.
 
-**Full mode adds:**
+### 10. Report back
 
-- **Backlog** — from step 8, with persuasion content.
-- **Diff vs previous** — per-dimension letter change, new red flags, resolved red flags. Skip silently if no prior report.
-
-Write to `docs/agent-grade/<YYYY-MM-DD>.md`, then copy to `docs/agent-grade/latest.md`. Create the directory if missing.
-
-### 10. Report back to the user
-
-One paragraph: overall grade, the dimension that moved most (vs prior), and the single highest-leverage fix. Point at the report file. Don't commit — the user decides whether to.
+One paragraph: overall grade, the dimension that moved most vs prior, the single highest-leverage fix. Point at the report file. Don't commit — the user decides.
 
 ## Honesty rules
 
-- If a signal can't be measured (no `gh` CLI for branch protection, no test command at all), say "not measured" — do not score it as if it passed.
-- If you ran a destructive-looking command, name it explicitly in the report.
-- Judgment scores must cite the file you sampled. "Names are honest" without a path is not a score.
-- If the rubric file looks stale or self-contradicts on a signal, flag it in the report's "methodology notes" footer rather than silently fudging.
-- **Narrative honesty.** Do not invent evidence to defend a grade. If you scored D2 a B but can't cite a specific reason in this repo, the score is wrong — re-grade rather than confabulate. If you can't quantify a cost honestly, say "hard to quantify; the cost shows up as …" — do not make up numbers.
-- **Objection honesty.** Pick the objection most likely to apply to *this* codebase, not the most flattering one to refute. If this repo is genuinely a 3-person prototype and D6 hermeticity is overkill, say so — the rubric explicitly allows scope-appropriate caveats.
+- Unmeasurable → "not measured", never a defaulted score.
+- The discovery preamble drives grading; `none detected` surfaces in the report, not an assumed substitute.
+- Judgment scores cite the sampled file.
+- Narrative numbers come from this run, or the narrative names the failure mode instead.
+- Rubric contradictions go in the methodology footer, not silent fudges.
 
-## What this skill does NOT do
+## Not in scope
 
-- Does not modify the codebase. No fixes, no PRs.
-- Does not commit. The report is an artifact the user reviews and chooses to commit.
-- Does not grade other repos via network. Operates on the current working directory only.
-- Does not eval an *agent's* performance on this codebase — it grades the substrate. See rubric §8 "Eval gap" for the distinction.
+No code changes, no commits, no network calls beyond forge CLIs against the discovered remote, no grading of other repos. Grades the substrate, not the agent (rubric §8).

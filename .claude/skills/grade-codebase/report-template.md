@@ -9,10 +9,29 @@
 
 {{#RED_FLAGS_PRESENT}}**Grade capped at C** by red flag(s): {{RED_FLAGS_LIST}}. See §Anti-pattern flags below.{{/RED_FLAGS_PRESENT}}
 
-**Stack detected:** {{STACK}} {{#MONOREPO}} (monorepo: {{MONOREPO_TOOL}}){{/MONOREPO}}
 {{#OUT_OF_SCOPE_NOTE}}*Note: parts of the rubric were authored against web/service repos and translate imperfectly here — flagged inline below.*{{/OUT_OF_SCOPE_NOTE}}
 
 **One-paragraph reader's digest.** {{EXEC_SUMMARY}}
+
+---
+
+## Discovery preamble
+
+Everything below was graded against the toolchain detected from this repo, not against defaults. If a category reads `none detected`, that's a finding — the dimensions that depend on it surface that fact below rather than substituting an assumed tool.
+
+| Category | Detected |
+|---|---|
+| Forge | {{DISCOVERY_FORGE}} |
+| CI host | {{DISCOVERY_CI_HOST}} |
+| Task / build runner | {{DISCOVERY_TASK_RUNNER}} |
+| Branch-protection source | {{DISCOVERY_BRANCH_PROTECTION_SOURCE}} |
+| Containerisation / dev env | {{DISCOVERY_CONTAINER}} |
+| Lockfile(s) | {{DISCOVERY_LOCKFILES}} |
+| Secrets scanner | {{DISCOVERY_SECRETS_SCANNER}} |
+| Primary language(s) | {{DISCOVERY_LANGUAGES}} |
+| Monorepo | {{DISCOVERY_MONOREPO}} |
+
+{{#DISCOVERY_NOTES}}*Notes:* {{DISCOVERY_NOTES_BODY}}{{/DISCOVERY_NOTES}}
 
 ---
 

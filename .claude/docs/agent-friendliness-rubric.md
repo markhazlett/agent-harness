@@ -153,7 +153,7 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 | One-command test exists and runs | `npm test` / `pytest` / `cargo test` / `make test` |
 | Unit test suite finishes in <60s (target <30s) | `time` it; slow tests train the agent to skip them |
 | Lint/format/typecheck single command, <30s | `npm run lint`, `ruff check`, `tsc --noEmit` |
-| CI runs the same commands the agent runs locally | inspect `.github/workflows`, compare with AGENTS.md |
+| CI runs the same commands the agent runs locally | inspect the detected CI config (any of GitHub Actions, GitLab CI, CircleCI, Buildkite, Jenkins, Drone, Azure Pipelines — see grader discovery preamble); compare with AGENTS.md |
 | Test failures include enough context to act on without re-running | sample; Willison: "stuffing extra data in the assertion is inexpensive" |
 | Pre-commit hooks fail loud (don't silently auto-fix) | `.pre-commit-config.yaml` / `.husky` |
 | Dev-server reload / incremental compile <5s for typical edit | judgment + sample |
@@ -227,7 +227,7 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 | Type check is a hard gate in CI | grep CI for `tsc`, `mypy`, `cargo check` |
 | Lint warnings cap (`--max-warnings 0` or equivalent) | grep |
 | Schema/migration validation is a gate (Prisma diff, Alembic, sqlc) — Prisma now ships [explicit AI safety checks](https://www.prisma.io/docs/orm/prisma-client/deployment/deploy-database-changes-with-prisma-migrate) for agent workflows | inspection |
-| Secrets scanner on (gitleaks, trufflehog, GitHub secret scanning) | `.gitleaks.toml`, gh API |
+| Secrets scanner on (gitleaks, trufflehog, forge-native secret scanning) | `.gitleaks.toml`, `.trufflehog.yaml`, `.secrets.baseline`, or a secret-scan job in the detected CI config |
 | `git status` clean after a successful build (no untracked generated leakage) | run build, diff |
 | Pre-merge contract diff: spec/OpenAPI/protobuf is the source of truth, drift fails CI (cf. [GitHub Spec Kit](https://github.com/topics/spec-driven-development) / Specmatic) | grep CI |
 
@@ -331,7 +331,7 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 |---|---|
 | Feature flags / gates for in-progress work | grep for a flag library (`unleash`, `launchdarkly`, `posthog`, `OpenFeature`) or convention |
 | Migrations are atomic with rollback (or forward-only with documented backfill) | `find migrations -name '*down*'` or inspection |
-| Branch protection on `main` (CI must pass, no force push) | `gh api repos/:owner/:repo/branches/main/protection` |
+| Branch protection on `main`/`master`/`trunk` (CI must pass, no force push) | forge-appropriate CLI — `gh api ...branches/<default>/protection`, `glab api projects/:id/protected_branches`, `tea repos branches protections list`; "not measured" if no CLI available |
 | Snapshot / visual-regression tests for stable-output surfaces (Storybook + Chromatic, jest snapshots, image-diff) | `find . -name '*.snap' -o -name '__snapshots__' -o -name 'chromatic*'` |
 | Contracts/types at I/O boundaries (OpenAPI, GraphQL, protobuf, zod, pydantic); the codebase has a "spec is source of truth" stance, not "code is" | file existence + grep for codegen step |
 | Commits small and rebaseable (median <300 LOC over recent 50 commits) | `git log --shortstat -50` + awk |
@@ -455,7 +455,7 @@ The skill should automate the left column; it must ask the model for the right c
 | Lockfile and runtime-version pinning | Whether names are *honest* |
 | Grep for anti-patterns (`from x import *`, bare `except:`, hardcoded keys) | Whether conventions are *consistent* |
 | `git log --shortstat` averages | Whether the canonical example is actually canonical |
-| Branch protection via `gh api` | Whether feature flags are *used*, not just *installed* |
+| Branch protection via forge CLI (`gh`/`glab`/`tea`) | Whether feature flags are *used*, not just *installed* |
 | Test suite exit code + wall time | Whether failure messages give enough context to act on |
 | `git log --all -- '*.env'` for committed secrets | Whether structured logging is *populated* with the right keys |
 
