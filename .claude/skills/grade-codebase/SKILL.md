@@ -74,23 +74,48 @@ If any of the ten anti-patterns fires, the overall grade caps at C. Surface whic
 - Convert letters to midpoints (A=95, B=82, C=67, D=52, F=30), weighted-average, map back.
 - Apply the C-cap if a red flag fired.
 
-### 7. Write the report
+### 7. Write the per-dimension narrative (THE PERSUASION LAYER)
+
+A letter grade lands as judgment. Defend it. **For every dimension you scored**, write a short narrative section that does four things:
+
+1. **Translate the rubric's "Plain-English case" into this codebase.** Don't just quote the rubric — name the specific files / commands / patterns in *this* repo that the case applies to.
+2. **Cite the evidence that drove the letter.** Specific file paths, command runtimes, grep counts. "D2 scored C because `npm test` ran in 4m 17s; the agent will run this 3–5× per task." Numbers beat adjectives.
+3. **Quantify the cost where you can.** Use the rubric's "Cost of leaving this alone" framings, with the actual numbers from this codebase plugged in. State your assumptions ("at Claude Sonnet token rates ~$3/M output"). Where quantification would be fake-precise, say "the cost shows up as…" and describe the failure mode.
+4. **Acknowledge the most likely objection.** Pull from the rubric's "Common objections" table — pick the one most likely to apply to this codebase, not the textbook one. If you saw evidence of an objection's *legitimate* part (e.g., this repo is a prototype, this team isn't using agents yet), say so up front.
+
+Audience: a skeptical senior engineer and their engineering manager. They've heard agent pitches and bounced. Tone is direct, technical, no salesy language ("supercharge", "10x"). Concede tradeoffs honestly.
+
+Length: 100–200 words per dimension. The skeptic should finish reading and either agree, or have a *specific* counter-argument — not a vague "this feels like overkill."
+
+### 8. Generate the backlog (full mode only)
+
+Same persuasion shape applied to each fix-task. For every item:
+
+- **Title** — verb-first ("Add `make test` target", not "Test command improvement").
+- **Why this, why now** — 1–2 sentences. Pull from the rubric's §7 "Why it's still worth doing" column, grounded in this repo's evidence.
+- **Common objection it answers** — pull from the rubric §7 objection column. State it verbatim so the user recognises themselves saying it.
+- **Effort** — S (under a day) / M (under a week) / L (multi-week).
+- **Agent handoff line** — one sentence the user can paste to an agent. "Read `docs/agent-grade/latest.md` D2 §, then implement: ..."
+
+Order by leverage: dimension weight × gap-from-A × inverse-effort. Surface the top 3 as "highest-leverage" at the top.
+
+### 9. Write the report
 
 Use the template in `report-template.md` (sibling file). Always include:
 
 - Header (date, commit SHA from `git rev-parse --short HEAD`, branch, mode, stack notes).
 - Overall grade + one-sentence verdict from the rubric's plain-English scale.
-- Per-dimension table: dimension, weight, letter, the 2–3 signals that drove the letter.
+- Per-dimension section (table row + narrative from step 7).
 - Anti-pattern flags (if any).
 
 **Full mode adds:**
 
-- **Backlog** — concrete fix-tasks, ordered by leverage (weight × gap-from-A). Each task: title, dimension, estimated effort (S/M/L), and a one-line "agent could do this" handoff line.
+- **Backlog** — from step 8, with persuasion content.
 - **Diff vs previous** — per-dimension letter change, new red flags, resolved red flags. Skip silently if no prior report.
 
 Write to `docs/agent-grade/<YYYY-MM-DD>.md`, then copy to `docs/agent-grade/latest.md`. Create the directory if missing.
 
-### 8. Report back to the user
+### 10. Report back to the user
 
 One paragraph: overall grade, the dimension that moved most (vs prior), and the single highest-leverage fix. Point at the report file. Don't commit — the user decides whether to.
 
@@ -100,6 +125,8 @@ One paragraph: overall grade, the dimension that moved most (vs prior), and the 
 - If you ran a destructive-looking command, name it explicitly in the report.
 - Judgment scores must cite the file you sampled. "Names are honest" without a path is not a score.
 - If the rubric file looks stale or self-contradicts on a signal, flag it in the report's "methodology notes" footer rather than silently fudging.
+- **Narrative honesty.** Do not invent evidence to defend a grade. If you scored D2 a B but can't cite a specific reason in this repo, the score is wrong — re-grade rather than confabulate. If you can't quantify a cost honestly, say "hard to quantify; the cost shows up as …" — do not make up numbers.
+- **Objection honesty.** Pick the objection most likely to apply to *this* codebase, not the most flattering one to refute. If this repo is genuinely a 3-person prototype and D6 hermeticity is overkill, say so — the rubric explicitly allows scope-appropriate caveats.
 
 ## What this skill does NOT do
 
