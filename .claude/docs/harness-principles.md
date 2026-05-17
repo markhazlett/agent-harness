@@ -1006,6 +1006,9 @@ Use this as a starting point. Each item maps to one or more sections above.
 - [ ] Provide a user-controlled override file (CLAUDE.md analog)
 - [ ] Use context window as primary execution state store; minimize auxiliary state (§65)
 - [ ] Route between workflows with deterministic code; reserve LLM calls for in-branch reasoning (§64)
+- [ ] Implement consecutive-error threshold (~3) with deterministic escalation; don't trust LLM to self-terminate retry loops (§66)
+- [ ] Encode human-interrupt requests as typed tool calls with explicit schema; persist responses as durable events (§67)
+- [ ] Build pre-dispatch hook layer: intercept between tool selection and execution for high-stakes actions (§68)
 
 ### Skill system
 - [ ] Skills are loadable files with frontmatter (`name`, `description`)
@@ -1098,6 +1101,52 @@ Principles in this section are drawn from published engineering material outside
 
 ---
 
+### 66. Compact Errors Into Context, Break on Threshold
+
+**Append tool failures as structured events so the agent can self-heal; track consecutive error counts and escalate deterministically once the threshold is reached, rather than trusting the model to decide when to stop retrying.**
+
+**Why it works.** When a tool call fails, a capable LLM can often read the error message, diagnose the cause, and issue a corrected call on the next step — genuine self-healing at zero extra infrastructure cost. But without a hard threshold, the agent will sometimes enter a spin-out: same error, same malformed call, indefinitely. Counting consecutive errors per tool call and breaking the loop after roughly three attempts converts a potentially infinite failure into a bounded, escalated one. The break must be deterministic code, not LLM judgment, because the model that generated the errors is also the one being asked whether to stop. Restructuring error messages before appending them — removing verbose stack frames, isolating the actionable signal — helps the model recover rather than getting lost in noise.
+
+**Observed in.**
+- [humanlayer/12-factor-agents, Factor 9 "Compact Errors into Context Window" (GitHub, 2025)](https://raw.githubusercontent.com/humanlayer/12-factor-agents/main/content/factor-09-compact-errors.md): "If we get an error, we can add it to the context window and try again — but if we do this TOO much, the agent will start to spin out and repeat the same error over and over again." Recommends a consecutive-error threshold of approximately 3, after which the loop breaks and escalates rather than retrying.
+
+**How it could apply here.** The harness's `/debug` skill and `systematic-debugging` principle (§34) cover staged investigation before a fix, but do not address the automatic retry loop that occurs when a tool call fails mid-execution. Long-running agents — background tasks, plan-executor loops — would benefit from an error-compaction policy and a configurable threshold before escalating to the user or halting.
+
+**Confidence.** High
+
+---
+
+### 67. Human Interrupt as Typed Tool Call
+
+**Treat requests for human input as structured tool calls with an explicit schema — question, context, urgency, expected response format — rather than unstructured plaintext breaks; persist the human's reply as a durable event in the execution thread.**
+
+**Why it works.** When the agent's output format is unrestricted, the choice between "call a tool" and "ask the human a question" is made at the first token — with all the inconsistency that token-level forking brings. Requiring the agent to always emit structured JSON (with an explicit intent field like `request_human_input`) eliminates the format ambiguity. More importantly, it makes human interrupts first-class events in the execution history: the question, its context, and the answer all become addressable records the agent can cite later. This enables outer-loop workflows where control flows Agent→Human rather than the chatbot's Human→Agent, and makes interrupt history auditable and replayable. The failure mode is vague question construction: if the schema does not force the agent to specify what format of answer it expects and why it is asking, the human receives insufficient context to respond usefully.
+
+**Observed in.**
+- [humanlayer/12-factor-agents, Factor 7 "Contact Humans with Tool Calls" (GitHub, 2025)](https://raw.githubusercontent.com/humanlayer/12-factor-agents/main/content/factor-07-contact-humans-with-tools.md): "Always output JSON with explicit intent fields — the first-token choice between plaintext and structured data carries a lot of weight." Describes the full lifecycle: agent emits a `RequestHumanInput` object, thread state is saved, human is notified via Slack/email/SMS, webhook delivers the response, execution resumes with the reply appended as an event.
+
+**How it could apply here.** The harness currently handles human gates as prose instructions or explicit `/confirm` prompts. Encoding these as typed tool calls would make them composable: a skill could declare an approval requirement and the harness would route those checkpoints through a single configurable interrupt mechanism, making the human's response a first-class auditable event rather than an implicit conversational exchange.
+
+**Confidence.** High
+
+---
+
+### 68. Pause Between Tool Selection and Tool Execution
+
+**The highest-value checkpoint in an agent loop is not between task phases but between the moment the LLM selects a tool and the moment that tool fires — most orchestrators skip this window, which is where irreversible actions live.**
+
+**Why it works.** Standard frameworks permit pausing between LLM turns but allow tool selection and execution to run as a single atomic step. The problem: the LLM's tool choice is where irreversibility happens — deleting a file, sending an email, deploying code. If you can interrupt after the LLM has declared its intent but before the side effect runs, you get human review of the exact action about to happen with full context. This differs from phase-boundary gates (§32), which protect against entering the wrong phase; this protects against executing the wrong *action within* an approved phase. Implementing it requires owning the dispatch loop so tool selection returns a pending action object that can be inspected, approved, or rejected before the actual call runs.
+
+**Observed in.**
+- [humanlayer/12-factor-agents, Factor 6 "Launch/Pause/Resume with Simple APIs" (GitHub, 2025)](https://raw.githubusercontent.com/humanlayer/12-factor-agents/main/content/factor-06-launch-pause-resume.md): "Many AI orchestrators permit pausing and resuming, but *not* between tool selection and execution — this creates a critical blind spot where agents cannot pause to request human approval before actually executing tools."
+- [humanlayer/12-factor-agents, Factor 8 "Own Your Control Flow" (GitHub, 2025)](https://raw.githubusercontent.com/humanlayer/12-factor-agents/main/content/factor-08-own-your-control-flow.md): Identifies the three anti-patterns that result from missing this checkpoint — memory-based blocking, restricting agents to low-risk operations, and granting unrestricted access — and resolves them by interrupting between selection and invocation.
+
+**How it could apply here.** The harness's hook system (`.claude/hooks/`) currently intercepts shell commands post-dispatch. A pre-dispatch hook that sees the tool name and arguments *before* execution — and can block or require confirmation — would implement this pattern. High-stakes actions (file deletion, git force-push, external API writes) could route through a confirmation hook while read-only calls run unimpeded.
+
+**Confidence.** High
+
+---
+
 ## Closing Thought
 
 The thing that makes a great harness feel magical is not any single rule.
@@ -1120,6 +1169,6 @@ stupidity*.
 
 Each entry records a harness that has been researched at least once. Re-mining is only warranted if a materially new primary source has appeared since the last entry date.
 
-- **12-Factor Agents** (Dex Horthy / HumanLayer) (first mined: 2026-05-15): Twelve engineering principles for production LLM applications, derived from interviewing 100+ founders and engineers. Primary source: [github.com/humanlayer/12-factor-agents](https://github.com/humanlayer/12-factor-agents). Contributed §64 (Deterministic Routing) and §65 (Context as State Store).
+- **12-Factor Agents** (Dex Horthy / HumanLayer) (first mined: 2026-05-15, additional factors mined: 2026-05-17): Twelve engineering principles for production LLM applications, derived from interviewing 100+ founders and engineers. Primary source: [github.com/humanlayer/12-factor-agents](https://github.com/humanlayer/12-factor-agents). Contributed §64 (Deterministic Routing), §65 (Context as State Store), §66 (Error Compaction with Threshold), §67 (Human Interrupt as Typed Tool Call), §68 (Pause Between Tool Selection and Execution). Factors 1, 2, 4, 10, 11, 12 not yet mined — candidates for a future run.
 - **Cognition "Don't Build Multi-Agents"** (first mined: 2026-05-15): Researched; primary source (cognition.ai/blog) returned HTTP 403 and was not fetchable. Secondary sources describe context-compression and single-agent principles consistent with existing §5 and §36. No principle added this run; retry when primary source becomes accessible.
 - **Anthropic "Building Effective Agents" and "Effective Harnesses for Long-Running Agents"** (first mined: 2026-05-15): Researched; both anthropic.com/research and anthropic.com/engineering URLs returned HTTP 403. No principle added this run; retry when primary source becomes accessible.
