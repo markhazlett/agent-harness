@@ -30,7 +30,7 @@ else
 fi
 
 # Test 2: removing Terminal State from a required skill triggers exit 1.
-TARGET="$REPO_ROOT/.claude/skills/tdd/SKILL.md"
+TARGET="$REPO_ROOT/skills/tdd/SKILL.md"
 BACKUP=$(mktemp)
 cp "$TARGET" "$BACKUP"
 trap 'cp "$BACKUP" "$TARGET"; rm -f "$BACKUP"' EXIT

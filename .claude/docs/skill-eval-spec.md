@@ -20,7 +20,7 @@ Evals exist to catch these. They run on demand (`/harness-health`) and pre-merge
 Each rigid skill has a sibling `eval.yaml`:
 
 ```
-.claude/skills/<skill>/
+skills/<skill>/
   SKILL.md
   rationalizations.md
   red-flags.md       (optional)
@@ -191,7 +191,7 @@ The harness splits the eval surface into static analysis (a shell script) and dy
 ### Static: `bin/skill-eval` (shell)
 
 ```
-bin/skill-eval --validate            # Schema-validate every eval.yaml in .claude/skills/
+bin/skill-eval --validate            # Schema-validate every eval.yaml in skills/
 bin/skill-eval --validate-strict     # Same but FAIL on legacy rigid skills without eval.yaml
 bin/skill-eval --list                # Inventory of skills with/without evals + counts
 bin/skill-eval --plan <skill>        # Print the eval plan for one skill
@@ -262,12 +262,12 @@ For long-term CI use (when we get there), the headless path may return — but a
 
 **Phase 4 (this PR — shipped):**
 
-- ✅ Judge-LLM fuzzy matching: only-on-strict-fail for missing-expected-step failures, `Agent` dispatch with `judge-prompt.md`, three-way verdict (`equivalent` / `not_equivalent` / `ambiguous`), 5-call cap per run, cached, `SKILL_EVAL_JUDGE=off` disables. Full rules in `.claude/skills/skill-eval/assertion-rules.md` § "Phase 4 — judge-LLM fuzzy matching (enforced)". Anti-eval canary at `.claude/skills/skill-eval/anti-evals/judge-rubberstamp-canary.md`.
+- ✅ Judge-LLM fuzzy matching: only-on-strict-fail for missing-expected-step failures, `Agent` dispatch with `judge-prompt.md`, three-way verdict (`equivalent` / `not_equivalent` / `ambiguous`), 5-call cap per run, cached, `SKILL_EVAL_JUDGE=off` disables. Full rules in `skills/skill-eval/assertion-rules.md` § "Phase 4 — judge-LLM fuzzy matching (enforced)". Anti-eval canary at `skills/skill-eval/anti-evals/judge-rubberstamp-canary.md`.
 
 **Phase 4 (deferred):**
 
 - 🚧 Invocation eval execution — schema-validated; cross-skill dispatch is its own design problem
-- 🚧 Headless CI adapter — blocked on Claude Code SDK headless mode (see `.claude/skills/skill-eval/follow-ups.md` § F for re-check triggers and retained design questions)
+- 🚧 Headless CI adapter — blocked on Claude Code SDK headless mode (see `skills/skill-eval/follow-ups.md` § F for re-check triggers and retained design questions)
 
 The Phase 1 schema is forward-compatible: every field documented above is consumed by Phase 2 + 3 + 4 without reshaping.
 

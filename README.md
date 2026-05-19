@@ -34,7 +34,7 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 ### Updating
 
-Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/source`, diffs against your install, classifies each file (install / safe-update / unchanged / conflict), and walks you through any conflict before writing anything. Project-specific files (`harness.config.sh`, `settings.json`) and your local-only skills, agents, and commands are never touched. The first run on an existing install treats every divergence as a conflict so you can vouch for each file once; future runs are quiet because the script tracks provenance in `~/.agent-harness/installed-manifest.json`.
+Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/source`, diffs against your install, classifies each file (install / safe-update / unchanged / conflict), and walks you through any conflict before writing anything. Project-specific files (`config.sh`, `settings.json`) and your local-only skills, agents, and commands are never touched. The first run on an existing install treats every divergence as a conflict so you can vouch for each file once; future runs are quiet because the script tracks provenance in `~/.agent-harness/installed-manifest.json`.
 
 ---
 
@@ -70,7 +70,7 @@ If you use [Conductor](https://conductor.build) to run parallel Claude Code agen
 - **Per-workspace status manifests.** `/build` writes `.context/conductor-status.json` as it progresses; siblings read it for the rollup.
 - **Sprint dispatch.** `/plan-sprint` detects parallel-safe waves and offers to open one Conductor workspace per plan via `conductor://async` deep links.
 
-Not using Conductor? Pick Claude Code mode at the setup prompt (the default when Conductor isn't detected) and the Conductor helpers self-gate to no-ops. Everything else works identically. The mode is stored in `.claude/hooks/harness.config.sh` as `HARNESS_HOST`; re-run `./setup.sh` to switch.
+Not using Conductor? Pick Claude Code mode at the setup prompt (the default when Conductor isn't detected) and the Conductor helpers self-gate to no-ops. Everything else works identically. The mode is stored in `.claude/hooks/config.sh` as `HARNESS_HOST`; re-run `./setup.sh` to switch.
 
 ---
 
@@ -102,7 +102,7 @@ ln -s ~/.agent-harness/bin bin
 
 ### What `setup.sh` asks for
 
-Workspace host (Conductor or Claude Code), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/harness.config.sh` where every hook reads from it. Re-run any time to reconfigure.
+Workspace host (Conductor or Claude Code), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/config.sh` where every hook reads from it. Re-run any time to reconfigure.
 
 </details>
 
@@ -215,7 +215,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 </details>
 
 <details>
-<summary><strong>Central config</strong> — <code>.claude/hooks/harness.config.sh</code></summary>
+<summary><strong>Central config</strong> — <code>.claude/hooks/config.sh</code></summary>
 
 Every hook sources this file. Edit once, everything updates.
 
@@ -245,11 +245,11 @@ HARNESS_DB_MIGRATIONS_DIR="drizzle"
 <details>
 <summary><strong>Extending with your own skills</strong></summary>
 
-Drop a file in `.claude/skills/<name>/SKILL.md`:
+Drop a file in `skills/<name>/SKILL.md`:
 
 ```bash
-mkdir -p .claude/skills/my-skill
-cat > .claude/skills/my-skill/SKILL.md << 'EOF'
+mkdir -p skills/my-skill
+cat > skills/my-skill/SKILL.md << 'EOF'
 # My Skill
 
 Description and when to use it.
@@ -268,7 +268,7 @@ The skill loader discovers it automatically. Project skills complement the base 
 
 ```
 .claude/
-  hooks/              9 shell hooks + harness.config.sh
+  hooks/              9 shell hooks + config.sh
   agents/             4 specialized sub-agents
   commands/           2 slash commands
   skills/             28 reusable skills (9 rigid, 14 flexible, 5 util) + rigid template

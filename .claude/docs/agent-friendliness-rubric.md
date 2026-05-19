@@ -10,7 +10,7 @@ The grade has one consumer (the user reading the report) and two purposes: (a) o
 
 ## 2. Methodology notes
 
-**Sources surveyed.** Internal: `.claude/docs/harness-principles.md` (63 principles), the harness's `claude-md-template.md`, and the skills under `.claude/skills/` (notably `tdd`, `pre-deploy`, `debug`). External sources are organised by cluster below. The v2 deepening pass roughly tripled the citation count (~17 → ~60+); §9 catalogues additions and what changed.
+**Sources surveyed.** Internal: `.claude/docs/harness-principles.md` (63 principles), the harness's `claude-md-template.md`, and the skills under `skills/` (notably `tdd`, `pre-deploy`, `debug`). External sources are organised by cluster below. The v2 deepening pass roughly tripled the citation count (~17 → ~60+); §9 catalogues additions and what changed.
 
 **Vendor / lab engineering writing.**
 - Anthropic, [*Best practices for Claude Code*](https://www.anthropic.com/engineering/claude-code-best-practices), [*How Claude Code works in large codebases*](https://claude.com/blog/how-claude-code-works-in-large-codebases-best-practices-and-where-to-start), [*Building Effective AI Agents: Architecture Patterns*](https://resources.anthropic.com/hubfs/Building%20Effective%20AI%20Agents-%20Architecture%20Patterns%20and%20Implementation%20Frameworks.pdf), [*Agent Skills overview*](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), the [Claude Code worktrees docs](https://code.claude.com/docs/en/worktrees), and the [Claude Code sandboxing release](https://www.infoq.com/news/2025/11/anthropic-claude-code-sandbox/).
