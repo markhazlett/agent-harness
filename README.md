@@ -1,6 +1,6 @@
 # Agent Harness
 
-A production-tested toolkit that turns Claude Code into a reliable teammate: it plans your week, executes sprints, ships code, and refuses to touch `main`, `.env`, or anything else you'd have to revert.
+A production-tested toolkit that turns your terminal coding agent — [Claude Code](https://claude.com/claude-code), [Conductor](https://conductor.build), or [Pi](https://pi.dev) — into a reliable teammate: it plans your week, executes sprints, ships code, and refuses to touch `main`, `.env`, or anything else you'd have to revert.
 
 ---
 
@@ -17,15 +17,15 @@ Five commands cover the whole week. Pick goals Monday, draft a customer demo to 
 
 ## Install
 
-Open Claude Code in the repo you want to set up and paste this:
+Open your agent CLI (Claude Code or Pi) in the repo you want to set up and paste this:
 
 ```
 Install the agent harness from https://github.com/markhazlett/agent-harness into this repo.
 
 Steps:
 1. Clone the harness to a temp dir: `git clone --depth 1 https://github.com/markhazlett/agent-harness /tmp/agent-harness-install`
-2. Copy into the current repo root: `.claude/`, `bin/`, `setup.sh`, `VERSION`
-3. Run `./setup.sh` — ask me each prompt it shows (workspace host, package manager, dev port, DB commands, etc.) and relay my answers
+2. Copy into the current repo root: `skills/`, `prompts/`, `agents/`, `hooks/`, `.claude/`, `bin/`, `setup.sh`, `VERSION`, `AGENTS.md.template`
+3. Run `./setup.sh` — ask me each prompt it shows (workspace host, package manager, dev port, DB commands, etc.) and relay my answers. Pick option `[1] Conductor` if you're inside a Conductor workspace, `[2] Claude Code only` for plain Claude Code, or `[3] Pi` for Pi.
 4. Clean up: `rm -rf /tmp/agent-harness-install`
 5. Run `/harness-health` and report the result
 ```
@@ -226,19 +226,20 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 
 **`protected-files` blocks Edit / Write on:**
 - `.env` files (any variant)
-- Hook scripts themselves (guards the guards)
-- `.claude/settings.json`
+- Hook scripts themselves (guards the guards) — both `.claude/hooks/*.sh` and `hooks/{shell,pi}/*`
+- `.claude/settings.json` and `.pi/settings.json`
+- `hooks/config.sh`
 - The lockfile
 
 </details>
 
 <details>
-<summary><strong>Central config</strong> — <code>.claude/hooks/config.sh</code></summary>
+<summary><strong>Central config</strong> — <code>.claude/hooks/config.sh</code> (Claude/Conductor) or <code>.pi/hooks/config.sh</code> (Pi)</summary>
 
-Every hook sources this file. Edit once, everything updates.
+Every hook sources this file. Edit once, everything updates. The TypeScript Pi extensions parse the same file via a strict static parser (no `${VAR}` expansion, no command substitution — keep lines as plain `KEY="value"`).
 
 ```bash
-HARNESS_HOST="conductor"              # or "claude-code"
+HARNESS_HOST="conductor"              # or "claude-code" or "pi"
 HARNESS_PKG_MGR="pnpm"
 HARNESS_SRC_DIRS="src|lib|apps"
 HARNESS_TEST_CMD="pnpm test"
