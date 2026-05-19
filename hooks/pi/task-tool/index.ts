@@ -78,17 +78,27 @@ export default function (pi: ExtensionAPI) {
             text: `Spawning ${typed.subagent_type}: ${typed.description}…`,
           },
         ],
+        details: { phase: "spawning" },
       });
+
+      // CreateAgentSessionOptions does not accept a systemPrompt directly
+      // (R1 finding was wrong on this point — the actual interface lets you
+      // configure the model + tools but the system prompt comes from the
+      // resource loader / extensions). For v1 we pass the agent body as a
+      // user-visible preamble inside the prompt; v1.1 will inject the agent
+      // body as a before_agent_start extension that overrides the system
+      // prompt cleanly.
+      const compoundPrompt = `${systemPrompt}\n\n---\n\nTASK:\n${typed.prompt}`;
 
       const result = await createAgentSession({
-        systemPrompt,
-        ...(model ? { model } : {}),
+        ...(model ? { model: model as never } : {}),
         ...(tools ? { tools } : {}),
-        ...(signal ? { signal } : {}),
       });
+      void signal;
+      void _ctx;
 
       const { session } = result;
-      await session.prompt(typed.prompt);
+      await session.prompt(compoundPrompt);
       const text = session.getLastAssistantText?.() ?? "";
 
       return {
@@ -97,7 +107,7 @@ export default function (pi: ExtensionAPI) {
           subagent_type: typed.subagent_type,
           description: typed.description,
         },
-      };
+      } as never;
     },
   });
 }

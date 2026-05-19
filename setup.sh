@@ -67,14 +67,13 @@ esac
 case "$HARNESS_HOST" in
   pi)
     INSTALL_ROOT="$REPO_ROOT/.pi"
-    CONFIG="$INSTALL_ROOT/hooks/config.sh"
-    mkdir -p "$INSTALL_ROOT/hooks"
     ;;
   *)
     INSTALL_ROOT="$REPO_ROOT/.claude"
-    CONFIG="$INSTALL_ROOT/hooks/config.sh"
     ;;
 esac
+CONFIG="$INSTALL_ROOT/hooks/config.sh"
+mkdir -p "$INSTALL_ROOT/hooks"
 
 echo "Selected host: $HARNESS_HOST (install root: $INSTALL_ROOT)"
 echo ""
