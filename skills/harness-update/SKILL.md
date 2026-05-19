@@ -16,6 +16,21 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 Pulls the latest agent-harness from upstream (`main`) into this project. Preserves project-specific configuration (`.claude/hooks/config.sh`, `.claude/settings.json`), all local-only skills/agents/commands, and asks the user before overwriting anything they've edited.
 
+## Host detection
+
+This skill currently handles `HARNESS_HOST=conductor` and `HARNESS_HOST=claude-code` installs (the `.claude/` tree). For Pi installs:
+
+1. Detect the host first by reading the project's config:
+   ```bash
+   HARNESS_HOST=$(grep -E '^HARNESS_HOST=' "$(git rev-parse --show-toplevel)"/{.pi,.claude}/hooks/config.sh 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"')
+   ```
+
+2. **If `HARNESS_HOST=pi`:** the script in `bin/harness-update` does not currently understand `.pi/` paths. Tell the user:
+   > "Pi installs upgrade by re-running `setup.sh` from a fresh harness checkout. Your `hooks/config.sh` answers are preserved as defaults during the wizard, and the .pi/ tree is re-populated from the latest source. Want me to walk you through that instead?"
+   Then exit. (Full Pi-aware `/harness-update` is tracked as v2.)
+
+3. **If `HARNESS_HOST=conductor` or `claude-code`:** continue with the script-driven steps below.
+
 ## What this skill does NOT do
 
 - It does not run `git push`, `git commit`, or any other VCS operation. The user reviews the diff and commits when they're ready.
