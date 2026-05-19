@@ -17,7 +17,9 @@
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-CONFIG="$REPO_ROOT/.claude/hooks/config.sh"
+# CONFIG is assigned below once we know the host (Pi uses .pi/hooks/, the
+# Claude/Conductor hosts use .claude/hooks/).
+CONFIG=""
 
 echo ""
 echo "========================================"
@@ -50,16 +52,31 @@ fi
 echo "Workspace host:"
 echo "  [1] Conductor"
 echo "  [2] Claude Code only"
+echo "  [3] Pi"
 read -p "Choice [${HOST_DEFAULT} = ${HOST_DEFAULT_LABEL}]: " HOST_CHOICE
 HOST_CHOICE="${HOST_CHOICE:-$HOST_DEFAULT}"
 
 case "$HOST_CHOICE" in
   1) HARNESS_HOST="conductor" ;;
   2) HARNESS_HOST="claude-code" ;;
-  *) echo "error: invalid choice '$HOST_CHOICE' — expected 1 or 2" >&2; exit 1 ;;
+  3) HARNESS_HOST="pi" ;;
+  *) echo "error: invalid choice '$HOST_CHOICE' — expected 1, 2, or 3" >&2; exit 1 ;;
 esac
 
-echo "Selected host: $HARNESS_HOST"
+# Pick install root + config location based on host.
+case "$HARNESS_HOST" in
+  pi)
+    INSTALL_ROOT="$REPO_ROOT/.pi"
+    CONFIG="$INSTALL_ROOT/hooks/config.sh"
+    mkdir -p "$INSTALL_ROOT/hooks"
+    ;;
+  *)
+    INSTALL_ROOT="$REPO_ROOT/.claude"
+    CONFIG="$INSTALL_ROOT/hooks/config.sh"
+    ;;
+esac
+
+echo "Selected host: $HARNESS_HOST (install root: $INSTALL_ROOT)"
 echo ""
 
 read -p "App / project name [My Project]: " APP_NAME
@@ -217,11 +234,56 @@ if [ "$HARNESS_HOST" = "conductor" ]; then
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Make hooks executable
+# Install target tree (skills + prompts + agents + hooks/extensions)
 # ──────────────────────────────────────────────────────────────────────────────
 
-chmod +x "$REPO_ROOT/.claude/hooks/"*.sh
-echo "Made hooks executable"
+if [ "$HARNESS_HOST" = "pi" ]; then
+  install_pi_target() {
+    echo "Installing Pi target into $INSTALL_ROOT/..."
+    mkdir -p "$INSTALL_ROOT/skills" "$INSTALL_ROOT/prompts" \
+             "$INSTALL_ROOT/agents" "$INSTALL_ROOT/extensions" \
+             "$INSTALL_ROOT/hooks" "$INSTALL_ROOT/handoff" \
+             "$INSTALL_ROOT/logs" "$INSTALL_ROOT/transcripts"
+
+    # Copy canonical content into the .pi/ tree.
+    [ -d "$REPO_ROOT/skills" ]    && cp -R "$REPO_ROOT/skills/." "$INSTALL_ROOT/skills/"
+    [ -d "$REPO_ROOT/prompts" ]   && cp -R "$REPO_ROOT/prompts/." "$INSTALL_ROOT/prompts/"
+    [ -d "$REPO_ROOT/agents" ]    && cp -R "$REPO_ROOT/agents/." "$INSTALL_ROOT/agents/"
+    [ -d "$REPO_ROOT/hooks/pi" ]  && cp -R "$REPO_ROOT/hooks/pi/." "$INSTALL_ROOT/extensions/"
+    # Config was written by the wizard step above directly at $CONFIG
+    # ($INSTALL_ROOT/hooks/config.sh), so no separate copy needed.
+
+    # Generate .pi/settings.json
+    cat > "$INSTALL_ROOT/settings.json" <<JSON
+{
+  "skills": ["./.pi/skills/*/SKILL.md"],
+  "prompts": ["./.pi/prompts/*.md"],
+  "extensions": ["./.pi/extensions/*/index.ts"],
+  "defaultProvider": "anthropic",
+  "defaultModel": "claude-sonnet-4-20250514",
+  "theme": "dark"
+}
+JSON
+    echo "Wrote $INSTALL_ROOT/settings.json"
+
+    # Install npm dependencies for the extensions (best-effort).
+    if [ -f "$INSTALL_ROOT/extensions/package.json" ]; then
+      if command -v pnpm >/dev/null 2>&1; then
+        (cd "$INSTALL_ROOT/extensions" && pnpm install --silent) || true
+      elif command -v npm >/dev/null 2>&1; then
+        (cd "$INSTALL_ROOT/extensions" && npm install --silent) || true
+      else
+        echo "WARNING: neither pnpm nor npm found — install dependencies in $INSTALL_ROOT/extensions/ manually."
+      fi
+    fi
+
+    echo "Pi target installed."
+  }
+  install_pi_target
+else
+  chmod +x "$REPO_ROOT/.claude/hooks/"*.sh 2>/dev/null || true
+  echo "Made hooks executable"
+fi
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Update .gitignore
@@ -240,44 +302,58 @@ add_gitignore() {
 
 echo "" >> "$GITIGNORE"
 echo "# Agent harness — ephemeral files" >> "$GITIGNORE"
-add_gitignore ".claude/logs/"
-add_gitignore ".claude/handoff/"
-add_gitignore ".claude/transcripts/"
-add_gitignore ".claude/worktrees/"
+if [ "$HARNESS_HOST" = "pi" ]; then
+  add_gitignore ".pi/logs/"
+  add_gitignore ".pi/handoff/"
+  add_gitignore ".pi/transcripts/"
+  add_gitignore ".pi/extensions/node_modules/"
+else
+  add_gitignore ".claude/logs/"
+  add_gitignore ".claude/handoff/"
+  add_gitignore ".claude/transcripts/"
+  add_gitignore ".claude/worktrees/"
+fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Verify settings.json exists
+# Verify settings.json exists (Claude/Conductor only — Pi generates its own)
 # ──────────────────────────────────────────────────────────────────────────────
 
-if [ ! -f "$REPO_ROOT/.claude/settings.json" ]; then
+if [ "$HARNESS_HOST" != "pi" ] && [ ! -f "$REPO_ROOT/.claude/settings.json" ]; then
   echo "WARNING: .claude/settings.json not found. Copy it from the agent-harness repo."
 fi
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CLAUDE.md: offer the starter template if none exists; otherwise point at it
-# for manual merge. We never overwrite an existing CLAUDE.md.
+# Instructions file: CLAUDE.md for Claude/Conductor hosts, AGENTS.md for Pi.
+# Pi natively reads AGENTS.md; Claude Code reads CLAUDE.md. We never overwrite
+# an existing instructions file.
 # ──────────────────────────────────────────────────────────────────────────────
 
-CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+if [ "$HARNESS_HOST" = "pi" ]; then
+  TARGET_FILE="$REPO_ROOT/AGENTS.md"
+  TARGET_LABEL="AGENTS.md"
+else
+  TARGET_FILE="$REPO_ROOT/CLAUDE.md"
+  TARGET_LABEL="CLAUDE.md"
+fi
 TEMPLATE="$REPO_ROOT/.claude/docs/claude-md-template.md"
 
 if [ -f "$TEMPLATE" ]; then
-  if [ -f "$CLAUDE_MD" ]; then
+  if [ -f "$TARGET_FILE" ]; then
     echo ""
-    echo "CLAUDE.md already exists at the repo root — keeping it as-is."
+    echo "$TARGET_LABEL already exists at the repo root — keeping it as-is."
     echo "Starter template (with the 12 behavior rules) is at:"
     echo "  .claude/docs/claude-md-template.md"
     echo "Review it and merge sections marked [REQUIRED] or [RECOMMENDED] as needed."
   else
-    read -p "No CLAUDE.md found. Copy the harness starter template? [Y/n]: " COPY_CHOICE
+    read -p "No $TARGET_LABEL found. Copy the harness starter template? [Y/n]: " COPY_CHOICE
     COPY_CHOICE="${COPY_CHOICE:-Y}"
     case "$COPY_CHOICE" in
       [Yy]*)
-        cp "$TEMPLATE" "$CLAUDE_MD"
-        echo "Wrote $CLAUDE_MD. Fill in the {{...}} placeholders for your project."
+        cp "$TEMPLATE" "$TARGET_FILE"
+        echo "Wrote $TARGET_FILE. Fill in the {{...}} placeholders for your project."
         ;;
       *)
-        echo "Skipped CLAUDE.md. Template available at .claude/docs/claude-md-template.md when you're ready."
+        echo "Skipped $TARGET_LABEL. Template available at .claude/docs/claude-md-template.md when you're ready."
         ;;
     esac
   fi
