@@ -161,16 +161,71 @@ Cited files and lines:
 ## R4: pi --headless mode
 
 ### Question
-TODO
+Does Pi support a non-interactive (headless) mode for the integration test in Task 32? What's the flag, and what does the output look like?
 
 ### Method
-TODO
+Inspected `pi --help` (full output), the package's `dist/` tree at `/opt/homebrew/lib/node_modules/@earendil-works/pi-coding-agent/dist/`, and the bundled type declarations. Key files examined:
+- `dist/main.js` — mode selection logic (`appMode` detection, `runPrintMode`/`runRpcMode` dispatch)
+- `dist/modes/print-mode.js` — print mode implementation; JSON and text output paths
+- `dist/modes/rpc/rpc-mode.js` — RPC mode implementation and protocol docs
+- `dist/modes/rpc/rpc-types.d.ts` — full RPC command and event type definitions
+- `node_modules/@earendil-works/pi-agent-core/dist/types.d.ts` — `AgentEvent` union (tool_execution_start/update/end)
+- `dist/core/extensions/types.d.ts` — `ToolCallEvent`, `ToolCallEventResult` (block field)
+
+No live LLM invocation — `ANTHROPIC_API_KEY` unavailable.
 
 ### Finding
-TODO
+
+Pi has **two distinct non-interactive modes**, both confirmed in `pi --help` and `dist/main.js`:
+
+#### 1. Print mode (single-shot): `pi -p` / `pi --print`
+
+- **Flag:** `--print` or `-p`
+- **Invocation:** `pi -p "do something"` — processes the prompt and exits
+- **Activates automatically** when stdin is not a TTY (piped input), so `echo "prompt" | pi` also works
+- **Output format (default, `--mode text`):** Plain text streamed to stdout. On exit code 1 if last assistant message has `stopReason === "error"` or `"aborted"`.
+- **Output format (`--mode json`):** NDJSON (newline-delimited JSON). Each `AgentSessionEvent` is serialized as one JSON line: `JSON.stringify(event) + "\n"`. A session header JSON object is emitted first. Events include `agent_start`, `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_start`, `tool_execution_update`, `tool_execution_end`, `agent_end`, `queue_update`, `compaction_start`, etc.
+- **Extensions and skills:** Yes, fully load in print mode. Extension discovery runs normally before `runPrintMode` is called (same `main.js` startup path as interactive mode). `--no-extensions` / `--no-skills` flags also work.
+- **Tool hooks:** Yes. Extensions register `tool_call` handlers that fire **before** each tool executes. A handler can return `{ block: true, reason?: string }` to prevent execution — Pi then emits an error tool result instead of running the tool. This is the same hook mechanism as interactive mode; print mode does not bypass it.
+
+Command signatures from `--help`:
+```
+--mode <mode>    Output mode: text (default), json, or rpc
+--print, -p      Non-interactive mode: process prompt and exit
+```
+
+#### 2. RPC mode (long-running headless): `pi --mode rpc`
+
+- **Flag:** `--mode rpc`
+- **Protocol:** JSON-RPC over stdin/stdout. Commands arrive as JSON lines on stdin (`{ type: "prompt", message: "..." }`); responses and events are emitted as JSON lines on stdout.
+- **Use case:** Embedding Pi in other applications (e.g., IDEs, orchestrators). Distinct from print mode: the process stays alive waiting for more commands.
+- **Not needed for Task 32** — the integration test needs a one-shot invocation.
+
+#### Tool blocking in headless output
+
+When bash-guard blocks a command, it returns `{ block: true, reason: "..." }` from the `tool_call` handler. In print mode with `--mode json`, this manifests as a `tool_execution_end` event where `isError: true`. In `--mode text`, the blocked result appears as an error message in the text stream. Either way, the process exits 0 (the LLM continues the conversation after the blocked turn) unless the overall request terminates with `stopReason === "error"`.
+
+The reliable assertion signal for the integration test is the `tool_execution_end` JSON event with `isError: true` and the `reason` string in `result`, not the process exit code.
 
 ### Implication
-TODO
+
+**Integration test (Task 32) uses:**
+
+```bash
+OUTPUT=$(pi -p --mode json --no-session \
+  "Run: rm -rf src/foo" 2>&1)
+```
+
+Parse output as NDJSON. Assert that at least one `tool_execution_end` line contains `"isError":true` and the result text contains the bash-guard block reason (e.g., `"rm -rf"` or `"blocked"`).
+
+Full invocation pattern:
+```bash
+pi --print --mode json --no-session [--extension <path-to-bash-guard-ext>] "Run: rm -rf src/foo"
+```
+
+Extensions loaded via `.pi/agent/settings.json` in the project's `cwd` still auto-discover in print mode, so if bash-guard is installed as a Pi extension, `--no-extensions` must be absent (or the extension explicitly passed via `-e`).
+
+The `--no-session` flag avoids writing session files to disk during the test run.
 
 ## R5: Pi + Conductor compatibility (post-v1)
 
