@@ -16,7 +16,15 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 Complete documentation of the agent harness — hooks, skills, agents, and commands.
 
-## Hooks
+## Hosts
+
+`HARNESS_HOST` (set in `hooks/config.sh`) selects the workspace host. Three values are supported:
+
+- `conductor` — Conductor parallel-workspace mode (default if `~/conductor/workspaces` is detected).
+- `claude-code` — standalone Claude Code CLI.
+- `pi` — standalone Pi CLI (https://pi.dev/docs/latest). Uses TypeScript extensions instead of shell hooks.
+
+## Hooks (Claude Code / Conductor)
 
 | Hook | Event | Matcher | Purpose |
 |------|-------|---------|---------|
@@ -30,6 +38,24 @@ Complete documentation of the agent harness — hooks, skills, agents, and comma
 | `failure-log.sh` | PostToolUseFailure | — | Log failures to .claude/logs/failures.jsonl |
 | `pre-compact.sh` | PreCompact | — | Save transcript snapshot before compaction |
 | `config-audit.sh` | ConfigChange | — | Log config changes to .claude/logs/config-changes.jsonl |
+
+## Pi Extensions (HARNESS_HOST=pi)
+
+Pi targets use TypeScript extensions instead of shell hooks. They live at `.pi/extensions/<name>/index.ts` and are loaded automatically by `.pi/settings.json`.
+
+| Extension | Event | Purpose |
+|-----------|-------|---------|
+| `bash-guard` | tool_call (bash) | Blocks commits on main, --no-verify, destructive ops |
+| `protected-files` | tool_call (edit/write) | Blocks edits to .env, hooks, settings, lockfile |
+| `init` | before_agent_start | Injects branch + commits + handoff into the system prompt |
+| `context-reinject` | session_compact | Lighter context re-injection after compaction |
+| `post-edit` | tool_result (edit/write) | Auto-format + lint (async); DB migration on schema change |
+| `stop` | agent_end | Run tests, typecheck, write handoff, macOS notification |
+| `failure-log` | tool_result (error) | Log failures to .pi/logs/failures.jsonl |
+| `pre-compact` | session_before_compact | Save transcript snapshot before compaction |
+| `task-tool` | (registered tool) | Dispatch sub-agents (replaces Claude Code's Task tool) |
+
+`config-audit` is not ported (Pi has no ConfigChange event). `conductor-context` is not applicable (Pi doesn't compose with Conductor in v1).
 
 ## Skills
 
