@@ -230,13 +230,13 @@ The `--no-session` flag avoids writing session files to disk during the test run
 ## R5: Pi + Conductor compatibility (post-v1)
 
 ### Question
-TODO
+Can Conductor be configured to launch `pi` instead of `claude` (e.g. via a workspace-command override in `conductor.json`)? If yes, a fourth `HARNESS_HOST=pi-conductor` value becomes viable.
 
 ### Method
-TODO
+Deferred. Not probed in v1. Documented as v2 backlog.
 
 ### Finding
-TODO
+Out of scope for v1. Conductor today launches `claude` via its workspace scripts; whether the scripts can be overridden to run `pi` instead is unverified.
 
 ### Implication
-TODO
+v1 ships Pi as standalone host only (HARNESS_HOST = `pi`). v2 probe: open Conductor's workspace-config schema, check for a CLI-binary override or custom-run-script field, then design `pi-conductor` host that wires Conductor's sibling-rollup hooks against Pi's session events. File as backlog after v1 ships and is dogfooded for some weeks.
