@@ -335,14 +335,14 @@ else
   TARGET_FILE="$REPO_ROOT/CLAUDE.md"
   TARGET_LABEL="CLAUDE.md"
 fi
-TEMPLATE="$REPO_ROOT/.claude/docs/claude-md-template.md"
+TEMPLATE="$REPO_ROOT/AGENTS.md.template"
 
 if [ -f "$TEMPLATE" ]; then
   if [ -f "$TARGET_FILE" ]; then
     echo ""
     echo "$TARGET_LABEL already exists at the repo root — keeping it as-is."
     echo "Starter template (with the 12 behavior rules) is at:"
-    echo "  .claude/docs/claude-md-template.md"
+    echo "  AGENTS.md.template"
     echo "Review it and merge sections marked [REQUIRED] or [RECOMMENDED] as needed."
   else
     read -p "No $TARGET_LABEL found. Copy the harness starter template? [Y/n]: " COPY_CHOICE
@@ -353,7 +353,7 @@ if [ -f "$TEMPLATE" ]; then
         echo "Wrote $TARGET_FILE. Fill in the {{...}} placeholders for your project."
         ;;
       *)
-        echo "Skipped $TARGET_LABEL. Template available at .claude/docs/claude-md-template.md when you're ready."
+        echo "Skipped $TARGET_LABEL. Template available at AGENTS.md.template when you're ready."
         ;;
     esac
   fi

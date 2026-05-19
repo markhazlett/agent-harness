@@ -1,6 +1,6 @@
-# CLAUDE.md (starter template)
+# Project Instructions (starter template)
 
-This is a **template**. Claude Code reads `CLAUDE.md` at the start of every session — it's your standing system prompt for this codebase.
+This is a **template**. Your coding agent reads this file at the start of every session — it's your standing system prompt for this codebase. Save it as `CLAUDE.md` (Claude Code / Conductor) or `AGENTS.md` (Pi). `setup.sh` writes it to the right filename for your host automatically.
 
 Adapted from Karpathy's 4-rule CLAUDE.md ([forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills/blob/main/CLAUDE.md)), Mnimiy's 8-rule extension (`@Mnilax` on X, May 2026), and the agent-harness design philosophy (`.claude/docs/harness-principles.md`).
 

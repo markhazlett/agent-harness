@@ -36,10 +36,9 @@ echo "export default function(pi) {}" > "$TEST_DIR/hooks/pi/example/index.ts"
 echo '{"name": "@agent-harness/pi-extensions", "version": "0.0.0", "private": true}' \
   > "$TEST_DIR/hooks/pi/package.json"
 
-# Stage a minimal .claude/docs template (setup.sh references it for the
-# AGENTS.md/CLAUDE.md template-copy step).
-mkdir -p "$TEST_DIR/.claude/docs"
-echo "# Template" > "$TEST_DIR/.claude/docs/claude-md-template.md"
+# Stage the AGENTS.md template (setup.sh references it for the AGENTS.md
+# / CLAUDE.md template-copy step).
+echo "# Template" > "$TEST_DIR/AGENTS.md.template"
 
 cd "$TEST_DIR" && git init -q && git add . && git commit -q -m init
 
