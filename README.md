@@ -48,17 +48,17 @@ Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/
 
 **Specialized agents for the hard parts.** A read-only `validator` (Opus) that runs tests / lint / format / security checks. An `e2e-tester` (Sonnet) that drives a real Chrome browser. A `migration-validator` (Haiku) for schema changes. Dispatch them with `/orchestrate` or the `Agent` tool.
 
-**A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into `CLAUDE.md` (project) or your memory (user). Run it after a tough session — next time, the agent already knows.
+**A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into your project instructions (`CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi) or your memory (user). Run it after a tough session — next time, the agent already knows.
 
 **LangGraph track (opt-in).** Six `/lg-*` skills for building LangChain v1 / LangGraph v1 / Deep Agents work in TS — design (`/lg-design`), scaffold (`/lg-scaffold`), capability adds (`/lg-add`), evals (`/lg-eval`), audit (`/lg-review`), and a v1-current cheatsheet (`/lg-cheatsheet`). Default off; enable during `./setup.sh`.
 
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
-**Rigid skills with Iron Laws.** Verification skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, `/incident`, `/db-review`, `/e2e-verify`, `/lg-review`, `/debug`) each carry an Iron Law — a single-sentence rule — plus a Rationalization Table of verbatim excuses harvested from real subagent baselines under deadline, authority, and sunk-cost pressure. When the model catches itself thinking *"must be flaky"* or *"the manager said skip it,"* the table names the framing and forces the gate. Plans get a 6-item mechanical Self-Review before handoff (placeholder scan, scope check, ambiguity check, etc.); `/debug` enforces four-phase staged debugging with an attempt counter that escalates to architecture-questioning after 3 failed fixes. All overrideable via `CLAUDE.md` (see "User control" below).
+**Rigid skills with Iron Laws.** Verification skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, `/incident`, `/db-review`, `/e2e-verify`, `/lg-review`, `/debug`) each carry an Iron Law — a single-sentence rule — plus a Rationalization Table of verbatim excuses harvested from real subagent baselines under deadline, authority, and sunk-cost pressure. When the model catches itself thinking *"must be flaky"* or *"the manager said skip it,"* the table names the framing and forces the gate. Plans get a 6-item mechanical Self-Review before handoff (placeholder scan, scope check, ambiguity check, etc.); `/debug` enforces four-phase staged debugging with an attempt counter that escalates to architecture-questioning after 3 failed fixes. All overrideable via your project instructions file — `CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi (see "User control" below).
 
 ### User control
 
-The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's `CLAUDE.md` says to skip a skill in a given context, the harness follows `CLAUDE.md`. The hierarchy is published in your `CLAUDE.md` under "Instruction precedence" — user instructions outrank skills, skills outrank Claude Code defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
+The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's instructions file (`CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi) says to skip a skill in a given context, the harness follows the instructions file. The hierarchy is published there under "Instruction precedence" — user instructions outrank skills, skills outrank agent CLI defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
 
 ---
 
@@ -120,24 +120,27 @@ ln -s ~/.agent-harness/bin bin
 
 ### What `setup.sh` asks for
 
-Workspace host (Conductor or Claude Code), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/config.sh` where every hook reads from it. Re-run any time to reconfigure.
+Workspace host (Conductor, Claude Code, or Pi), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/config.sh` (Claude / Conductor) or `.pi/hooks/config.sh` (Pi) where every hook reads from it. Re-run any time to reconfigure.
 
 </details>
 
 <details>
-<summary><strong>All hooks</strong> — wired automatically via <code>.claude/settings.json</code></summary>
+<summary><strong>All hooks</strong> — wired automatically via <code>.claude/settings.json</code> (Claude / Conductor) or <code>.pi/settings.json</code> (Pi)</summary>
+
+The same hook semantics ship for all three hosts. On Claude Code / Conductor they're shell scripts under `.claude/hooks/`; on Pi they're TypeScript extensions under `.pi/extensions/`. Both implementations are test-mirrored so behavior is identical.
 
 | Hook | Trigger | What it does |
 |------|---------|--------------|
-| `init.sh` | Session start | Injects branch, recent commits, uncommitted changes, handoff notes |
-| `context-reinject.sh` | Resume / compact | Lighter context re-injection after compaction |
-| `bash-guard.sh` | Before any Bash | Blocks commits on main, `--no-verify`, `sed -i` on source, `rm -rf` on source |
-| `protected-files.sh` | Before Edit / Write | Blocks edits to `.env`, hook scripts, `settings.json`, lockfile |
-| `post-edit.sh` | After Edit / Write (async) | Runs Prettier + ESLint; triggers DB migration if schema changed |
-| `stop.sh` | Session end | Runs tests + typecheck if source changed; writes handoff notes |
-| `failure-log.sh` | Tool failure (async) | Appends to `.claude/logs/failures.jsonl` |
-| `pre-compact.sh` | Before compaction (async) | Saves transcript snapshot to `.claude/transcripts/` |
-| `config-audit.sh` | Config change (async) | Appends to `.claude/logs/config-changes.jsonl` |
+| `init` | Session start | Injects branch, recent commits, uncommitted changes, handoff notes |
+| `context-reinject` | Resume / compact | Lighter context re-injection after compaction |
+| `bash-guard` | Before any Bash | Blocks commits on main, `--no-verify`, `sed -i` on source, `rm -rf` on source |
+| `protected-files` | Before Edit / Write | Blocks edits to `.env`, hook scripts, `settings.json`, lockfile |
+| `post-edit` | After Edit / Write (async) | Runs Prettier + ESLint; triggers DB migration if schema changed |
+| `stop` | Session end | Runs tests + typecheck if source changed; writes handoff notes |
+| `failure-log` | Tool failure (async) | Appends to `.claude/logs/failures.jsonl` (Claude / Conductor) or `.pi/logs/failures.jsonl` (Pi) |
+| `pre-compact` | Before compaction (async) | Saves transcript snapshot to `.claude/transcripts/` (Claude / Conductor) or `.pi/transcripts/` (Pi) |
+| `config-audit` | Config change (async) | Claude / Conductor only — Pi has no `ConfigChange` event |
+| `task-tool` | Registered tool | Pi only — provides sub-agent dispatch (replaces Claude Code's native `Task` tool) |
 
 </details>
 
@@ -199,7 +202,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 
 | Agent | Model | Access | Purpose |
 |-------|-------|--------|---------|
-| `builder.md` | Sonnet | Edit / Write | Implements code changes following CLAUDE.md conventions |
+| `builder.md` | Sonnet | Edit / Write | Implements code changes following CLAUDE.md / AGENTS.md conventions |
 | `validator.md` | Opus | Read-only | Runs tests, lint, format, security checks |
 | `e2e-tester.md` | Sonnet | Browser | Verifies features in Chrome via Claude-in-Chrome MCP |
 | `migration-validator.md` | Haiku | Read-only | Verifies DB schema changes are complete and consistent |
