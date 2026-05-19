@@ -1059,6 +1059,28 @@ Use this as a starting point. Each item maps to one or more sections above.
 - [ ] Provenance and supply-chain hygiene
 - [ ] Dual-use authorization context required
 - [ ] Component-boundary instrumentation (debugging + audit)
+- [ ] In multi-step orchestrator loops, separate plan-level state (Task Ledger) from step-level progress state (Progress Ledger); gate replanning on a decrementable stall counter rather than a raw failure count (§64)
+
+---
+
+## Part XIII — Field Research: Principles from External Harnesses
+
+Principles in this section come from researching published engineering material outside this harness. Each is cited to a verified primary source.
+
+### 64. Dual-Ledger Orchestration with Decrementable Stall Counter
+
+**One-line claim.** In multi-step orchestrator loops, keep plan-level state and step-level progress state in separate documents, and use a counter that decrements on genuine progress so that replanning triggers only on *sustained* stalling, not transient setbacks.
+
+**Why it works.** Monolithic orchestrator state conflates "what is the current plan" with "are we making progress on this step?" This conflation causes two opposite failures: (a) a burst of consecutive errors triggers panicked replanning that discards good partial work, and (b) slow drift on the wrong approach goes undetected because earlier successful steps wash the failure count. Magentic-One's solution is two data structures and two loops. The *Task Ledger* holds verified facts, derived facts, educated guesses, and the current plan — updated infrequently, only in the outer loop. The *Progress Ledger* is a structured JSON document generated at each inner-loop step with fields: `is_request_satisfied`, `is_progress_being_made`, `is_in_loop` (each with `answer` + `reason`), `next_speaker`, and `instruction_or_question`. The stall counter increments when `is_progress_being_made` is false *or* when `is_in_loop` is true; it *decrements* when genuine progress is made; and it triggers the outer loop only when it crosses a configurable threshold (`max_stalls`). This means two stalls followed by two productive steps net zero — only sustained stalling crosses the threshold. The extra cost is one structured-JSON LLM call per step to evaluate the Progress Ledger; in multi-agent systems this pays for itself by preventing many wasted downstream calls.
+
+**Observed in.**
+- [Magentic-One: A Generalist Multi-Agent System for Solving Complex Tasks (arXiv:2411.04468, November 2024)](https://arxiv.org/abs/2411.04468): Introduces the Task Ledger / Progress Ledger dual-state architecture for multi-agent orchestration; paper describes the inner/outer loop design and the stall-triggered replanning mechanism.
+- [microsoft/autogen, `_magentic_one_orchestrator.py` (2025)](https://github.com/microsoft/autogen/blob/main/python/packages/autogen-agentchat/src/autogen_agentchat/teams/_group_chat/_magentic_one/_magentic_one_orchestrator.py): Implementation confirms the decrementable counter: stall count increments on no progress or loop detection, decrements via `max(0, n_stalls - 1)` on productive steps; outer loop resets agent state and broadcasts the updated Task Ledger.
+- [Magentic-One overview (Microsoft Research, November 2024)](https://www.microsoft.com/en-us/research/articles/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/): Describes the modular plug-and-play architecture and the continuous progress-monitoring approach to error recovery.
+
+**How it could apply here.** The harness's `/orchestrate` skill dispatches subagents from a plan but doesn't track whether multi-step execution is making progress. Adding a lightweight Progress Ledger check after each subagent completes — and a stall counter that gates when to re-invoke the planning step — would make long-running orchestrated runs more resilient without discarding good partial work. The Task Ledger maps naturally onto the harness's existing plan artifacts (§29); the Progress Ledger would be a new per-step self-assessment that touches the `orchestrate` skill and possibly the checklist tooling.
+
+**Confidence.** high
 
 ---
 
@@ -1077,3 +1099,13 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources Mined
+
+Each entry records a harness researched at least once. Re-mining is warranted only when a materially new primary source has appeared since the entry date, or when prior access was blocked and is now available.
+
+- **Magentic-One** (Microsoft Research / AutoGen team, first mined: 2026-05-18): Generalist multi-agent system with Orchestrator + specialized sub-agents. Primary sources: [arXiv:2411.04468 (November 2024)](https://arxiv.org/abs/2411.04468), [Microsoft Research article](https://www.microsoft.com/en-us/research/articles/magentic-one-a-generalist-multi-agent-system-for-solving-complex-tasks/), and [source implementation](https://github.com/microsoft/autogen/blob/main/python/packages/autogen-agentchat/src/autogen_agentchat/teams/_group_chat/_magentic_one/_magentic_one_orchestrator.py). Contributed §64 (Dual-Ledger Orchestration).
+- **12-Factor Agents** (Dex Horthy / HumanLayer, first mined: 2026-05-18): Twelve engineering principles for production LLM applications. Primary source: [github.com/humanlayer/12-factor-agents](https://github.com/humanlayer/12-factor-agents). Factors 5–9 are proposed in concurrent harness-principles branches dated 2026-05-15 and 2026-05-17; Factors 1–4, 10–12 not yet mined — candidates for a future run.
+- **Anthropic "Building Effective Agents"** (first mined: 2026-05-18): Primary source at https://www.anthropic.com/research/building-effective-agents returned HTTP 403 on multiple fetch attempts. No principle added; retry when access is restored.
