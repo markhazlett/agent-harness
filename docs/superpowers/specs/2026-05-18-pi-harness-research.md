@@ -91,16 +91,72 @@ Task 24 supports parallel task calls in v1 as designed in spec §5. Two `createA
 ## R3: before_agent_start system-prompt mutability
 
 ### Question
-TODO
+Can a Pi extension's `before_agent_start` handler mutate the system prompt or inject messages? If not, what's the alternative for context injection at session start?
 
 ### Method
-TODO
+Type-only inspection of `@earendil-works/pi-coding-agent` v0.75.3. Examined:
+- `dist/core/extensions/types.d.ts` — event interface definitions, result types, and `ExtensionAPI.on()` overloads
+- `dist/core/extensions/runner.js` lines 700–754 — `emitBeforeAgentStart()` implementation showing how handler return values are processed
+- `dist/core/agent-session.js` lines 783–810 — how the combined result is applied to `this.agent.state.systemPrompt`
 
 ### Finding
-TODO
 
-### Implication
-TODO
+**Handler receives** (`BeforeAgentStartEvent`, `types.d.ts` lines 468–478):
+```typescript
+interface BeforeAgentStartEvent {
+  type: "before_agent_start";
+  prompt: string;              // raw user prompt text (after expansion)
+  images?: ImageContent[];     // attached images, if any
+  systemPrompt: string;        // the fully assembled system prompt string
+  systemPromptOptions: BuildSystemPromptOptions;  // structured options used to build it
+}
+```
+
+**Handler return type** (`BeforeAgentStartEventResult`, `types.d.ts` lines 735–739):
+```typescript
+interface BeforeAgentStartEventResult {
+  message?: Pick<CustomMessage, "customType" | "content" | "display" | "details">;
+  /** Replace the system prompt for this turn. If multiple extensions return this, they are chained. */
+  systemPrompt?: string;
+}
+```
+
+The return type is **not void** — it has two optional fields:
+1. `systemPrompt?: string` — fully replaces the system prompt for the turn. Multiple extensions returning this are chained (each sees the previous extension's modified prompt as `event.systemPrompt`).
+2. `message?` — injects a custom message into the session before the agent turn. Appears in the session history as a `"custom"` role entry.
+
+**Runtime behaviour** (`runner.js` lines 700–754): The runner iterates all `before_agent_start` handlers. If `result.systemPrompt !== undefined`, it sets `currentSystemPrompt = result.systemPrompt` and passes that updated value in `event.systemPrompt` to the next extension. The final `currentSystemPrompt` is returned in `BeforeAgentStartCombinedResult`.
+
+**Application** (`agent-session.js` lines 783–810): After `emitBeforeAgentStart()` returns, if `result?.systemPrompt` is truthy, `this.agent.state.systemPrompt = result.systemPrompt` — the session's live system prompt is replaced for that turn. On the next turn, unless an extension overrides again, it resets to `this._baseSystemPrompt`.
+
+**Key limitation:** `systemPrompt` is a full replacement, not an append. Extensions must read `event.systemPrompt` (the current value) and return it with additions concatenated:
+```typescript
+pi.on("before_agent_start", (event, ctx) => {
+  const injection = buildContextBlock(); // branch, commits, diff, handoff
+  return { systemPrompt: event.systemPrompt + "\n\n" + injection };
+});
+```
+
+**Alternative path for injecting user-visible messages:** Return `{ message: { customType: "harness-context", content: [...], display: "..." } }`. This adds a `custom`-role entry to the session's message list (visible in UI, stored in session file, but not sent to LLM as a `"user"` message). This is suitable for showing handoff state to the user but not for LLM context injection.
+
+Cited files and lines:
+- `types.d.ts` lines 468–478 (`BeforeAgentStartEvent`)
+- `types.d.ts` lines 735–739 (`BeforeAgentStartEventResult`)
+- `types.d.ts` line 796 (`ExtensionAPI.on("before_agent_start", ...)` overload)
+- `runner.js` lines 700–754 (`emitBeforeAgentStart` implementation, chaining logic)
+- `agent-session.js` lines 783–810 (result application to `this.agent.state.systemPrompt`)
+
+### Implication for Tasks 18 (init) and 19 (context-reinject)
+
+**Use `before_agent_start` with `return { systemPrompt: event.systemPrompt + "\n\n" + injection }`.** This is the correct mechanism for both tasks.
+
+- **Task 18 (init):** Register a `before_agent_start` handler in `hooks/pi/init/index.ts`. On first startup (`reason === "startup"` in `session_start`), build the context block (branch, recent commits, uncommitted diff, prior-session handoff note) and return `{ systemPrompt: event.systemPrompt + "\n\n---\n" + contextBlock }`. The system prompt is replaced for that turn only; subsequent turns reset to the base prompt, which is correct behaviour (the injected context is already in the LLM's context window from the first turn).
+
+- **Task 19 (context-reinject):** Register a `session_compact` handler (for compaction) and use `session_start` with `reason === "resume"` to catch session reload. After compaction, Pi re-runs the agent with the compacted context; use `before_agent_start` to re-inject the current branch/diff/handoff block into the system prompt for the first post-compaction turn.
+
+**Do not use `pi.sendUserMessage()` for context injection.** That sends a synthetic user turn and triggers a new agent loop — it would cause spurious turns and double-count context.
+
+**Do not use `return { message: ... }` for LLM context injection.** Custom messages are not sent to the LLM as `user` or `system` content; they are session log entries for UI display only.
 
 ## R4: pi --headless mode
 
