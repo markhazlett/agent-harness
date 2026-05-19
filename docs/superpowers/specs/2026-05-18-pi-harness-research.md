@@ -12,16 +12,53 @@ Plan reference: `docs/superpowers/plans/2026-05-18-pi-harness.md`
 ## R1: createAgentSession API
 
 ### Question
-TODO
+Does `createAgentSession` exist in `@earendil-works/pi-coding-agent`? What's its exact signature?
 
 ### Method
-TODO
+Installed `@earendil-works/pi-coding-agent@0.75.3` into `/tmp/pi-research-r1` via `npm install`. Inspected `dist/index.d.ts` (the package's declared `types` entrypoint) and `dist/core/sdk.d.ts` (where the function is defined). Also installed the package globally so `pi` is on PATH at `/opt/homebrew/bin/pi` (v0.75.3). Wrote a 15-line smoke test at `/tmp/pi-research-r1/smoke-test.mjs`; could not run it because `ANTHROPIC_API_KEY` was not set in the environment.
 
 ### Finding
-TODO
+Confirmed. `createAgentSession` is exported from the package root:
+
+```
+import { createAgentSession } from "@earendil-works/pi-coding-agent";
+```
+
+Defined in `dist/core/sdk.d.ts` line 106:
+
+```typescript
+export declare function createAgentSession(
+  options?: CreateAgentSessionOptions
+): Promise<CreateAgentSessionResult>;
+```
+
+`CreateAgentSessionOptions` (all fields optional):
+- `cwd?: string` — working directory for project discovery (default: `process.cwd()`)
+- `agentDir?: string` — global config dir (default: `~/.pi/agent`)
+- `authStorage?: AuthStorage` — credential storage
+- `modelRegistry?: ModelRegistry` — model/API-key resolution
+- `model?: Model<any>` — model to use (default: from settings or first available)
+- `thinkingLevel?: ThinkingLevel` — `'low' | 'medium' | 'high'`
+- `scopedModels?: Array<{ model; thinkingLevel? }>` — models for cycling
+- `noTools?: "all" | "builtin"` — suppress default or all tools
+- `tools?: string[]` — allowlist of enabled tool names
+- `customTools?: ToolDefinition[]` — additional tools to register
+- `resourceLoader?: ResourceLoader`
+- `sessionManager?: SessionManager` — use `SessionManager.inMemory()` to skip disk I/O
+- `settingsManager?: SettingsManager`
+- `sessionStartEvent?: SessionStartEvent`
+
+`CreateAgentSessionResult`:
+- `session: AgentSession` — the live session object
+- `extensionsResult: LoadExtensionsResult`
+- `modelFallbackMessage?: string`
+
+`AgentSession.prompt(text: string, options?: PromptOptions): Promise<void>` — sends a user turn. Subscribe to events via `session.subscribe(listener)` and watch for `agent_end` event; retrieve response via `session.getLastAssistantText()`.
+
+Smoke test written but not executed (no `ANTHROPIC_API_KEY` in env). Next step to run: set `ANTHROPIC_API_KEY` and run `node /tmp/pi-research-r1/smoke-test.mjs`.
 
 ### Implication
-TODO
+Task 24 implements as designed in spec §5. The import path and signature match the pseudocode in the spec exactly. `SessionManager.inMemory()` (also exported from the package root) can be passed to avoid writing session files to disk during subagent spawns, which is useful for the task-tool extension.
 
 ## R2: Parallel session spawning
 
