@@ -74,6 +74,24 @@ Not using Conductor? Pick Claude Code mode at the setup prompt (the default when
 
 ---
 
+## Pi mode (optional)
+
+If you use [Pi](https://pi.dev/docs/latest) instead of Claude Code, pick option **[3] Pi** at the `setup.sh` host prompt. The installer copies skills, prompts, agents, and TypeScript hook extensions into `.pi/`, generates `.pi/settings.json`, installs npm dependencies inside `.pi/extensions/`, and writes `AGENTS.md` from the template instead of `CLAUDE.md`. Open Pi in the directory and the harness is loaded.
+
+Feature parity with Claude Code mode:
+- All ~30 skills work identically (same Agent Skills spec).
+- All slash-prompts work identically.
+- The 8 hooks (`bash-guard`, `protected-files`, `init`, `context-reinject`, `post-edit`, `stop`, `failure-log`, `pre-compact`) are TypeScript ports of the shell originals; each was test-mirrored against its shell counterpart's rules.
+- Sub-agent dispatch via the custom `task` tool extension.
+
+Not in Pi mode (v1):
+- `config-audit` hook (Pi has no `ConfigChange` event).
+- Conductor integration (Pi doesn't currently compose with Conductor; tracked as v2 backlog in `docs/superpowers/specs/2026-05-18-pi-harness-research.md` §R5).
+
+The mode is stored in `hooks/config.sh` as `HARNESS_HOST=pi`; re-run `./setup.sh` to switch.
+
+---
+
 ## Reference
 
 <details>
