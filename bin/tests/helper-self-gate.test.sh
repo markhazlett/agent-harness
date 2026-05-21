@@ -15,10 +15,10 @@ fail() { echo "FAIL: $1"; echo "  $2"; exit 1; }
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-# ── Fixture: a fake "workspace" with its own .claude/hooks/harness.config.sh ──
+# ── Fixture: a fake "workspace" with its own .claude/hooks/config.sh ──
 # so the helper sources host=claude-code from the expected location.
 mkdir -p "$TMP/ws/.claude/hooks" "$TMP/ws/.context"
-cat > "$TMP/ws/.claude/hooks/harness.config.sh" <<'EOF'
+cat > "$TMP/ws/.claude/hooks/config.sh" <<'EOF'
 HARNESS_HOST="claude-code"
 EOF
 
@@ -46,7 +46,7 @@ pass "status update exits 0 in claude-code mode"
 
 # ── Test: HARNESS_HOST=conductor runs status normally ──
 mkdir -p "$TMP/ws2/.claude/hooks" "$TMP/ws2/.context"
-cat > "$TMP/ws2/.claude/hooks/harness.config.sh" <<'EOF'
+cat > "$TMP/ws2/.claude/hooks/config.sh" <<'EOF'
 HARNESS_HOST="conductor"
 EOF
 (cd "$TMP/ws2" && HARNESS_HOST=conductor "$STATUS_BIN" update phase=planning workspace=ws2 repo=testrepo)
@@ -56,8 +56,8 @@ pass "status runs normally with host=conductor"
 
 # ── Test: unset HARNESS_HOST defaults to conductor behavior (backward compat) ──
 mkdir -p "$TMP/ws3/.claude/hooks" "$TMP/ws3/.context"
-# harness.config.sh without HARNESS_HOST at all
-echo "HARNESS_PKG_MGR=pnpm" > "$TMP/ws3/.claude/hooks/harness.config.sh"
+# config.sh without HARNESS_HOST at all
+echo "HARNESS_PKG_MGR=pnpm" > "$TMP/ws3/.claude/hooks/config.sh"
 (cd "$TMP/ws3" && unset HARNESS_HOST && "$STATUS_BIN" update phase=planning workspace=ws3 repo=testrepo)
 [[ -f "$TMP/ws3/.context/conductor-status.json" ]] \
   || fail "unset HARNESS_HOST defaults to conductor (backward compat)" "no file written"

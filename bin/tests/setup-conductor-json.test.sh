@@ -14,7 +14,7 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 
 cp "$SETUP" "$TEST_DIR/"
 mkdir -p "$TEST_DIR/.claude/hooks"
-echo "placeholder" > "$TEST_DIR/.claude/hooks/harness.config.sh"
+echo "placeholder" > "$TEST_DIR/.claude/hooks/config.sh"
 touch "$TEST_DIR/.env.example"
 cd "$TEST_DIR" && git init -q && git add . && git commit -q -m init
 
@@ -36,10 +36,10 @@ printf '1\nTestApp\npnpm\nsrc\n\n\n\n\n\n\n3000\n\n\n\n\n\n\n\nY\n' | bash "$TES
 [[ -f "$TEST_DIR/conductor.json" ]] || fail "conductor.json created" "file not found"
 pass "conductor.json created"
 
-# Test: harness.config.sh contains HARNESS_HOST="conductor"
-grep -q '^HARNESS_HOST="conductor"$' "$TEST_DIR/.claude/hooks/harness.config.sh" \
-  || fail "HARNESS_HOST=conductor in config" "config: $(cat "$TEST_DIR/.claude/hooks/harness.config.sh")"
-pass "HARNESS_HOST=conductor in harness.config.sh"
+# Test: config.sh contains HARNESS_HOST="conductor"
+grep -q '^HARNESS_HOST="conductor"$' "$TEST_DIR/.claude/hooks/config.sh" \
+  || fail "HARNESS_HOST=conductor in config" "config: $(cat "$TEST_DIR/.claude/hooks/config.sh")"
+pass "HARNESS_HOST=conductor in config.sh"
 
 # ── Test: conductor.json is valid JSON ──
 jq . "$TEST_DIR/conductor.json" >/dev/null 2>&1 || fail "conductor.json is valid JSON" "jq parse failed"

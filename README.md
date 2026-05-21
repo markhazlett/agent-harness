@@ -1,6 +1,6 @@
 # Agent Harness
 
-A production-tested toolkit that turns Claude Code into a reliable teammate: it plans your week, executes sprints, ships code, and refuses to touch `main`, `.env`, or anything else you'd have to revert.
+A production-tested toolkit that turns your terminal coding agent — [Claude Code](https://claude.com/claude-code), [Conductor](https://conductor.build), or [Pi](https://pi.dev) — into a reliable teammate: it plans your week, executes sprints, ships code, and refuses to touch `main`, `.env`, or anything else you'd have to revert.
 
 ---
 
@@ -17,15 +17,15 @@ Five commands cover the whole week. Pick goals Monday, draft a customer demo to 
 
 ## Install
 
-Open Claude Code in the repo you want to set up and paste this:
+Open your agent CLI (Claude Code or Pi) in the repo you want to set up and paste this:
 
 ```
 Install the agent harness from https://github.com/markhazlett/agent-harness into this repo.
 
 Steps:
 1. Clone the harness to a temp dir: `git clone --depth 1 https://github.com/markhazlett/agent-harness /tmp/agent-harness-install`
-2. Copy into the current repo root: `.claude/`, `bin/`, `setup.sh`, `VERSION`
-3. Run `./setup.sh` — ask me each prompt it shows (workspace host, package manager, dev port, DB commands, etc.) and relay my answers
+2. Copy into the current repo root: `skills/`, `prompts/`, `agents/`, `hooks/`, `.claude/`, `bin/`, `setup.sh`, `VERSION`, `AGENTS.md.template`
+3. Run `./setup.sh` — ask me each prompt it shows (workspace host, package manager, dev port, DB commands, etc.) and relay my answers. Pick option `[1] Conductor` if you're inside a Conductor workspace, `[2] Claude Code only` for plain Claude Code, or `[3] Pi` for Pi.
 4. Clean up: `rm -rf /tmp/agent-harness-install`
 5. Run `/harness-health` and report the result
 ```
@@ -34,7 +34,7 @@ The agent clones the latest harness, copies it in, walks you through the setup w
 
 ### Updating
 
-Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/source`, diffs against your install, classifies each file (install / safe-update / unchanged / conflict), and walks you through any conflict before writing anything. Project-specific files (`harness.config.sh`, `settings.json`) and your local-only skills, agents, and commands are never touched. The first run on an existing install treats every divergence as a conflict so you can vouch for each file once; future runs are quiet because the script tracks provenance in `~/.agent-harness/installed-manifest.json`.
+Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/source`, diffs against your install, classifies each file (install / safe-update / unchanged / conflict), and walks you through any conflict before writing anything. Project-specific files (`config.sh`, `settings.json`) and your local-only skills, agents, and commands are never touched. The first run on an existing install treats every divergence as a conflict so you can vouch for each file once; future runs are quiet because the script tracks provenance in `~/.agent-harness/installed-manifest.json`.
 
 ---
 
@@ -48,17 +48,17 @@ Run `/harness-update`. It pulls the latest from upstream into `~/.agent-harness/
 
 **Specialized agents for the hard parts.** A read-only `validator` (Opus) that runs tests / lint / format / security checks. An `e2e-tester` (Sonnet) that drives a real Chrome browser. A `migration-validator` (Haiku) for schema changes. Dispatch them with `/orchestrate` or the `Agent` tool.
 
-**A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into `CLAUDE.md` (project) or your memory (user). Run it after a tough session — next time, the agent already knows.
+**A learning loop that compounds.** `/learn` captures corrections and surprising approvals from the session into your project instructions (`CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi) or your memory (user). Run it after a tough session — next time, the agent already knows.
 
 **LangGraph track (opt-in).** Six `/lg-*` skills for building LangChain v1 / LangGraph v1 / Deep Agents work in TS — design (`/lg-design`), scaffold (`/lg-scaffold`), capability adds (`/lg-add`), evals (`/lg-eval`), audit (`/lg-review`), and a v1-current cheatsheet (`/lg-cheatsheet`). Default off; enable during `./setup.sh`.
 
 **Auto-formatting, auto-typecheck, auto-everything.** Prettier + ESLint run after every edit. DB schema saves trigger your generate/push commands. Failed tool calls log themselves. You stop thinking about the mechanical parts.
 
-**Rigid skills with Iron Laws.** Verification skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, `/incident`, `/db-review`, `/e2e-verify`, `/lg-review`, `/debug`) each carry an Iron Law — a single-sentence rule — plus a Rationalization Table of verbatim excuses harvested from real subagent baselines under deadline, authority, and sunk-cost pressure. When the model catches itself thinking *"must be flaky"* or *"the manager said skip it,"* the table names the framing and forces the gate. Plans get a 6-item mechanical Self-Review before handoff (placeholder scan, scope check, ambiguity check, etc.); `/debug` enforces four-phase staged debugging with an attempt counter that escalates to architecture-questioning after 3 failed fixes. All overrideable via `CLAUDE.md` (see "User control" below).
+**Rigid skills with Iron Laws.** Verification skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, `/incident`, `/db-review`, `/e2e-verify`, `/lg-review`, `/debug`) each carry an Iron Law — a single-sentence rule — plus a Rationalization Table of verbatim excuses harvested from real subagent baselines under deadline, authority, and sunk-cost pressure. When the model catches itself thinking *"must be flaky"* or *"the manager said skip it,"* the table names the framing and forces the gate. Plans get a 6-item mechanical Self-Review before handoff (placeholder scan, scope check, ambiguity check, etc.); `/debug` enforces four-phase staged debugging with an attempt counter that escalates to architecture-questioning after 3 failed fixes. All overrideable via your project instructions file — `CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi (see "User control" below).
 
 ### User control
 
-The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's `CLAUDE.md` says to skip a skill in a given context, the harness follows `CLAUDE.md`. The hierarchy is published in your `CLAUDE.md` under "Instruction precedence" — user instructions outrank skills, skills outrank Claude Code defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
+The harness's rigid skills (`/tdd`, `/pre-deploy`, `/ship`, `/security-review`, etc.) are recommendations, not runtime blocks. If your project's instructions file (`CLAUDE.md` on Claude Code / Conductor, `AGENTS.md` on Pi) says to skip a skill in a given context, the harness follows the instructions file. The hierarchy is published there under "Instruction precedence" — user instructions outrank skills, skills outrank agent CLI defaults. Hooks are the one exception (they catch destructive shell commands), and they too are configurable.
 
 ---
 
@@ -70,7 +70,25 @@ If you use [Conductor](https://conductor.build) to run parallel Claude Code agen
 - **Per-workspace status manifests.** `/build` writes `.context/conductor-status.json` as it progresses; siblings read it for the rollup.
 - **Sprint dispatch.** `/plan-sprint` detects parallel-safe waves and offers to open one Conductor workspace per plan via `conductor://async` deep links.
 
-Not using Conductor? Pick Claude Code mode at the setup prompt (the default when Conductor isn't detected) and the Conductor helpers self-gate to no-ops. Everything else works identically. The mode is stored in `.claude/hooks/harness.config.sh` as `HARNESS_HOST`; re-run `./setup.sh` to switch.
+Not using Conductor? Pick Claude Code mode at the setup prompt (the default when Conductor isn't detected) and the Conductor helpers self-gate to no-ops. Everything else works identically. The mode is stored in `.claude/hooks/config.sh` as `HARNESS_HOST`; re-run `./setup.sh` to switch.
+
+---
+
+## Pi mode (optional)
+
+If you use [Pi](https://pi.dev/docs/latest) instead of Claude Code, pick option **[3] Pi** at the `setup.sh` host prompt. The installer copies skills, prompts, agents, and TypeScript hook extensions into `.pi/`, generates `.pi/settings.json`, installs npm dependencies inside `.pi/extensions/`, and writes `AGENTS.md` from the template instead of `CLAUDE.md`. Open Pi in the directory and the harness is loaded.
+
+Feature parity with Claude Code mode:
+- All ~30 skills work identically (same Agent Skills spec).
+- All slash-prompts work identically.
+- The 8 hooks (`bash-guard`, `protected-files`, `init`, `context-reinject`, `post-edit`, `stop`, `failure-log`, `pre-compact`) are TypeScript ports of the shell originals; each was test-mirrored against its shell counterpart's rules.
+- Sub-agent dispatch via the custom `task` tool extension.
+
+Not in Pi mode (v1):
+- `config-audit` hook (Pi has no `ConfigChange` event).
+- Conductor integration (Pi doesn't currently compose with Conductor; tracked as v2 backlog in `docs/superpowers/specs/2026-05-18-pi-harness-research.md` §R5).
+
+The mode is stored in `hooks/config.sh` as `HARNESS_HOST=pi`; re-run `./setup.sh` to switch.
 
 ---
 
@@ -102,24 +120,27 @@ ln -s ~/.agent-harness/bin bin
 
 ### What `setup.sh` asks for
 
-Workspace host (Conductor or Claude Code), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/harness.config.sh` where every hook reads from it. Re-run any time to reconfigure.
+Workspace host (Conductor, Claude Code, or Pi), package manager, source dirs, test / typecheck / lint / format / build / dev commands, dev port, DB commands (optional), required env vars. Writes the result to `.claude/hooks/config.sh` (Claude / Conductor) or `.pi/hooks/config.sh` (Pi) where every hook reads from it. Re-run any time to reconfigure.
 
 </details>
 
 <details>
-<summary><strong>All hooks</strong> — wired automatically via <code>.claude/settings.json</code></summary>
+<summary><strong>All hooks</strong> — wired automatically via <code>.claude/settings.json</code> (Claude / Conductor) or <code>.pi/settings.json</code> (Pi)</summary>
+
+The same hook semantics ship for all three hosts. On Claude Code / Conductor they're shell scripts under `.claude/hooks/`; on Pi they're TypeScript extensions under `.pi/extensions/`. Both implementations are test-mirrored so behavior is identical.
 
 | Hook | Trigger | What it does |
 |------|---------|--------------|
-| `init.sh` | Session start | Injects branch, recent commits, uncommitted changes, handoff notes |
-| `context-reinject.sh` | Resume / compact | Lighter context re-injection after compaction |
-| `bash-guard.sh` | Before any Bash | Blocks commits on main, `--no-verify`, `sed -i` on source, `rm -rf` on source |
-| `protected-files.sh` | Before Edit / Write | Blocks edits to `.env`, hook scripts, `settings.json`, lockfile |
-| `post-edit.sh` | After Edit / Write (async) | Runs Prettier + ESLint; triggers DB migration if schema changed |
-| `stop.sh` | Session end | Runs tests + typecheck if source changed; writes handoff notes |
-| `failure-log.sh` | Tool failure (async) | Appends to `.claude/logs/failures.jsonl` |
-| `pre-compact.sh` | Before compaction (async) | Saves transcript snapshot to `.claude/transcripts/` |
-| `config-audit.sh` | Config change (async) | Appends to `.claude/logs/config-changes.jsonl` |
+| `init` | Session start | Injects branch, recent commits, uncommitted changes, handoff notes |
+| `context-reinject` | Resume / compact | Lighter context re-injection after compaction |
+| `bash-guard` | Before any Bash | Blocks commits on main, `--no-verify`, `sed -i` on source, `rm -rf` on source |
+| `protected-files` | Before Edit / Write | Blocks edits to `.env`, hook scripts, `settings.json`, lockfile |
+| `post-edit` | After Edit / Write (async) | Runs Prettier + ESLint; triggers DB migration if schema changed |
+| `stop` | Session end | Runs tests + typecheck if source changed; writes handoff notes |
+| `failure-log` | Tool failure (async) | Appends to `.claude/logs/failures.jsonl` (Claude / Conductor) or `.pi/logs/failures.jsonl` (Pi) |
+| `pre-compact` | Before compaction (async) | Saves transcript snapshot to `.claude/transcripts/` (Claude / Conductor) or `.pi/transcripts/` (Pi) |
+| `config-audit` | Config change (async) | Claude / Conductor only — Pi has no `ConfigChange` event |
+| `task-tool` | Registered tool | Pi only — provides sub-agent dispatch (replaces Claude Code's native `Task` tool) |
 
 </details>
 
@@ -181,7 +202,7 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 
 | Agent | Model | Access | Purpose |
 |-------|-------|--------|---------|
-| `builder.md` | Sonnet | Edit / Write | Implements code changes following CLAUDE.md conventions |
+| `builder.md` | Sonnet | Edit / Write | Implements code changes following CLAUDE.md / AGENTS.md conventions |
 | `validator.md` | Opus | Read-only | Runs tests, lint, format, security checks |
 | `e2e-tester.md` | Sonnet | Browser | Verifies features in Chrome via Claude-in-Chrome MCP |
 | `migration-validator.md` | Haiku | Read-only | Verifies DB schema changes are complete and consistent |
@@ -208,19 +229,20 @@ Workspace host (Conductor or Claude Code), package manager, source dirs, test / 
 
 **`protected-files` blocks Edit / Write on:**
 - `.env` files (any variant)
-- Hook scripts themselves (guards the guards)
-- `.claude/settings.json`
+- Hook scripts themselves (guards the guards) — both `.claude/hooks/*.sh` and `hooks/{shell,pi}/*`
+- `.claude/settings.json` and `.pi/settings.json`
+- `hooks/config.sh`
 - The lockfile
 
 </details>
 
 <details>
-<summary><strong>Central config</strong> — <code>.claude/hooks/harness.config.sh</code></summary>
+<summary><strong>Central config</strong> — <code>.claude/hooks/config.sh</code> (Claude/Conductor) or <code>.pi/hooks/config.sh</code> (Pi)</summary>
 
-Every hook sources this file. Edit once, everything updates.
+Every hook sources this file. Edit once, everything updates. The TypeScript Pi extensions parse the same file via a strict static parser (no `${VAR}` expansion, no command substitution — keep lines as plain `KEY="value"`).
 
 ```bash
-HARNESS_HOST="conductor"              # or "claude-code"
+HARNESS_HOST="conductor"              # or "claude-code" or "pi"
 HARNESS_PKG_MGR="pnpm"
 HARNESS_SRC_DIRS="src|lib|apps"
 HARNESS_TEST_CMD="pnpm test"
@@ -245,11 +267,11 @@ HARNESS_DB_MIGRATIONS_DIR="drizzle"
 <details>
 <summary><strong>Extending with your own skills</strong></summary>
 
-Drop a file in `.claude/skills/<name>/SKILL.md`:
+Drop a file in `skills/<name>/SKILL.md`:
 
 ```bash
-mkdir -p .claude/skills/my-skill
-cat > .claude/skills/my-skill/SKILL.md << 'EOF'
+mkdir -p skills/my-skill
+cat > skills/my-skill/SKILL.md << 'EOF'
 # My Skill
 
 Description and when to use it.
@@ -268,7 +290,7 @@ The skill loader discovers it automatically. Project skills complement the base 
 
 ```
 .claude/
-  hooks/              9 shell hooks + harness.config.sh
+  hooks/              9 shell hooks + config.sh
   agents/             4 specialized sub-agents
   commands/           2 slash commands
   skills/             28 reusable skills (9 rigid, 14 flexible, 5 util) + rigid template

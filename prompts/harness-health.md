@@ -1,0 +1,198 @@
+# Harness Health Check
+
+Verify all quality harness components are working correctly.
+
+## Checks to Run
+
+### 1. Hook Scripts
+
+Verify each hook script exists and is executable:
+
+```bash
+for hook in bash-guard.sh protected-files.sh init.sh context-reinject.sh post-edit.sh stop.sh failure-log.sh pre-compact.sh config-audit.sh config.sh; do
+  if [ -x ".claude/hooks/$hook" ]; then
+    echo "PASS $hook"
+  else
+    echo "FAIL $hook (missing or not executable)"
+  fi
+done
+```
+
+### 2. Format Check
+
+Read `.claude/hooks/config.sh` for `HARNESS_FORMAT_CMD` and run the format check.
+
+### 3. Lint
+
+Read `.claude/hooks/config.sh` for `HARNESS_LINT_CMD` and run it.
+
+### 4. Tests
+
+Read `.claude/hooks/config.sh` for `HARNESS_TEST_CMD` and run it.
+
+### 5. Learn Helper
+
+Verify `bin/learn` exists and is executable, then run its test suites:
+
+```bash
+test -x bin/learn && echo "PASS bin/learn" || echo "FAIL bin/learn (missing or not executable)"
+bash bin/tests/learn.test.sh >/dev/null 2>&1 && echo "PASS learn tests" || echo "FAIL learn tests"
+test -x bin/test-learn-anti-list && echo "PASS bin/test-learn-anti-list" || echo "FAIL bin/test-learn-anti-list (missing or not executable)"
+bash bin/test-learn-anti-list >/dev/null 2>&1 && echo "PASS learn anti-list tests" || echo "FAIL learn anti-list tests"
+```
+
+### 5a. Skill-baseline Helper
+
+Verify `bin/skill-baseline` exists and is executable:
+
+```bash
+test -x bin/skill-baseline && echo "PASS bin/skill-baseline" || echo "FAIL bin/skill-baseline (missing or not executable)"
+bin/skill-baseline --help >/dev/null 2>&1 && echo "PASS bin/skill-baseline --help" || echo "FAIL bin/skill-baseline --help"
+```
+
+### 5c. Terminal-State Validator
+
+Verify that the four skills designated by G9 (`lg-scaffold`, `lg-design`, `build-plan`, `tdd`) declare a `## Terminal State` section, and run the regression test.
+
+```bash
+test -x bin/test-terminal-states && echo "PASS bin/test-terminal-states" || echo "FAIL bin/test-terminal-states (missing or not executable)"
+bash bin/test-terminal-states >/dev/null 2>&1 && echo "PASS terminal-state declarations" || echo "FAIL terminal-state declarations (run \`bin/test-terminal-states\` to see which skills are missing the section)"
+bash bin/tests/test-terminal-states.test.sh >/dev/null 2>&1 && echo "PASS terminal-state regression test" || echo "FAIL terminal-state regression test"
+```
+
+A FAIL on `terminal-state declarations` means at least one of the four required skills is missing a `## Terminal State` section.
+
+### 5b. Plan Self-Review Validator
+
+Verify `bin/test-plan-self-review` exists and runs its test suite. If `docs/plans/` exists and contains any `.md` files, also run the validator over each as a placeholder scan (FAIL on any exit-1 result).
+
+```bash
+test -x bin/test-plan-self-review && echo "PASS bin/test-plan-self-review" || echo "FAIL bin/test-plan-self-review (missing or not executable)"
+bash bin/tests/test-plan-self-review.test.sh >/dev/null 2>&1 && echo "PASS plan-self-review tests" || echo "FAIL plan-self-review tests"
+
+if [ -d docs/plans ] && find docs/plans -type f -name '*.md' | head -1 | grep -q .; then
+  fail=0
+  while IFS= read -r f; do
+    if ! bin/test-plan-self-review "$f" >/dev/null 2>&1; then
+      fail=1
+      echo "  placeholder tokens in: $f"
+    fi
+  done < <(find docs/plans -type f -name '*.md' ! -name '*.DONE')
+  [ "$fail" = "0" ] && echo "PASS plan placeholder scan" || echo "FAIL plan placeholder scan (one or more plan files contain TBD/XXX/??? etc.)"
+else
+  echo "SKIP plan placeholder scan (no docs/plans/*.md)"
+fi
+```
+
+### 6. Settings Wiring
+
+Verify `.claude/settings.json` has all hooks wired:
+- `SessionStart` → `init.sh` (startup) and `context-reinject.sh` (resume|compact)
+- `PreToolUse` → `bash-guard.sh` (Bash) and `protected-files.sh` (Edit|Write|MultiEdit)
+- `PostToolUse` → `post-edit.sh` (Edit|Write|MultiEdit)
+- `PostToolUseFailure` → `failure-log.sh`
+- `PreCompact` → `pre-compact.sh`
+- `Stop` → `stop.sh`
+
+### 7. Agent Files
+
+Verify each agent file exists:
+- `agents/builder.md`
+- `agents/validator.md`
+- `agents/e2e-tester.md`
+- `agents/migration-validator.md`
+
+### 8. Config Populated
+
+Read `.claude/hooks/config.sh` and verify key values are set:
+- `HARNESS_PKG_MGR` is set
+- `HARNESS_SRC_DIRS` is set
+- `HARNESS_TEST_CMD` is set
+- `HARNESS_APP_NAME` is not still "My Project" (suggests setup.sh was run)
+
+### 9. Skill Frontmatter
+
+Verify every `skills/*/SKILL.md` has valid frontmatter per `skills/CONVENTIONS.md` (`name` matches folder, `description` is a `Use when` trigger, `user-invocable`, `tier`, and `kind` where applicable):
+
+```bash
+test -x bin/test-frontmatter && echo "PASS bin/test-frontmatter" || echo "FAIL bin/test-frontmatter (missing or not executable)"
+bash bin/test-frontmatter >/dev/null 2>&1 && echo "PASS skill frontmatter" || echo "FAIL skill frontmatter (run \`bin/test-frontmatter\` to see which skills are non-conformant)"
+```
+
+A FAIL here means at least one skill is missing required fields, has an out-of-vocab `tier`/`kind`, or has a `description` that does not start with `Use when`. Run `bin/test-frontmatter` directly to see the per-skill diagnosis.
+
+### 10. Skill Evals
+
+Verify every rigid skill's `eval.yaml` parses, declares `schema_version: 1`, and has at least one trajectory/invocation eval (or that legacy rigid skills missing `eval.yaml` are surfaced as WARN, not FAIL — back-fill is tracked separately). See `.claude/docs/skill-eval-spec.md`:
+
+```bash
+test -x bin/skill-eval && echo "PASS bin/skill-eval" || echo "FAIL bin/skill-eval (missing or not executable)"
+bash bin/skill-eval --validate >/dev/null 2>&1 && echo "PASS skill evals (default — WARN on legacy)" || echo "FAIL skill evals (run \`bin/skill-eval --validate\` to see per-skill diagnosis)"
+```
+
+A FAIL here means at least one `eval.yaml` is missing required fields, has invalid `schema_version`, or a rigid skill's `eval.yaml` declares zero trajectory/invocation evals. WARN counts are visible in the per-skill output. The `--validate-strict` form fails on legacy rigid skills without `eval.yaml`; use that flag in CI after the back-fill workstream completes.
+
+**Manual follow-up (not auto-invoked):** for full-fidelity execution of trajectory evals (Phase 2), run `/skill-eval --report` inside Claude Code. The Phase 2 path dispatches a fresh subagent per scenario; `/harness-health` does NOT auto-invoke it because each subagent dispatch consumes context. The aggregate report tells you which skills' actual behavior under pressure has drifted from their declared trajectory.
+
+## Output Format
+
+```
+## Harness Health — [date]
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| bash-guard.sh | PASS/FAIL | |
+| protected-files.sh | PASS/FAIL | |
+| init.sh | PASS/FAIL | |
+| ... | | |
+| Format | PASS/FAIL | |
+| Lint | PASS/FAIL | |
+| Tests | PASS/FAIL | |
+| Settings wiring | PASS/FAIL | |
+| Config populated | PASS/WARN | |
+| Skill frontmatter | PASS/FAIL | |
+| Skill evals | PASS/FAIL | |
+
+### Verdict: HEALTHY / NEEDS ATTENTION
+```
+
+## Conductor integration checks
+
+First, read `HARNESS_HOST` from `.claude/hooks/config.sh`:
+
+```bash
+HARNESS_HOST=$(grep -E '^HARNESS_HOST=' .claude/hooks/config.sh 2>/dev/null | head -1 | sed -E 's/^HARNESS_HOST="?([^"]*)"?$/\1/')
+HARNESS_HOST="${HARNESS_HOST:-conductor}"   # unset = conductor (backward compat)
+```
+
+If `HARNESS_HOST="claude-code"`, print one line per probe:
+
+```
+SKIP: conductor-status (host = claude-code)
+SKIP: conductor-dispatch (host = claude-code)
+SKIP: conductor-context hook (host = claude-code)
+SKIP: conductor-context hook wired in settings.json (host = claude-code)
+SKIP: conductor.json (host = claude-code)
+SKIP: conductor-status tests (host = claude-code)
+SKIP: conductor-dispatch tests (host = claude-code)
+SKIP: conductor-context tests (host = claude-code)
+```
+
+No probes run. `SKIP` is not a failure — this is expected health for a Claude Code install.
+
+If `HARNESS_HOST="conductor"` (or unset, for backward-compat installs), run:
+
+```bash
+test -x bin/conductor-status && echo "OK: conductor-status executable" || echo "FAIL: bin/conductor-status missing or not executable"
+test -x bin/conductor-dispatch && echo "OK: conductor-dispatch executable" || echo "FAIL: bin/conductor-dispatch missing or not executable"
+test -x .claude/hooks/conductor-context.sh && echo "OK: conductor-context hook executable" || echo "FAIL: conductor-context hook missing or not executable"
+jq -e '.hooks.SessionStart[] | select(.matcher=="startup") | .hooks[] | select(.command=="'.claude/hooks/conductor-context.sh'")' .claude/settings.json >/dev/null && echo "OK: conductor-context hook wired in settings.json" || echo "FAIL: conductor-context hook not wired"
+test -f conductor.json && echo "OK: conductor.json exists" || echo "WARN: conductor.json not present (run setup.sh to generate)"
+bash bin/tests/conductor-status.test.sh >/dev/null 2>&1 && echo "OK: conductor-status tests pass" || echo "FAIL: conductor-status tests failing"
+bash bin/tests/conductor-dispatch.test.sh >/dev/null 2>&1 && echo "OK: conductor-dispatch tests pass" || echo "FAIL: conductor-dispatch tests failing"
+bash bin/tests/conductor-context.test.sh >/dev/null 2>&1 && echo "OK: conductor-context tests pass" || echo "FAIL: conductor-context tests failing"
+```
+
+**Conductor mode expected output:** all four `OK:` lines for the helpers + hook wiring. `WARN: conductor.json not present` is acceptable in the harness repo itself (we don't ship one). `FAIL` for any test invocation typically indicates a regression, but on a fresh clone where `bin/conductor-*` helpers are missing, probes 6–8 will also FAIL — the first three `FAIL:` lines from the existence checks are the authoritative signal in that case.
+
+**Claude Code mode expected output:** eight `SKIP:` lines. No `FAIL:`, no `WARN:`.
