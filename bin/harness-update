@@ -15,18 +15,16 @@
 #        ~/.agent-harness/just-upgraded-from (consumed by harness-update-check).
 #
 # Files this script manages (managed = read from upstream and copied to local):
-#   .claude/skills/<skill>/...
-#   .claude/agents/*.md
-#   .claude/commands/*.md
-#   .claude/hooks/*.sh    (except harness.config.sh — always preserved)
-#   .claude/CONVENTIONS.md
-#   .claude/skills/CONVENTIONS.md
+#   skills/<skill>/...    (canonical; .claude/skills is a symlink → here)
+#   agents/*.md           (canonical; .claude/agents is a symlink → here)
+#   prompts/*.md          (canonical; .claude/commands is a symlink → here)
+#   .claude/hooks/*.sh    (except config.sh — always preserved)
 #   bin/*                 (harness binaries; excludes this very script's caller)
 #   VERSION
 #   setup.sh
 #
 # Files this script NEVER touches:
-#   .claude/hooks/harness.config.sh   (project config)
+#   .claude/hooks/config.sh           (project config written by setup.sh)
 #   .claude/settings.json             (project hook wiring)
 #   anything outside the managed prefixes above
 #   any local-only file inside the managed prefixes (e.g. a custom skill dir
@@ -39,11 +37,15 @@ set -uo pipefail
 
 UPSTREAM_REPO="https://github.com/markhazlett/agent-harness.git"
 UPSTREAM_BRANCH="main"
-STATE_DIR="${HOME}/.agent-harness"
-SOURCE_DIR="${STATE_DIR}/source"
+STATE_DIR="${HARNESS_STATE_DIR:-${HOME}/.agent-harness}"
+SOURCE_DIR="${HARNESS_SOURCE_DIR:-${STATE_DIR}/source}"
 MANIFEST_FILE="${STATE_DIR}/installed-manifest.json"
 JUST_UPGRADED_FILE="${STATE_DIR}/just-upgraded-from"
 CACHE_FILE="${STATE_DIR}/last-update-check"
+
+# When HARNESS_SOURCE_DIR is set (tests), trust the caller-provided source tree
+# and skip the network fetch — the dir must already be a valid harness checkout.
+HARNESS_SKIP_SYNC="${HARNESS_SOURCE_DIR:+1}"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,12 +66,15 @@ sha256() {
 
 is_managed() {
   # Return 0 if the upstream-relative path is one we install into a project.
+  # Upstream's .claude/skills, .claude/agents, .claude/commands are git symlinks
+  # to the canonical top-level skills/, agents/, prompts/ trees, so we manage
+  # those top-level paths directly — git ls-files won't descend into the
+  # symlinks themselves.
   case "$1" in
-    .claude/skills/*|\
-    .claude/agents/*|\
-    .claude/commands/*|\
+    skills/*|\
+    agents/*|\
+    prompts/*|\
     .claude/hooks/*|\
-    .claude/CONVENTIONS.md|\
     bin/*|\
     VERSION|\
     setup.sh) return 0 ;;
@@ -79,8 +84,10 @@ is_managed() {
 
 is_preserved() {
   # Return 0 if the path must NEVER be overwritten, even if upstream ships it.
+  # config.sh holds the user's setup.sh answers (test command, app name, etc.);
+  # the upstream-shipped copy is a placeholder we must not propagate.
   case "$1" in
-    .claude/hooks/harness.config.sh) return 0 ;;
+    .claude/hooks/config.sh) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -104,6 +111,10 @@ mkdir -p "$STATE_DIR"
 # ── Upstream sync ───────────────────────────────────────────────────────────
 
 sync_upstream() {
+  if [ -n "$HARNESS_SKIP_SYNC" ]; then
+    [ -d "$SOURCE_DIR" ] || die "HARNESS_SOURCE_DIR=${SOURCE_DIR} does not exist"
+    return 0
+  fi
   if [ -d "${SOURCE_DIR}/.git" ]; then
     git -C "$SOURCE_DIR" fetch --quiet origin "$UPSTREAM_BRANCH" \
       || die "failed to fetch upstream from ${UPSTREAM_REPO}"
@@ -216,9 +227,9 @@ build_plan() {
   local local_only_arr='[]'
   local upstream_set="$(printf '%s\n' "$upstream_files" | sort)"
   local managed_dirs=(
-    "${REPO_ROOT}/.claude/skills"
-    "${REPO_ROOT}/.claude/agents"
-    "${REPO_ROOT}/.claude/commands"
+    "${REPO_ROOT}/skills"
+    "${REPO_ROOT}/agents"
+    "${REPO_ROOT}/prompts"
     "${REPO_ROOT}/.claude/hooks"
     "${REPO_ROOT}/bin"
   )
