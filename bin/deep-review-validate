@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # bin/deep-review-validate — verify a /deep-review report has every required
-# section: all 15 dimensions, each N/A justified, each HIGH/CRITICAL with
-# file:line and evidence quote.
+# section: all 15 dimensions, each N/A justified, each BLOCKING/HIGH finding
+# accompanied by an '**Evidence:**' block within 20 lines of its header.
 
+# -e omitted on purpose: validator collects all failures via fail=1, exits 1 at end.
 set -uo pipefail
 
 REPORT="${1:-}"
@@ -49,11 +50,15 @@ fi
 
 # 3. Every BLOCKING / HIGH finding has '**Evidence:**' within 20 lines of its header
 for sev in BLOCKING HIGH; do
-  awk -v sev="$sev" '
-    $0 ~ "^## *" sev " *\\(" {insec=1}
-    /^## *[A-Z]/ && $0 !~ "^## *" sev {insec=0}
+  finding_lines=()
+  while IFS= read -r ln; do
+    [ -n "$ln" ] && finding_lines+=("$ln")
+  done < <(awk -v sev="$sev" '
+    /^## *'"$sev"' *\(/ {insec=1; next}
+    /^## *[A-Z][A-Z ()0-9-]*$/ && !/^## *'"$sev"'/ {insec=0}
     insec && /^### *[0-9]+\./ {print NR}
-  ' "$REPORT" | while read -r ln; do
+  ' "$REPORT" || true)
+  for ln in "${finding_lines[@]+"${finding_lines[@]}"}"; do
     end=$((ln + 20))
     if ! sed -n "${ln},${end}p" "$REPORT" | grep -q '\*\*Evidence:\*\*'; then
       echo "FAIL: $sev finding at line $ln has no '**Evidence:**' block within 20 lines" >&2

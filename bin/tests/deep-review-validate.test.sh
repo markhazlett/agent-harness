@@ -63,4 +63,109 @@ EOF
 "$VAL" "$tmp/no-just.md" >/dev/null 2>&1 \
   && { echo "FAIL: validator accepted N/A without justification"; exit 1; }
 
+# A report with a BLOCKING finding lacking **Evidence:** — should fail
+cat > "$tmp/no-evidence.md" <<'EOF'
+# Deep Review — no evidence
+
+## Verdict Matrix
+| 1 | security | FAIL |
+| 2 | db | N/A |
+| 3 | langgraph | N/A |
+| 4 | structural | PASS |
+| 5 | performance | PASS |
+| 6 | concurrency | PASS |
+| 7 | types | PASS |
+| 8 | error-handling | PASS |
+| 9 | observability | PASS |
+| 10 | tests | PASS |
+| 11 | api-drift | PASS |
+| 12 | deps | PASS |
+| 13 | a11y | N/A |
+| 14 | dead-code | PASS |
+| 15 | docs | PASS |
+
+## BLOCKING (1)
+### 1. [security] api/foo.ts:42 — missing auth check
+**Impact:** anyone can read the route
+**Suggested fix:** add middleware
+
+## N/A dimensions
+- db — no migrations touched
+- langgraph — no LG paths
+- a11y — no frontend files
+EOF
+
+"$VAL" "$tmp/no-evidence.md" >/dev/null 2>&1 \
+  && { echo "FAIL: validator accepted BLOCKING finding without **Evidence:**"; exit 1; }
+
+# A report with a BLOCKING finding that DOES have **Evidence:** — should pass
+cat > "$tmp/with-evidence.md" <<'EOF'
+# Deep Review — with evidence
+
+## Verdict Matrix
+| 1 | security | FAIL |
+| 2 | db | N/A |
+| 3 | langgraph | N/A |
+| 4 | structural | PASS |
+| 5 | performance | PASS |
+| 6 | concurrency | PASS |
+| 7 | types | PASS |
+| 8 | error-handling | PASS |
+| 9 | observability | PASS |
+| 10 | tests | PASS |
+| 11 | api-drift | PASS |
+| 12 | deps | PASS |
+| 13 | a11y | N/A |
+| 14 | dead-code | PASS |
+| 15 | docs | PASS |
+
+## BLOCKING (1)
+### 1. [security] api/foo.ts:42 — missing auth check
+**Evidence:** `if (req.headers.token) { ... }` is never checked
+**Impact:** anyone can read the route
+**Suggested fix:** add middleware
+
+## N/A dimensions
+- db — no migrations touched
+- langgraph — no LG paths
+- a11y — no frontend files
+EOF
+
+"$VAL" "$tmp/with-evidence.md" >/dev/null \
+  || { echo "FAIL: validator rejected BLOCKING finding WITH **Evidence:**"; exit 1; }
+
+# A report with a HIGH finding lacking **Evidence:** — should fail
+cat > "$tmp/high-no-evidence.md" <<'EOF'
+# Deep Review — high no evidence
+
+## Verdict Matrix
+| 1 | security | PASS |
+| 2 | db | N/A |
+| 3 | langgraph | N/A |
+| 4 | structural | WARN |
+| 5 | performance | PASS |
+| 6 | concurrency | PASS |
+| 7 | types | PASS |
+| 8 | error-handling | PASS |
+| 9 | observability | PASS |
+| 10 | tests | PASS |
+| 11 | api-drift | PASS |
+| 12 | deps | PASS |
+| 13 | a11y | N/A |
+| 14 | dead-code | PASS |
+| 15 | docs | PASS |
+
+## HIGH (1)
+### 1. [structural] auth/session.ts:142 — file too big
+**Impact:** harder to maintain
+
+## N/A dimensions
+- db — no migrations touched
+- langgraph — no LG paths
+- a11y — no frontend files
+EOF
+
+"$VAL" "$tmp/high-no-evidence.md" >/dev/null 2>&1 \
+  && { echo "FAIL: validator accepted HIGH finding without **Evidence:**"; exit 1; }
+
 echo "PASS: bin/deep-review-validate smoke test"
