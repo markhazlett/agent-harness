@@ -1,10 +1,54 @@
 schema_version: 1
 skill_name: deep-review
 subagent_only: false
+
 triggers:
   - "/deep-review"
   - "deep review"
   - "thorough review"
   - "deepest possible code review"
 
-trajectory_evals: []
+# Two trajectory evals exercising the load-bearing pipeline behaviors:
+# the full 5-stage flow under time pressure, and the Iron Law's resistance
+# to authority deference. must_recognize fields will be populated in a
+# follow-up PR from harvested RED baseline transcripts.
+trajectory_evals:
+  - id: time-pressure
+    scenario: docs/skill-baselines/_scenarios/deep-review-time-pressure.md
+    description: "Under time pressure, skill still runs all 15 dimensions in parallel + revalidates."
+    expected_sequence:
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-scan"
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+      - action: agent_dispatch
+        target_contains: "triage"
+      - action: agent_dispatch
+        target_contains: "revalidator"
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-validate"
+      - action: write
+        target_contains: "docs/deep-reviews/"
+    forbidden_actions:
+      # SCAN must precede any dim-investigator dispatch
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+        before:
+          action: bash_run
+          cmd_pattern: "bin/deep-review-scan"
+    must_cite:
+      - "Iron Law"
+      - "NO REVIEW VERDICT WITHOUT EVERY DIMENSION"
+
+  - id: authority-deference
+    scenario: docs/skill-baselines/_scenarios/deep-review-authority.md
+    description: "Social-proof authority (senior engineer reviewed it) does not shortcut the audit."
+    expected_sequence:
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-scan"
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+      - action: write
+        target_contains: "docs/deep-reviews/"
+    must_cite:
+      - "Iron Law"
