@@ -758,6 +758,8 @@ All read-only via disallowedTools.
 
 ---
 
+> **NOTE — design strengthening added 2026-05-24:** SCAN now also mines reference exemplars (sibling files of each changed file) and extracts a `## Conventions` section from CLAUDE.md if present. The dispatched subagents anchor their "good pattern" judgment to these instead of their training data. Implementation lands as Task T5.5; T5 (pipeline.md) and Tasks 6–8 (dim prompts) reflect the new shape. See spec §4.1 / §4.2.1 for details.
+
 ## Task 5: `pipeline.md` — 5-stage spec sibling
 
 Loaded by the orchestrator at the start of every `/deep-review` run.
@@ -964,7 +966,277 @@ table, FP-to-revalidate mapping, report format.
 
 ---
 
+## Task 5.5: Extend `bin/deep-review-scan` with exemplar-mining + CLAUDE.md conventions extraction (TDD)
+
+**Added 2026-05-24** in response to "how does /deep-review know what good patterns are for THIS codebase" — pure inference from CLAUDE.md + diff context was too weak. This task adds two deterministic shell passes:
+
+1. **Exemplar-mining.** For each file changed in the diff, find up to 3 sibling files (same extension, same directory, NOT in diff). Fall back to same-extension files elsewhere in the repo if the directory has no qualifying siblings. Cap at 3. Emit in `scopes.<dim>.exemplars`.
+2. **Conventions extraction.** Read repo-root `CLAUDE.md`. Find a section named `## Conventions` or `## Patterns` (case-insensitive). Emit the section body verbatim as top-level `conventions` field. Empty string if not found.
+
+**Files:**
+- Modify: `bin/deep-review-scan`
+- Modify: `bin/tests/deep-review-scan.test.sh`
+
+- [ ] **Step 1: Extend the smoke test (RED for new behavior)**
+
+Append two new test cases to `bin/tests/deep-review-scan.test.sh`, BEFORE the final `echo "PASS:"`. The first verifies exemplar-mining; the second verifies conventions extraction.
+
+```bash
+# Exemplar-mining test: same-dir sibling of the changed file should appear in exemplars
+# (the test repo already has src/index.ts as a sibling of src/agents/foo.ts is wrong —
+# but the test created src/components/Btn.tsx as a sibling of itself. To exercise
+# exemplars properly, add a second `.tsx` file as a sibling of Btn.tsx that does NOT
+# appear in the diff.)
+git checkout -q HEAD~1  # back to the base commit
+echo "export const Sibling = () => <div>existing</div>;" > src/components/Sibling.tsx
+git add . && git commit -q -m "base + sibling"
+git checkout -q feature
+git rebase -q --onto HEAD~1 HEAD~1 HEAD  # rebase the feature commit onto the new base
+# (Simpler alternative: just touch src/components/Sibling.tsx on the base and re-run.)
+
+out=$("$SCAN" 2>&1)
+echo "$out" | grep -q '"Sibling.tsx"' \
+  || { echo "FAIL: exemplar-mining did not surface src/components/Sibling.tsx"; echo "$out"; exit 1; }
+
+# Conventions extraction test: CLAUDE.md with a ## Conventions section gets extracted
+cat > CLAUDE.md <<'EOF'
+# Project
+
+Stuff.
+
+## Conventions
+
+Forms use react-hook-form + zod.
+Queries go through lib/db/queries.ts.
+
+## Other Section
+unrelated
+EOF
+out=$("$SCAN" 2>&1)
+echo "$out" | python3 -c "
+import sys, json
+m = json.loads(sys.stdin.read())
+conv = m.get('conventions', '')
+assert 'react-hook-form' in conv, f'expected react-hook-form in conventions, got: {conv!r}'
+assert 'queries go through' in conv.lower(), f'expected queries.ts reference in conventions, got: {conv!r}'
+assert 'unrelated' not in conv, f'conventions should not bleed into other sections: {conv!r}'
+" || { echo "FAIL: conventions extraction"; exit 1; }
+```
+
+Note: the exemplar-mining test setup above is intentionally simplified. If the rebase ergonomics get awkward, the implementer may restructure the test repo setup as long as the assertion (sibling appears in exemplars output, file not in diff) holds. The conventions test does not need a rebase.
+
+Run the test, confirm it fails with the new assertions (since the script doesn't yet emit `exemplars` or `conventions`).
+
+- [ ] **Step 2: Extend `bin/deep-review-scan` to emit `conventions`**
+
+Add a function near the top (after the gate-detection section):
+
+```bash
+emit_conventions_json() {
+  local claude_md="$repo_root/CLAUDE.md"
+  if [ ! -f "$claude_md" ]; then
+    printf '""'
+    return
+  fi
+  # Extract body of a ## Conventions or ## Patterns section (case-insensitive header match)
+  # until the next `## ` line.
+  local body
+  body=$(awk '
+    BEGIN{flag=0}
+    /^## *[Cc]onventions *$/ {flag=1; next}
+    /^## *[Pp]atterns *$/ {flag=1; next}
+    /^## / {if (flag) {flag=0}}
+    flag {print}
+  ' "$claude_md")
+  # JSON-escape (backslash then quote then newline)
+  body="${body//\\/\\\\}"
+  body="${body//\"/\\\"}"
+  body="${body//$'\n'/\\n}"
+  printf '"%s"' "$body"
+}
+conv_json=$(emit_conventions_json)
+```
+
+- [ ] **Step 3: Extend `bin/deep-review-scan` to emit `exemplars` per dim**
+
+Add a function:
+
+```bash
+# Print a JSON array of up to 3 sibling files (same dir, same extension, not in diff).
+# If fewer than 3 in-dir siblings exist, fall back to same-extension files elsewhere.
+emit_exemplars_for_file() {
+  local target="$1"
+  local dir; dir=$(dirname "$target")
+  local ext; ext="${target##*.}"
+  local exemplars=()
+  # In-dir siblings first
+  if [ -d "$dir" ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ "$f" = "$target" ] && continue
+      # skip if in the diff
+      local in_diff=0
+      for d in "${files[@]+"${files[@]}"}"; do
+        [ "$d" = "$f" ] && { in_diff=1; break; }
+      done
+      [ $in_diff -eq 0 ] && exemplars+=("$f")
+      [ "${#exemplars[@]}" -ge 3 ] && break
+    done < <(git ls-files "$dir" 2>/dev/null | grep -E "\.${ext}$" | sort)
+  fi
+  # Elsewhere-in-repo fallback if under 3
+  if [ "${#exemplars[@]}" -lt 3 ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ "$f" = "$target" ] && continue
+      # skip if already in exemplars
+      local already=0
+      for e in "${exemplars[@]+"${exemplars[@]}"}"; do
+        [ "$e" = "$f" ] && { already=1; break; }
+      done
+      [ $already -eq 1 ] && continue
+      # skip if in diff
+      local in_diff=0
+      for d in "${files[@]+"${files[@]}"}"; do
+        [ "$d" = "$f" ] && { in_diff=1; break; }
+      done
+      [ $in_diff -eq 0 ] && exemplars+=("$f")
+      [ "${#exemplars[@]}" -ge 3 ] && break
+    done < <(git ls-files 2>/dev/null | grep -E "\.${ext}$" | sort)
+  fi
+  # Emit as JSON array
+  local first=1
+  printf '['
+  for e in "${exemplars[@]+"${exemplars[@]}"}"; do
+    if [ $first -eq 1 ]; then first=0; else printf ','; fi
+    local esc="${e//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    printf '"%s"' "$esc"
+  done
+  printf ']'
+}
+
+# Build a deduped union of exemplars across all changed files
+build_union_exemplars() {
+  local all=()
+  for f in "${files[@]+"${files[@]}"}"; do
+    [ -z "$f" ] && continue
+    while IFS= read -r e; do
+      [ -z "$e" ] && continue
+      local seen=0
+      for a in "${all[@]+"${all[@]}"}"; do
+        [ "$a" = "$e" ] && { seen=1; break; }
+      done
+      [ $seen -eq 0 ] && all+=("$e")
+    done < <(emit_exemplars_for_file "$f" | python3 -c "import sys, json; [print(x) for x in json.loads(sys.stdin.read())]")
+  done
+  # Emit as JSON array
+  local first=1
+  printf '['
+  for a in "${all[@]+"${all[@]}"}"; do
+    if [ $first -eq 1 ]; then first=0; else printf ','; fi
+    local esc="${a//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    printf '"%s"' "$esc"
+  done
+  printf ']'
+}
+exemplars_json=$(build_union_exemplars)
+```
+
+- [ ] **Step 4: Update the JSON emission**
+
+Modify the final `cat <<EOF` block to include the new fields. New shape:
+
+```bash
+cat <<EOF
+{
+  "diff": {
+    "files": $paths_json,
+    "stats": { "added": $added, "removed": $removed }
+  },
+  "gates": {
+    "db": $gate_db,
+    "langgraph": $gate_lg,
+    "a11y": $gate_a11y
+  },
+  "conventions": $conv_json,
+  "scopes": {
+    "security":      { "paths": $paths_json, "exemplars": $exemplars_json },
+    "db":            { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_db },
+    "langgraph":     { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_lg },
+    "structural":    { "paths": $paths_json, "exemplars": $exemplars_json },
+    "performance":   { "paths": $paths_json, "exemplars": $exemplars_json },
+    "concurrency":   { "paths": $paths_json, "exemplars": $exemplars_json },
+    "types":         { "paths": $paths_json, "exemplars": $exemplars_json },
+    "error-handling":{ "paths": $paths_json, "exemplars": $exemplars_json },
+    "observability": { "paths": $paths_json, "exemplars": $exemplars_json },
+    "tests":         { "paths": $paths_json, "exemplars": $exemplars_json },
+    "api-drift":     { "paths": $paths_json, "exemplars": $exemplars_json },
+    "deps":          { "paths": $paths_json, "exemplars": $exemplars_json },
+    "a11y":          { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_a11y },
+    "dead-code":     { "paths": $paths_json, "exemplars": $exemplars_json },
+    "docs":          { "paths": $paths_json, "exemplars": $exemplars_json }
+  }
+}
+EOF
+```
+
+Note: the same exemplars set is shared across all dims. Future iteration could specialize per-dim (e.g., test files only for `tests` dim), but v1 keeps it uniform.
+
+- [ ] **Step 5: Run the smoke test, confirm GREEN**
+
+```bash
+bin/tests/deep-review-scan.test.sh
+```
+
+Expected: `PASS: bin/deep-review-scan smoke test`.
+
+- [ ] **Step 6: Smoke-run scan against the current branch**
+
+```bash
+bin/deep-review-scan | python3 -m json.tool | head -40
+```
+
+Verify:
+- New top-level `conventions` field is present (string, possibly empty)
+- Each scope has an `exemplars` array
+- No regression on existing fields
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add bin/deep-review-scan bin/tests/deep-review-scan.test.sh
+git commit -m "feat(deep-review-scan): exemplar-mining + CLAUDE.md conventions extraction
+
+Adds two deterministic passes so dispatched subagents can anchor their
+'good pattern' judgment to this codebase's actual conventions rather
+than their training data:
+
+- For each file in the diff, find up to 3 sibling files (same ext, same
+  dir, not in diff) and emit as scopes.<dim>.exemplars
+- Read CLAUDE.md, extract the body of a ## Conventions or ## Patterns
+  section, emit as top-level conventions field
+
+Smoke test extended with two new cases. See spec §4.1.
+"
+```
+
+---
+
 ## Task 6: Dimension prompts — HIGH-FP dims (4 files)
+
+**Note added for T6/T7/T8** — every dimension prompt MUST include an "Anchoring" section that references the exemplars + conventions fed via the orchestrator's per-dispatch prompt. Use this exact text for the new section (insert after the dimension's "## Charter" section):
+
+```markdown
+## Anchoring (read before flagging)
+
+Before flagging any finding, consult two sources the orchestrator provides:
+
+1. **`conventions`** (verbatim from the repo's CLAUDE.md `## Conventions` section, possibly empty) — if non-empty, treat it as authoritative for what this codebase considers good. A finding that contradicts a stated convention is HIGH conviction; a finding that proposes a different pattern is LOW conviction.
+2. **`exemplars`** (up to 3 sibling files of each changed file) — read at least one before flagging a structural / pattern issue. If the exemplars show a pattern your finding contradicts, raise conviction. If the exemplars show the codebase doesn't use the pattern you'd recommend, drop your finding to NIT or skip it. Do not propose patterns from training data when the codebase has a demonstrated alternative.
+```
+
+Add this section to EACH of the 12 dimension prompts in T6, T7, T8. The original Charter / What you flag / Severity rubric / Anti-overlap / FP calibration / Examples sections stay as written.
 
 **Files:**
 - Create: `skills/deep-review/dimensions/structural.md`

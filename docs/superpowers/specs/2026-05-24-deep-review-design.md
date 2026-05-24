@@ -92,22 +92,27 @@ Responsibilities:
   - `langgraph` if `HARNESS_LANGGRAPH=true` AND any path matches LG conventional dirs (`src/agents/**`, `agents/**`)
   - `a11y` if any path has a frontend extension (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.html`)
 - Regex candidate extraction per dimension (e.g., raw SQL for security pre-screen, `process.env.` for env-handling, `Promise.all` patterns for concurrency, `console.log` for observability)
-- Build per-dimension "scope packets": the slice of the diff most relevant to that dimension + regex candidate hits
+- **Exemplar-mining**: for each file changed in the diff, find up to 3 sibling files (same extension, same directory, NOT in this diff) to act as "this is how this codebase does X" reference exemplars. Falls back to up-to-3 same-extension files elsewhere in the repo if the directory has no qualifying siblings. Output paths only; the dispatched subagent reads them on demand.
+- **Conventions extraction**: read repo-root `CLAUDE.md` (if present); look for a `## Conventions` or `## Patterns` section (case-insensitive). If found, emit the section body verbatim in the manifest's top-level `conventions` field. The orchestrator includes this text in every per-dim prompt so the subagent anchors its judgment to the codebase's stated conventions rather than its training data.
+- Build per-dimension "scope packets": the slice of the diff most relevant to that dimension + regex candidate hits + exemplar paths
 
 Output format (JSON written to stdout, parsed by orchestrator):
 ```json
 {
   "diff": {"files": [...], "stats": {"+": 723, "-": 520}},
   "gates": {"db": false, "langgraph": false, "a11y": true},
+  "conventions": "<verbatim ## Conventions section from CLAUDE.md, or empty string>",
   "scopes": {
-    "security": {"paths": [...], "candidates": [...]},
-    "structural": {"paths": [...], "candidates": [...]},
+    "security":   {"paths": [...], "candidates": [...], "exemplars": [...]},
+    "structural": {"paths": [...], "candidates": [...], "exemplars": [...]},
     ...
   }
 }
 ```
 
-This stage is shell, not model-driven, because the work is mechanical (harness principle §3: "Use the model only for judgment calls"). Cheap, auditable, and lets smoke tests validate it.
+Exemplar selection is deterministic, not judgment-driven: same-directory siblings before elsewhere-in-repo; alphabetical within a tier; cap at 3. The model judgment ("which patterns are good") happens in the dispatched subagent, fed by the exemplar contents. This stage stays shell because picking sibling files is mechanical (harness principle §3: "Use the model only for judgment calls"). Cheap, auditable, smoke-testable.
+
+**Why this matters:** without exemplars + conventions, the subagent's "good pattern" reference is its training data — which may not match how *this* codebase does things (Prisma vs. Drizzle, fat-controllers vs. service-objects, RSC vs. SPA). With them, the subagent can ground every finding in patterns already established in this repo.
 
 ### 4.2 Stage 2 — DISPATCH (parallel subagents)
 
@@ -124,12 +129,25 @@ Per-dimension dispatch:
 - dimension name
 - diff slice (paths + hunks relevant to this dim)
 - regex candidates from SCAN
-- project context (stack, ORM, framework, conventions)
+- exemplar file paths (from SCAN, 0–3 per changed file in scope) — the subagent reads
+  these on demand to anchor its "what's the codebase's convention" reasoning
+- conventions text (from SCAN, may be empty) — verbatim `## Conventions` / `## Patterns`
+  section from CLAUDE.md if present; the subagent treats this as authoritative for what
+  the codebase considers good
+- project context (stack, ORM, framework — derived from CLAUDE.md preamble)
 - this dim's coverage scope and anti-overlap with other dims
 - severity rubric
 - FP profile: HIGH | MED | LOW
 - output format spec
 ```
+
+**Anchoring rule (every dim prompt restates this):** when judging whether a pattern in
+the diff is good or bad, the subagent must first consult `conventions` (if non-empty)
+and the exemplar files. A finding that contradicts an established pattern in the exemplars
+is HIGH-conviction; a finding that recommends a pattern the codebase doesn't use anywhere
+is LOW-conviction (likely the subagent's training data overriding the codebase's
+deliberate choice). Do not propose patterns from training data when the codebase has a
+demonstrated alternative.
 
 #### 4.2.2 Subagent output contract
 
