@@ -14,11 +14,16 @@ git init -q
 git config user.email "test@test"
 git config user.name "test"
 mkdir -p src/agents src/components migrations
+
+# Base commit includes sibling .tsx files so exemplar-mining can surface them
 echo "// base" > src/index.ts
+echo "export const Sibling = () => <div>existing</div>;" > src/components/Sibling.tsx
+echo "export const Cousin = () => <div>also existing</div>;" > src/components/Cousin.tsx
 git add . && git commit -q -m "base"
 git checkout -q -b feature
 
 # Diff that should trigger db + langgraph + a11y gates
+# (Btn.tsx is in the diff; Sibling.tsx and Cousin.tsx are NOT — they are exemplar candidates)
 echo "CREATE TABLE foo (id INT);" > migrations/001_init.sql
 echo "import { createReactAgent } from 'langgraph';" > src/agents/foo.ts
 echo "export const Btn = () => <button>x</button>;" > src/components/Btn.tsx
@@ -43,5 +48,46 @@ echo "$out" | python3 -c "import sys,json; json.loads(sys.stdin.read())" \
 echo "$out" | grep -q '"db": *true'          || { echo "FAIL: db gate not true"; exit 1; }
 echo "$out" | grep -q '"langgraph": *true'   || { echo "FAIL: langgraph gate not true"; exit 1; }
 echo "$out" | grep -q '"a11y": *true'        || { echo "FAIL: a11y gate not true"; exit 1; }
+
+# Assert exemplar-mining: Sibling.tsx is NOT in the diff, so it should appear in exemplars
+echo "$out" | grep -q 'Sibling\.tsx' \
+  || { echo "FAIL: exemplar-mining did not surface src/components/Sibling.tsx"; echo "$out"; exit 1; }
+
+# Assert exemplars field exists on each scope entry
+echo "$out" | python3 -c "
+import sys, json
+m = json.loads(sys.stdin.read())
+for dim, scope in m.get('scopes', {}).items():
+    assert 'exemplars' in scope, f'scope {dim!r} missing exemplars field'
+    assert isinstance(scope['exemplars'], list), f'scope {dim!r} exemplars is not a list'
+print('exemplars OK')
+" || { echo "FAIL: exemplars field missing from scopes"; exit 1; }
+
+# Assert conventions extraction: write a CLAUDE.md with a ## Conventions section
+cat > CLAUDE.md <<'CLAUDEOF'
+# Project
+
+Stuff.
+
+## Conventions
+
+Forms use react-hook-form + zod.
+Queries go through lib/db/queries.ts.
+
+## Other Section
+unrelated
+CLAUDEOF
+
+out=$("$SCAN" 2>&1) || { echo "FAIL: scan exited nonzero after adding CLAUDE.md"; echo "$out"; exit 1; }
+echo "$out" | python3 -c "
+import sys, json
+m = json.loads(sys.stdin.read())
+conv = m.get('conventions', None)
+assert conv is not None, 'conventions field missing from output'
+assert 'react-hook-form' in conv, f'expected react-hook-form in conventions, got: {conv!r}'
+assert 'queries go through' in conv.lower(), f'expected queries.ts reference in conventions, got: {conv!r}'
+assert 'unrelated' not in conv, f'conventions should not bleed into other sections: {conv!r}'
+print('conventions OK')
+" || { echo "FAIL: conventions extraction"; exit 1; }
 
 echo "PASS: bin/deep-review-scan smoke test"

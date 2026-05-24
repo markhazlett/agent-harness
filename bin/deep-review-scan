@@ -72,7 +72,113 @@ emit_paths_json() {
   printf ']'
 }
 
+# Extract body of a ## Conventions or ## Patterns section from CLAUDE.md.
+# JSON-escapes the body and wraps in quotes.
+emit_conventions_json() {
+  local claude_md="$repo_root/CLAUDE.md"
+  if [ ! -f "$claude_md" ]; then
+    printf '""'
+    return
+  fi
+  local body
+  body=$(awk '
+    BEGIN{flag=0}
+    /^## *[Cc]onventions *$/ {flag=1; next}
+    /^## *[Pp]atterns *$/ {flag=1; next}
+    /^## / {if (flag) {flag=0}}
+    flag {print}
+  ' "$claude_md")
+  # JSON-escape: backslash first, then quote, then newline
+  body="${body//\\/\\\\}"
+  body="${body//\"/\\\"}"
+  body="${body//$'\n'/\\n}"
+  printf '"%s"' "$body"
+}
+
+# Emit a JSON array of up to 3 sibling files (same dir, same extension, not in diff).
+# Falls back to same-extension files elsewhere in the repo if under 3 in-dir siblings.
+emit_exemplars_for_file() {
+  local target="$1"
+  local dir; dir=$(dirname "$target")
+  local ext="${target##*.}"
+  local exemplars=()
+
+  # In-dir siblings first
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    [ "$f" = "$target" ] && continue
+    # skip if in the diff
+    local in_diff=0
+    for d in "${files[@]+"${files[@]}"}"; do
+      [ "$d" = "$f" ] && { in_diff=1; break; }
+    done
+    [ $in_diff -eq 0 ] && exemplars+=("$f")
+    [ "${#exemplars[@]}" -ge 3 ] && break
+  done < <(git ls-files "$dir" 2>/dev/null | grep -E "\\.${ext}$" | sort)
+
+  # Elsewhere-in-repo fallback if under 3
+  if [ "${#exemplars[@]}" -lt 3 ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ "$f" = "$target" ] && continue
+      # skip if already in exemplars
+      local already=0
+      for e in "${exemplars[@]+"${exemplars[@]}"}"; do
+        [ "$e" = "$f" ] && { already=1; break; }
+      done
+      [ $already -eq 1 ] && continue
+      # skip if in diff
+      local in_diff=0
+      for d in "${files[@]+"${files[@]}"}"; do
+        [ "$d" = "$f" ] && { in_diff=1; break; }
+      done
+      [ $in_diff -eq 0 ] && exemplars+=("$f")
+      [ "${#exemplars[@]}" -ge 3 ] && break
+    done < <(git ls-files 2>/dev/null | grep -E "\\.${ext}$" | sort)
+  fi
+
+  # Emit as JSON array
+  local first=1
+  printf '['
+  for e in "${exemplars[@]+"${exemplars[@]}"}"; do
+    if [ $first -eq 1 ]; then first=0; else printf ','; fi
+    local esc="${e//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    printf '"%s"' "$esc"
+  done
+  printf ']'
+}
+
+# Build a deduped union of exemplars across all changed files, capped at 3.
+build_union_exemplars() {
+  local all=()
+  for f in "${files[@]+"${files[@]}"}"; do
+    [ -z "$f" ] && continue
+    while IFS= read -r e; do
+      [ -z "$e" ] && continue
+      local seen=0
+      for a in "${all[@]+"${all[@]}"}"; do
+        [ "$a" = "$e" ] && { seen=1; break; }
+      done
+      [ $seen -eq 0 ] && all+=("$e")
+      [ "${#all[@]}" -ge 3 ] && break 2
+    done < <(emit_exemplars_for_file "$f" | python3 -c "import sys, json; [print(x) for x in json.loads(sys.stdin.read())]")
+  done
+  # Emit as JSON array
+  local first=1
+  printf '['
+  for a in "${all[@]+"${all[@]}"}"; do
+    if [ $first -eq 1 ]; then first=0; else printf ','; fi
+    local esc="${a//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    printf '"%s"' "$esc"
+  done
+  printf ']'
+}
+
 paths_json=$(emit_paths_json)
+conv_json=$(emit_conventions_json)
+exemplars_json=$(build_union_exemplars)
 
 cat <<EOF
 {
@@ -85,22 +191,23 @@ cat <<EOF
     "langgraph": $gate_lg,
     "a11y": $gate_a11y
   },
+  "conventions": $conv_json,
   "scopes": {
-    "security":      { "paths": $paths_json },
-    "db":            { "paths": $paths_json, "active": $gate_db },
-    "langgraph":     { "paths": $paths_json, "active": $gate_lg },
-    "structural":    { "paths": $paths_json },
-    "performance":   { "paths": $paths_json },
-    "concurrency":   { "paths": $paths_json },
-    "types":         { "paths": $paths_json },
-    "error-handling":{ "paths": $paths_json },
-    "observability": { "paths": $paths_json },
-    "tests":         { "paths": $paths_json },
-    "api-drift":     { "paths": $paths_json },
-    "deps":          { "paths": $paths_json },
-    "a11y":          { "paths": $paths_json, "active": $gate_a11y },
-    "dead-code":     { "paths": $paths_json },
-    "docs":          { "paths": $paths_json }
+    "security":      { "paths": $paths_json, "exemplars": $exemplars_json },
+    "db":            { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_db },
+    "langgraph":     { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_lg },
+    "structural":    { "paths": $paths_json, "exemplars": $exemplars_json },
+    "performance":   { "paths": $paths_json, "exemplars": $exemplars_json },
+    "concurrency":   { "paths": $paths_json, "exemplars": $exemplars_json },
+    "types":         { "paths": $paths_json, "exemplars": $exemplars_json },
+    "error-handling":{ "paths": $paths_json, "exemplars": $exemplars_json },
+    "observability": { "paths": $paths_json, "exemplars": $exemplars_json },
+    "tests":         { "paths": $paths_json, "exemplars": $exemplars_json },
+    "api-drift":     { "paths": $paths_json, "exemplars": $exemplars_json },
+    "deps":          { "paths": $paths_json, "exemplars": $exemplars_json },
+    "a11y":          { "paths": $paths_json, "exemplars": $exemplars_json, "active": $gate_a11y },
+    "dead-code":     { "paths": $paths_json, "exemplars": $exemplars_json },
+    "docs":          { "paths": $paths_json, "exemplars": $exemplars_json }
   }
 }
 EOF
