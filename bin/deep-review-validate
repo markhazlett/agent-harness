@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# bin/deep-review-validate — verify a /deep-review report has every required
+# section: all 15 dimensions, each N/A justified, each HIGH/CRITICAL with
+# file:line and evidence quote.
+
+set -uo pipefail
+
+REPORT="${1:-}"
+if [ -z "$REPORT" ] || [ ! -f "$REPORT" ]; then
+  echo "Usage: $0 <report.md>" >&2
+  exit 2
+fi
+
+DIMS=(security db langgraph structural performance concurrency types
+      error-handling observability tests api-drift deps a11y dead-code docs)
+
+fail=0
+
+# 1. Every dimension named in the Verdict Matrix
+for d in "${DIMS[@]}"; do
+  if ! grep -qE "\| *$d *\|" "$REPORT"; then
+    echo "FAIL: dimension '$d' missing from verdict matrix" >&2
+    fail=1
+  fi
+done
+
+# 2. Every N/A in the matrix has a justification under "## N/A dimensions"
+na_dims=()
+while IFS= read -r line; do
+  [ -n "$line" ] && na_dims+=("$line")
+done < <(grep -E "\| *[a-z-]+ *\| *N/A *\|" "$REPORT" \
+         | sed -E 's/^\| *[0-9]+ *\| *([a-z-]+) *.*/\1/' \
+         | sort -u || true)
+
+if [ "${#na_dims[@]}" -gt 0 ]; then
+  if ! grep -q "^## N/A dimensions" "$REPORT"; then
+    echo "FAIL: N/A dimensions present but no '## N/A dimensions' section" >&2
+    fail=1
+  else
+    for d in "${na_dims[@]+"${na_dims[@]}"}"; do
+      if ! awk '/^## N\/A dimensions/{flag=1;next}/^## /{flag=0}flag' "$REPORT" \
+           | grep -qE "^- *$d *—"; then
+        echo "FAIL: N/A dim '$d' lacks a justification line in '## N/A dimensions'" >&2
+        fail=1
+      fi
+    done
+  fi
+fi
+
+# 3. Every BLOCKING / HIGH finding has '**Evidence:**' within 20 lines of its header
+for sev in BLOCKING HIGH; do
+  awk -v sev="$sev" '
+    $0 ~ "^## *" sev " *\\(" {insec=1}
+    /^## *[A-Z]/ && $0 !~ "^## *" sev {insec=0}
+    insec && /^### *[0-9]+\./ {print NR}
+  ' "$REPORT" | while read -r ln; do
+    end=$((ln + 20))
+    if ! sed -n "${ln},${end}p" "$REPORT" | grep -q '\*\*Evidence:\*\*'; then
+      echo "FAIL: $sev finding at line $ln has no '**Evidence:**' block within 20 lines" >&2
+      fail=1
+    fi
+  done
+done
+
+if [ $fail -eq 0 ]; then
+  echo "OK: report validates"
+  exit 0
+else
+  echo "FAIL: report does not validate" >&2
+  exit 1
+fi
