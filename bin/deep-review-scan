@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# bin/deep-review-scan — SCAN stage of /deep-review.
+#
+# Computes the branch diff against main, detects per-dimension gates,
+# and emits a JSON manifest the orchestrator routes from. No model calls.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$repo_root" ]; then
+  echo '{"error":"not in a git repo"}' >&2
+  exit 1
+fi
+cd "$repo_root"
+
+if [ -f .claude/hooks/config.sh ]; then
+  # shellcheck disable=SC1091
+  . .claude/hooks/config.sh
+fi
+
+HARNESS_DB_MIGRATIONS_DIR="${HARNESS_DB_MIGRATIONS_DIR:-}"
+HARNESS_DB_SCHEMA_PATH="${HARNESS_DB_SCHEMA_PATH:-}"
+HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH:-false}"
+
+BASE="${1:-main}"
+
+files=()
+while IFS= read -r line; do
+  [ -n "$line" ] && files+=("$line")
+done < <(git diff --name-only "$BASE"...HEAD 2>/dev/null || true)
+
+added=$(git diff --shortstat "$BASE"...HEAD 2>/dev/null | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+removed=$(git diff --shortstat "$BASE"...HEAD 2>/dev/null | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+added="${added:-0}"
+removed="${removed:-0}"
+
+gate_db=false
+gate_lg=false
+gate_a11y=false
+
+for f in "${files[@]}"; do
+  [ -z "$f" ] && continue
+  if [ -n "$HARNESS_DB_MIGRATIONS_DIR" ] && [[ "$f" == "$HARNESS_DB_MIGRATIONS_DIR"* ]]; then
+    gate_db=true
+  fi
+  if [ -n "$HARNESS_DB_SCHEMA_PATH" ] && [[ "$f" == "$HARNESS_DB_SCHEMA_PATH"* ]]; then
+    gate_db=true
+  fi
+  if [ "$HARNESS_LANGGRAPH" = "true" ]; then
+    case "$f" in
+      src/agents/*|agents/*) gate_lg=true ;;
+    esac
+  fi
+  case "$f" in
+    *.tsx|*.jsx|*.vue|*.svelte|*.html) gate_a11y=true ;;
+  esac
+done
+
+emit_paths_json() {
+  local first=1
+  printf '['
+  for f in "${files[@]}"; do
+    [ -z "$f" ] && continue
+    if [ $first -eq 1 ]; then first=0; else printf ','; fi
+    printf '"%s"' "$f"
+  done
+  printf ']'
+}
+
+paths_json=$(emit_paths_json)
+
+cat <<EOF
+{
+  "diff": {
+    "files": $paths_json,
+    "stats": { "added": $added, "removed": $removed }
+  },
+  "gates": {
+    "db": $gate_db,
+    "langgraph": $gate_lg,
+    "a11y": $gate_a11y
+  },
+  "scopes": {
+    "security":      { "paths": $paths_json },
+    "db":            { "paths": $paths_json, "active": $gate_db },
+    "langgraph":     { "paths": $paths_json, "active": $gate_lg },
+    "structural":    { "paths": $paths_json },
+    "performance":   { "paths": $paths_json },
+    "concurrency":   { "paths": $paths_json },
+    "types":         { "paths": $paths_json },
+    "error-handling":{ "paths": $paths_json },
+    "observability": { "paths": $paths_json },
+    "tests":         { "paths": $paths_json },
+    "api-drift":     { "paths": $paths_json },
+    "deps":          { "paths": $paths_json },
+    "a11y":          { "paths": $paths_json, "active": $gate_a11y },
+    "dead-code":     { "paths": $paths_json },
+    "docs":          { "paths": $paths_json }
+  }
+}
+EOF
