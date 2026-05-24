@@ -88,68 +88,54 @@ emit_conventions_json() {
     /^## / {if (flag) {flag=0}}
     flag {print}
   ' "$claude_md")
-  # JSON-escape: backslash first, then quote, then newline
+  # JSON-escape: backslash first, then quote, then newline, tab, carriage-return
   body="${body//\\/\\\\}"
   body="${body//\"/\\\"}"
   body="${body//$'\n'/\\n}"
+  body="${body//$'\t'/\\t}"
+  body="${body//$'\r'/\\r}"
   printf '"%s"' "$body"
 }
 
-# Emit a JSON array of up to 3 sibling files (same dir, same extension, not in diff).
+# Print up to 3 sibling files, one per line, no JSON wrapping.
 # Falls back to same-extension files elsewhere in the repo if under 3 in-dir siblings.
-emit_exemplars_for_file() {
+emit_exemplars_lines_for_file() {
   local target="$1"
   local dir; dir=$(dirname "$target")
   local ext="${target##*.}"
-  local exemplars=()
+  local count=0
 
   # In-dir siblings first
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    [ "$f" = "$target" ] && continue
-    # skip if in the diff
-    local in_diff=0
-    for d in "${files[@]+"${files[@]}"}"; do
-      [ "$d" = "$f" ] && { in_diff=1; break; }
-    done
-    [ $in_diff -eq 0 ] && exemplars+=("$f")
-    [ "${#exemplars[@]}" -ge 3 ] && break
-  done < <(git ls-files "$dir" 2>/dev/null | grep -E "\\.${ext}$" | sort)
-
-  # Elsewhere-in-repo fallback if under 3
-  if [ "${#exemplars[@]}" -lt 3 ]; then
+  if [ -d "$dir" ]; then
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       [ "$f" = "$target" ] && continue
-      # skip if already in exemplars
-      local already=0
-      for e in "${exemplars[@]+"${exemplars[@]}"}"; do
-        [ "$e" = "$f" ] && { already=1; break; }
-      done
-      [ $already -eq 1 ] && continue
-      # skip if in diff
       local in_diff=0
       for d in "${files[@]+"${files[@]}"}"; do
         [ "$d" = "$f" ] && { in_diff=1; break; }
       done
-      [ $in_diff -eq 0 ] && exemplars+=("$f")
-      [ "${#exemplars[@]}" -ge 3 ] && break
-    done < <(git ls-files 2>/dev/null | grep -E "\\.${ext}$" | sort)
+      [ $in_diff -eq 0 ] && { echo "$f"; count=$((count+1)); }
+      [ $count -ge 3 ] && return
+    done < <(git ls-files "$dir" 2>/dev/null | grep -E "\\.${ext}$" | sort)
   fi
 
-  # Emit as JSON array
-  local first=1
-  printf '['
-  for e in "${exemplars[@]+"${exemplars[@]}"}"; do
-    if [ $first -eq 1 ]; then first=0; else printf ','; fi
-    local esc="${e//\\/\\\\}"
-    esc="${esc//\"/\\\"}"
-    printf '"%s"' "$esc"
-  done
-  printf ']'
+  # Elsewhere-in-repo fallback if under 3
+  if [ $count -lt 3 ]; then
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ "$f" = "$target" ] && continue
+      local in_diff=0
+      for d in "${files[@]+"${files[@]}"}"; do
+        [ "$d" = "$f" ] && { in_diff=1; break; }
+      done
+      [ $in_diff -eq 0 ] && { echo "$f"; count=$((count+1)); }
+      [ $count -ge 3 ] && return
+    done < <(git ls-files 2>/dev/null | grep -E "\\.${ext}$" | sort)
+  fi
 }
 
 # Build a deduped union of exemplars across all changed files, capped at 3.
+# Emits a JSON array (the only place JSON is built for exemplars).
 build_union_exemplars() {
   local all=()
   for f in "${files[@]+"${files[@]}"}"; do
@@ -162,7 +148,7 @@ build_union_exemplars() {
       done
       [ $seen -eq 0 ] && all+=("$e")
       [ "${#all[@]}" -ge 3 ] && break 2
-    done < <(emit_exemplars_for_file "$f" | python3 -c "import sys, json; [print(x) for x in json.loads(sys.stdin.read())]")
+    done < <(emit_exemplars_lines_for_file "$f")
   done
   # Emit as JSON array
   local first=1

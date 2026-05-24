@@ -90,4 +90,15 @@ assert 'unrelated' not in conv, f'conventions should not bleed into other sectio
 print('conventions OK')
 " || { echo "FAIL: conventions extraction"; exit 1; }
 
+# Conventions with tab + CR characters — must produce valid JSON
+printf '## Conventions\n\tTab-indented code line\nNormal line with \r CR\n' > CLAUDE.md
+out=$("$SCAN" 2>&1)
+echo "$out" | python3 -c "
+import sys, json
+m = json.loads(sys.stdin.read())
+conv = m.get('conventions', '')
+assert '\\\\t' in conv or '\\t' in conv, f'expected escaped tab in conventions, got: {conv!r}'
+" || { echo "FAIL: conventions escaping for tab/CR"; echo "$out"; exit 1; }
+echo "tab/CR conventions OK"
+
 echo "PASS: bin/deep-review-scan smoke test"
