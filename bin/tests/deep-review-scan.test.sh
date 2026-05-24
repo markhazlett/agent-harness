@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/tests/test-deep-review-scan — smoke test for deep-review-scan.
+# bin/tests/deep-review-scan.test.sh — smoke test for deep-review-scan.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"

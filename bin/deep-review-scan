@@ -6,7 +6,10 @@
 
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo '{"error":"not in a git repo"}' >&2
+  exit 1
+}
 if [ -z "$repo_root" ]; then
   echo '{"error":"not in a git repo"}' >&2
   exit 1
@@ -38,7 +41,7 @@ gate_db=false
 gate_lg=false
 gate_a11y=false
 
-for f in "${files[@]}"; do
+for f in "${files[@]+"${files[@]}"}"; do
   [ -z "$f" ] && continue
   if [ -n "$HARNESS_DB_MIGRATIONS_DIR" ] && [[ "$f" == "$HARNESS_DB_MIGRATIONS_DIR"* ]]; then
     gate_db=true
@@ -59,10 +62,12 @@ done
 emit_paths_json() {
   local first=1
   printf '['
-  for f in "${files[@]}"; do
+  for f in "${files[@]+"${files[@]}"}"; do
     [ -z "$f" ] && continue
     if [ $first -eq 1 ]; then first=0; else printf ','; fi
-    printf '"%s"' "$f"
+    local esc="${f//\\/\\\\}"
+    esc="${esc//\"/\\\"}"
+    printf '"%s"' "$esc"
   done
   printf ']'
 }
