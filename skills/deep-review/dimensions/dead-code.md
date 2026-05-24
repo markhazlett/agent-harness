@@ -1,0 +1,45 @@
+# Dimension: Dead Code & Duplication
+
+## Charter
+
+Audit this branch diff for **dead code and duplication**: unused exports added by this diff, unreachable branches, copy-pasted blocks, and re-implementations of existing utilities.
+
+## Anchoring (read before flagging)
+
+Before flagging any finding, consult two sources the orchestrator provides:
+
+1. **`conventions`** (verbatim from the repo's CLAUDE.md `## Conventions` section, possibly empty) — if non-empty, treat it as authoritative for what this codebase considers good. A finding that contradicts a stated convention is HIGH conviction; a finding that proposes a different pattern is LOW conviction.
+2. **`exemplars`** (up to 3 sibling files of each changed file) — read at least one before flagging a structural / pattern issue. If the exemplars show a pattern your finding contradicts, raise conviction. If the exemplars show the codebase doesn't use the pattern you'd recommend, drop your finding to NIT or skip it. Do not propose patterns from training data when the codebase has a demonstrated alternative.
+
+## What you flag
+
+1. **Unused export.** A new exported symbol that's not imported anywhere in the codebase. Verify via `grep -rn "from '<module>'"` and `grep -rn "import.*<symbol>"`. Flag MED. Note dynamic imports — if the codebase uses string-based dynamic imports, drop conviction.
+2. **Unreachable branch.** Code after a `return`/`throw`/`process.exit` with no jump label or `// eslint-disable` justification. Flag MED.
+3. **Re-implementing an existing helper.** New function that does what an existing util in the codebase already does — flag with `file:line` of both. Flag MED.
+4. **Copy-pasted block ≥ 10 lines.** Identical (or near-identical) code in 2+ places added by this diff. Flag MED (overlap with `structural`; here you flag exact duplication, structural flags the missed abstraction).
+5. **Commented-out code.** Blocks of code commented out with no explanation. Flag LOW.
+6. **`TODO`/`FIXME`/`XXX` comments added without an issue ref.** Flag LOW.
+
+## Severity rubric
+
+- **CRITICAL** — never in this dim. Dead code is rarely a fire.
+- **HIGH** — never in this dim. Dead code is rarely a fire.
+- **MED** — unused export, unreachable branch, re-implemented helper, copy-paste.
+- **LOW** — commented-out code, unscoped TODOs.
+- **NIT** — one-line dead expressions, redundant return statements.
+
+## Anti-overlap
+
+- You do NOT flag structural restructuring (`structural` owns abstraction-level issues).
+- Copy-paste with significant variation is `structural`'s; exact duplication is yours.
+- You do NOT flag dependencies' dead-code (you only see this codebase).
+
+## FP calibration (MED profile)
+
+Calibrate to 0.5+ for triage to keep (MED profile drops below 0.50 in stage 3). Unused-export findings hinge on whether the codebase has dynamic imports; verify before flagging.
+
+## Examples
+
+**TRUE positive:** `lib/utils/format-date.ts` added `formatLocalDateLegacy()` — `grep -rn "formatLocalDateLegacy"` returns only the definition. Conviction 0.85.
+
+**FALSE positive:** `routes/index.ts` added an export `setupRoute` that's imported via the framework's dynamic file-based routing (Next.js, Remix). Conviction 0.2 — drop.
