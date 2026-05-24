@@ -16,10 +16,12 @@ Reads `git diff main...HEAD`, detects gates from `.claude/hooks/config.sh`, mine
   "gates": { "db": bool, "langgraph": bool, "a11y": bool },
   "conventions": "<verbatim ## Conventions or ## Patterns body from CLAUDE.md, or empty string>",
   "scopes": {
-    "<dim>": { "paths": [...], "exemplars": [...] }
+    "<dim>": { "paths": [...], "candidates": [...], "exemplars": [...] }
   }
 }
 ```
+
+The `candidates` arrays are dim-specific regex hits from SCAN (e.g., raw-SQL strings for security pre-screen, `Promise.all` patterns for concurrency). They are pre-screening hints, not findings — the dispatched subagent decides whether each candidate is a true positive after reading the surrounding context.
 
 Gate logic:
 - `db` → `gates.db = true` if any path matches `$HARNESS_DB_MIGRATIONS_DIR` or `$HARNESS_DB_SCHEMA_PATH`
@@ -40,23 +42,25 @@ Parse the JSON; route from `gates` (which dims to skip with N/A), `scopes` (per-
 
 ### Routing table
 
-| Dimension | Method | subagent_type | Prompt source |
-|-----------|--------|---------------|---------------|
-| security | delegate | — | invoke `/security-review` |
-| db | delegate (if gates.db) | — | invoke `/db-review` |
-| langgraph | delegate (if gates.langgraph) | — | invoke `/lg-review` |
-| structural | dispatch | dim-investigator-deep | `dimensions/structural.md` |
-| performance | dispatch | dim-investigator-deep | `dimensions/performance.md` |
-| concurrency | dispatch | dim-investigator-deep | `dimensions/concurrency.md` |
-| error-handling | dispatch | dim-investigator-deep | `dimensions/error-handling.md` |
-| types | dispatch | dim-investigator | `dimensions/types.md` |
-| observability | dispatch | dim-investigator | `dimensions/observability.md` |
-| tests | dispatch | dim-investigator | `dimensions/tests.md` |
-| api-drift | dispatch | dim-investigator | `dimensions/api-drift.md` |
-| deps | dispatch | dim-investigator | `dimensions/deps.md` |
-| a11y | dispatch (if gates.a11y) | dim-investigator | `dimensions/a11y.md` |
-| dead-code | dispatch | dim-investigator | `dimensions/dead-code.md` |
-| docs | dispatch | dim-investigator | `dimensions/docs.md` |
+| Dimension | Method | subagent_type | Prompt source | FP profile |
+|-----------|--------|---------------|---------------|------------|
+| security | delegate | — | invoke `/security-review` | HIGH |
+| db | delegate (if gates.db) | — | invoke `/db-review` | LOW |
+| langgraph | delegate (if gates.langgraph) | — | invoke `/lg-review` | LOW-MED |
+| structural | dispatch | dim-investigator-deep | `dimensions/structural.md` | MED-HIGH |
+| performance | dispatch | dim-investigator-deep | `dimensions/performance.md` | HIGH |
+| concurrency | dispatch | dim-investigator-deep | `dimensions/concurrency.md` | HIGH |
+| error-handling | dispatch | dim-investigator-deep | `dimensions/error-handling.md` | MED |
+| types | dispatch | dim-investigator | `dimensions/types.md` | LOW |
+| observability | dispatch | dim-investigator | `dimensions/observability.md` | LOW |
+| tests | dispatch | dim-investigator | `dimensions/tests.md` | LOW |
+| api-drift | dispatch | dim-investigator | `dimensions/api-drift.md` | LOW |
+| deps | dispatch | dim-investigator | `dimensions/deps.md` | MED |
+| a11y | dispatch (if gates.a11y) | dim-investigator | `dimensions/a11y.md` | LOW |
+| dead-code | dispatch | dim-investigator | `dimensions/dead-code.md` | MED |
+| docs | dispatch | dim-investigator | `dimensions/docs.md` | LOW |
+
+For delegated dims (security, db, langgraph), the FP profile is informational — the delegated skill produces its own verdicts. The orchestrator uses it when deciding whether to send adapted findings through Stage 4 revalidate.
 
 ### Per-dispatch prompt assembly
 
@@ -135,7 +139,7 @@ Build the final report. Save to `docs/deep-reviews/<YYYY-MM-DD>-<branch-slug>.md
 Then:
 1. Run `bin/deep-review-validate <path>` — must exit 0.
 2. Print the report path in your final message.
-3. Call `AskUserQuestion`: "Apply BLOCKING fixes? Y (all) / S (step-by-step) / N (none)."
+3. Call the `AskUserQuestion` tool with one single-select question: "Apply BLOCKING fixes?" with options "Y (all)" / "S (step-by-step)" / "N (none — just review)". Wait for the user's answer.
 4. If Y or S: dispatch one implementation subagent per BLOCKING finding with `suggested_fix` + `file:line` + `evidence`. After each fix, run `$HARNESS_TEST_CMD`. Step-by-step asks the user between findings.
 
 ### Final report skeleton
@@ -153,6 +157,8 @@ Counts: <CRIT> CRITICAL, <H> HIGH, <M> MED, <L> LOW, <N> NIT
 Blocking dimensions: <list>
 
 ## Verdict Matrix
+The "Verdict" column is one of `PASS` / `WARN` / `FAIL` / `N/A`. The "FP profile" column copies the per-dim value from Stage 2's routing table. The "Revalidated" column shows `yes (N confirmed)` for high-FP dims that went through Stage 4, `no` for dims that didn't qualify, or `n/a` for delegated dims that handle revalidation themselves.
+
 | # | Dimension | Verdict | Findings | FP profile | Revalidated |
 |---|-----------|---------|----------|-----------|-------------|
 | 1 | security  | …       | …        | HIGH      | yes (N conf)|
