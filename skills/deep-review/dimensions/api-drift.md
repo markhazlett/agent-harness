@@ -26,6 +26,7 @@ Before flagging any finding, consult two sources the orchestrator provides:
 - **HIGH** — exported signature changes, endpoint changes, event schema changes.
 - **MED** — internal cross-package contract changes, DB column drops affecting other apps.
 - **LOW** — additive changes (new optional params) where the doc doesn't say so explicitly.
+- **NIT** — naming inconsistencies in additive changes; doc-only drift where types are unchanged.
 
 ## Anti-overlap
 

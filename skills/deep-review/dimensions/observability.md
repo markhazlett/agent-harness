@@ -25,8 +25,9 @@ Before flagging any finding, consult two sources the orchestrator provides:
 
 - **CRITICAL** — secrets (API key, password, raw token) in logs.
 - **HIGH** — PII in logs without obvious masking.
-- **MED** — missing log on decision/mutation, missing metric on user-impact path.
-- **LOW** — wrong level, broken trace prop, log spam.
+- **MED** — missing log on decision/mutation, missing metric on user-impact path, broken trace propagation in a codebase with a propagation pattern.
+- **LOW** — wrong level, log spam.
+- **NIT** — log format style (structured vs. printf), log-call ordering.
 
 ## Anti-overlap
 
