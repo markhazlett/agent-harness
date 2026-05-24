@@ -37,7 +37,7 @@ Before flagging any finding, consult two sources the orchestrator provides:
 
 ## FP calibration (HIGH profile)
 
-Calibrate to 0.5+ for triage to keep. Hot-path qualification matters: if you can't name the route / handler / hot path, drop conviction by 0.2.
+Calibrate to 0.4+ for triage to keep (HIGH profile drops below 0.40 in stage 3). Hot-path qualification matters: if you can't name the route / handler / hot path, drop conviction by 0.2.
 
 - "Looks like N+1" — only flag if you can quote both the loop AND the lookup, AND argue why the loop iterations are bound by user data.
 - "Sync work" — only flag in handlers reached via HTTP / RPC / job worker; not in init scripts.

@@ -36,7 +36,7 @@ Before flagging any finding, consult two sources the orchestrator provides:
 
 ## FP calibration (HIGH profile)
 
-Static analysis on async code is notoriously noisy. Calibrate to 0.5+. Conviction floors:
+Static analysis on async code is notoriously noisy. Calibrate to 0.4+ for triage to keep (HIGH profile drops below 0.40 in stage 3). Conviction floors:
 
 - "This looks racy" — only flag if you can articulate the interleaving that produces the bad outcome.
 - "Missing lock" — only flag if you can name the resource being raced over and the two concurrent code paths.
