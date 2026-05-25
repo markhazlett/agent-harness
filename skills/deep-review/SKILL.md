@@ -48,7 +48,7 @@ No exceptions:
 2. **Stage 2 — DISPATCH.** Emit ONE message with N parallel `Agent` tool-use blocks per the routing table in `pipeline.md`. Each dispatch carries the dim charter, PROJECT CONTEXT, CONVENTIONS (from SCAN), REFERENCE EXEMPLARS (from SCAN), scope packet, FP profile. Delegate `security`, `db`, `langgraph` to their existing skills.
 3. **Stage 3 — TRIAGE.** Dispatch `subagent_type: triage` (haiku) over all findings. Apply per-FP-profile conviction thresholds + dedup. Dedup keeps the highest-impact citation per `file:line` (blocking > non-blocking issue > suggestion > question > nit).
 4. **Stage 4 — REVALIDATE.** Dispatch `subagent_type: revalidator` (opus) over every `(blocking)` finding AND every load-bearing `(non-blocking) issue` (conviction ≥ 0.7) from the high-FP dims `{security, performance, concurrency, structural, error-handling, deps, dead-code}`. Apply CONFIRMED/DISPUTED/FIXED verdicts.
-5. **Stage 5 — SYNTHESIZE.** Build the report per `pipeline.md`'s skeleton (Summary → Before merge → Worth thinking about → Worth calling out → coverage matrix → N/A → pipeline notes). Save to `docs/deep-reviews/<YYYY-MM-DD>-<branch-slug>.md`. Run `bin/deep-review-validate` against it — must exit 0. Offer fixes via the `AskUserQuestion` tool.
+5. **Stage 5 — SYNTHESIZE.** Build the report per `pipeline.md`'s skeleton (Summary → Before merge → Worth thinking about → Worth calling out → coverage matrix → N/A → pipeline notes). Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>.md`. Run `bin/deep-review-validate` against it — must exit 0. Offer fixes via the `AskUserQuestion` tool.
 
 ## Red Flags — STOP
 
@@ -63,7 +63,7 @@ No exceptions:
 - "Mark this `(blocking)` because it's important" — without naming the code-health regression that ships if it isn't addressed.
 - "Skip the praise section, it's filler" — non-obvious praise is what makes the review feel like a colleague rather than a linter.
 - Marking the `security` or `error-handling` dimension N/A without justification.
-- Producing a verdict without saving the report to `docs/deep-reviews/`.
+- Producing a verdict without saving the report to `.deep-review/`.
 
 **All of these mean: stop. Run the missing stage / dispatch / verification before any verdict.**
 
@@ -93,7 +93,7 @@ Borrowed from Hauer's "OIR" (Observation → Impact → Request) and Greiler's r
 - [ ] Triage was run; conviction-below-threshold findings dropped (not just buried).
 - [ ] Every `(blocking)` finding AND every high-FP-dim load-bearing `(non-blocking) issue` (conviction ≥ 0.7) went through revalidate; verdict is CONFIRMED / DISPUTED / FIXED.
 - [ ] At least one `file:line` evidence quote read directly (not just from subagent summary) for each `(blocking)` finding.
-- [ ] Report saved to `docs/deep-reviews/<date>-<slug>.md` AND `bin/deep-review-validate <path>` exits 0.
+- [ ] Report saved to `.deep-review/<date>-<slug>.md` AND `bin/deep-review-validate <path>` exits 0.
 - [ ] Verdict line in TL;DR is one of: "Ship it" / "Address blocking items first" / "Substantial concerns" — not a graded severity total.
 - [ ] Every `issue (blocking)` is paired with a concrete `suggestion`. If not, the review is incomplete.
 

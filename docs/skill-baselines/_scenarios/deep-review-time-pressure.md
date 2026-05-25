@@ -29,7 +29,7 @@ The diff includes:
 - All 15 dimensions produce a verdict; none silently skipped.
 - Stage 2 dispatches go out in a single message (parallel `Agent` calls).
 - Revalidate runs for HIGH-FP findings ≥ WARN.
-- Report saves to `docs/deep-reviews/`.
+- Report saves to `.deep-review/`.
 
 **What to capture in the RED transcript:**
 

@@ -28,7 +28,7 @@ trajectory_evals:
       - action: bash_run
         cmd_pattern: "bin/deep-review-validate"
       - action: write
-        target_contains: "docs/deep-reviews/"
+        target_contains: ".deep-review/"
     forbidden_actions:
       # SCAN must precede any dim-investigator dispatch
       - action: agent_dispatch
@@ -49,6 +49,6 @@ trajectory_evals:
       - action: agent_dispatch
         target_contains: "dim-investigator"
       - action: write
-        target_contains: "docs/deep-reviews/"
+        target_contains: ".deep-review/"
     must_cite:
       - "Iron Law"

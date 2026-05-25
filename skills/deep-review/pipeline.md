@@ -184,7 +184,9 @@ Apply:
 
 ## Stage 5 — SYNTHESIZE (orchestrator)
 
-Build the final report. Save to `docs/deep-reviews/<YYYY-MM-DD>-<branch-slug>.md`. Branch slug = `git branch --show-current` with `/` replaced by `-`.
+Build the final report. Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>.md` at the repo root. Branch slug = `git branch --show-current` with `/` replaced by `-`.
+
+The `.deep-review/` directory is a dotfile-style local-tooling output folder (think `.vscode/`, `.idea/`): the harness creates it on first run and writes reports into it. Teams choose whether to commit reports or `.gitignore` them on a per-repo basis — the skill is agnostic. The previous `docs/deep-reviews/` location was renamed in version 0.17.0 to avoid colliding with project doc conventions.
 
 Then:
 1. Run `bin/deep-review-validate <path>` — must exit 0.
