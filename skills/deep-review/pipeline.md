@@ -372,7 +372,7 @@ Invoke `bin/deep-review-scan --full-codebase`. The scan walks `git ls-files` (ho
 }
 ```
 
-Module detection walks each file's parent directories looking for `package.json`, `pyproject.toml`, `setup.py`, `go.mod`, `Cargo.toml`, or `Gemfile`. If no manifest is found anywhere in the repo, the scan falls back to top-level-directory grouping (one chunk per top-level dir, plus a `.` chunk for root files). Files under no detected module root go to a `misc` chunk.
+Module detection walks each file's parent directories looking for `package.json`, `pyproject.toml`, `setup.py`, `go.mod`, `Cargo.toml`, or `Gemfile`. If no manifest is found anywhere in the repo, the scan falls back to top-level-directory grouping (one chunk per top-level dir, plus a `root` chunk for files at the repo root). Files under no detected module root go to a `misc` chunk.
 
 ### Stage 0.5 — cost gate
 
