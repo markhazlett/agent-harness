@@ -92,6 +92,106 @@ is_preserved() {
   esac
 }
 
+# ── Layout migration ────────────────────────────────────────────────────────
+# Pre-flip installs have .claude/{skills,agents,commands} as real directories.
+# Post-flip upstream ships top-level skills/, agents/, prompts/ with .claude/*
+# as symlinks. Without an in-place migration, /harness-update would strand
+# every upstream skill at top-level where Claude Code can't see it.
+
+# Mapping: <.claude name>:<canonical top-level name>. Note commands → prompts.
+LAYOUT_MIGRATION_PAIRS=("skills:skills" "agents:agents" "commands:prompts")
+
+detect_old_layout() {
+  # Emit "<from>\t<to>" lines for each .claude/<X> that needs migration.
+  # A migration is needed when .claude/<X> is a real directory (not a symlink)
+  # AND the canonical top-level dir does not exist yet. If both exist we die
+  # loudly — that's a partial layout the user must reconcile manually.
+  for pair in "${LAYOUT_MIGRATION_PAIRS[@]}"; do
+    local cn="${pair%%:*}"
+    local tn="${pair##*:}"
+    local cp="${REPO_ROOT}/.claude/${cn}"
+    local tp="${REPO_ROOT}/${tn}"
+
+    # Already a symlink or missing — nothing to migrate for this entry.
+    [ -d "$cp" ] && [ ! -L "$cp" ] || continue
+
+    if [ -e "$tp" ]; then
+      die "layout migration blocked: both .claude/${cn}/ and ${tn}/ exist — please reconcile manually before re-running"
+    fi
+
+    printf '%s\t%s\n' ".claude/${cn}" "${tn}"
+  done
+}
+
+layout_migration_json() {
+  # Build a JSON array of {from, to} from detect_old_layout output.
+  local lines; lines="$(detect_old_layout)"
+  if [ -z "$lines" ]; then
+    echo "[]"
+    return 0
+  fi
+  jq -Rn '[inputs | split("\t") | {from: .[0], to: .[1]}]' <<<"$lines"
+}
+
+rewrite_manifest_for_migration() {
+  # Rewrite manifest keys whose prefix matches a just-migrated <from>/
+  # to the new <to>/. Only applied for prefixes we actually migrated, so
+  # unrelated entries (and entries for layouts we left alone) stay put.
+  # $@ = "<from>\t<to>" tab-separated pairs.
+  [ -f "$MANIFEST_FILE" ] || return 0
+  [ "$#" -gt 0 ] || return 0
+
+  # Build a jq object: { "<from>/": "<to>/", ... } and use it to rewrite keys.
+  local map_lines; map_lines=$(mktemp) || die "rewrite_manifest: mktemp failed"
+  for pair in "$@"; do
+    local from="${pair%%$'\t'*}"
+    local to="${pair##*$'\t'}"
+    jq -nc --arg f "${from}/" --arg t "${to}/" '{($f): $t}' >> "$map_lines"
+  done
+  local map; map="$(jq -cs 'add // {}' "$map_lines")"
+  rm -f "$map_lines"
+
+  local tmp="${MANIFEST_FILE}.tmp.$$"
+  jq --argjson map "$map" '
+    .files |= with_entries(
+      .key |= (. as $k
+        | ($map | to_entries | map(select(.key as $p | $k | startswith($p))) | first) as $hit
+        | if $hit == null then $k else ($hit.value + ($k | ltrimstr($hit.key))) end
+      )
+    )
+  ' "$MANIFEST_FILE" > "$tmp" \
+    || { rm -f "$tmp"; die "manifest rewrite jq failed"; }
+  mv "$tmp" "$MANIFEST_FILE" \
+    || { rm -f "$tmp"; die "manifest rewrite rename failed"; }
+}
+
+migrate_layout() {
+  local pairs; pairs="$(detect_old_layout)"
+  if [ -z "$pairs" ]; then
+    die "no layout migration needed (no real-directory .claude/{skills,agents,commands} found)"
+  fi
+
+  local applied=()
+  while IFS=$'\t' read -r from to; do
+    [ -z "$from" ] && continue
+    local from_path="${REPO_ROOT}/${from}"
+    local to_path="${REPO_ROOT}/${to}"
+
+    mv "$from_path" "$to_path" \
+      || die "migrate: mv ${from_path} → ${to_path} failed"
+    ln -s "../${to}" "$from_path" \
+      || die "migrate: symlink ${from_path} → ../${to} failed"
+
+    applied+=("${from}"$'\t'"${to}")
+    echo "  migrated: ${from} → ${to}/ (with symlink)" >&2
+  done <<<"$pairs"
+
+  if [ "${#applied[@]}" -gt 0 ]; then
+    rewrite_manifest_for_migration "${applied[@]}"
+    [ -f "$MANIFEST_FILE" ] && echo "  manifest paths rewritten" >&2
+  fi
+}
+
 # ── Setup ───────────────────────────────────────────────────────────────────
 
 require git
@@ -265,6 +365,8 @@ build_plan() {
   local_only_arr="$(jq -cs '.' "$plan_tmp/local_only.jsonl")"
   rm -rf "$plan_tmp"
 
+  local migration_arr; migration_arr="$(layout_migration_json)"
+
   jq -n \
     --arg lv "$LOCAL_VERSION" \
     --arg uv "$upstream_version" \
@@ -275,10 +377,12 @@ build_plan() {
     --argjson conflict "$conflict_arr" \
     --argjson preserved "$preserved_arr" \
     --argjson local_only "$local_only_arr" \
+    --argjson migration "$migration_arr" \
     '{
       local_version: $lv,
       upstream_version: $uv,
       source_dir: $sd,
+      needs_layout_migration: $migration,
       actions: {
         install: $install,
         update_safe: $update,
@@ -313,6 +417,27 @@ apply_plan() {
   local resolution_file="$2"
 
   [ -f "$resolution_file" ] || die "resolution file not found: $resolution_file"
+
+  # Refuse to apply against an un-migrated old-layout install. Without this,
+  # files would be written to top-level skills/, agents/, prompts/ while
+  # Claude Code continues reading from the real .claude/<X>/ dirs that the
+  # plan compared against — invisible-but-installed is the worst failure
+  # mode. The skill routes through --migrate-layout; the guard exists for
+  # direct CLI use that bypasses the skill.
+  local pending_migration; pending_migration="$(detect_old_layout)"
+  if [ -n "$pending_migration" ]; then
+    {
+      echo "harness-update: refusing to --apply on an un-migrated old-layout install."
+      echo "The following directories are still real (not symlinks):"
+      while IFS=$'\t' read -r from to; do
+        [ -z "$from" ] && continue
+        echo "  ${from} → ${to}/"
+      done <<<"$pending_migration"
+      echo "Run: bin/harness-update --migrate-layout"
+      echo "Then re-run --plan and --apply against the fresh plan."
+    } >&2
+    exit 1
+  fi
 
   # Validate resolution: every conflict must have a decision.
   local conflicts
@@ -442,11 +567,22 @@ usage() {
   cat <<USAGE
 Usage:
   harness-update --plan
+  harness-update --migrate-layout
   harness-update --apply --resolve <resolution.json> --from <plan.json>
 
 Phases:
   --plan
       Sync upstream and emit a JSON plan on stdout. No writes.
+      The plan includes a "needs_layout_migration" field listing any
+      .claude/{skills,agents,commands} that are still real directories
+      and need to be flipped to top-level dirs + symlinks before the
+      upstream copy can be applied cleanly.
+
+  --migrate-layout
+      Move .claude/skills, .claude/agents, .claude/commands (any that are
+      still real directories) to top-level skills/, agents/, prompts/, and
+      replace the originals with symlinks. Rewrites installed-manifest.json
+      paths in place. Run this once on old-layout installs before --apply.
 
   --apply --resolve <file> --from <file>
       Apply the supplied plan. <resolution.json> must decide every conflict
@@ -469,6 +605,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --plan) MODE="plan"; shift ;;
     --apply) MODE="apply"; shift ;;
+    --migrate-layout) MODE="migrate-layout"; shift ;;
     --resolve) RESOLVE_FILE="$2"; shift 2 ;;
     --from) PLAN_FILE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -479,6 +616,9 @@ done
 case "$MODE" in
   plan)
     build_plan
+    ;;
+  migrate-layout)
+    migrate_layout
     ;;
   apply)
     [ -n "$RESOLVE_FILE" ] || { usage >&2; die "--apply requires --resolve <file>"; }

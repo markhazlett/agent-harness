@@ -55,6 +55,32 @@ The script clones (or fetches) the upstream harness into `~/.agent-harness/sourc
 - `local_only` — files inside managed dirs that have no upstream counterpart (custom skills, agents, etc.). Always preserved.
 - `preserved` — files the script will never overwrite no matter what (`config.sh`).
 
+The plan also has a `needs_layout_migration` array — handle it first if non-empty.
+
+### 1.5. Layout migration (only if `needs_layout_migration` is non-empty)
+
+Pre-flip installs have `.claude/{skills,agents,commands}` as real directories. Upstream now ships top-level `skills/`, `agents/`, `prompts/` with `.claude/*` as symlinks. Until the install is flipped, the `actions.install/update_safe` counts compare against the *new* top-level paths (which don't exist yet) and are misleading — so resolve migration before showing the plan.
+
+Each entry in `needs_layout_migration` is `{ "from": ".claude/<X>", "to": "<top>" }`. Tell the user verbatim what will happen, listing only the entries the plan flagged:
+
+> "Your harness install is on the old layout. Before I can apply upstream changes, I need to migrate:
+> - move `.claude/skills/` → top-level `skills/` (replace with symlink)
+> - move `.claude/agents/` → top-level `agents/` (replace with symlink)
+> - move `.claude/commands/` → top-level `prompts/` (replace with symlink — note the rename)
+>
+> Your installed-manifest path keys will be rewritten to match. Proceed?"
+
+On yes, run the migration and re-build the plan against the migrated layout:
+
+```bash
+bash "$(git rev-parse --show-toplevel)/bin/harness-update" --migrate-layout
+bash "$(git rev-parse --show-toplevel)/bin/harness-update" --plan > "$PLAN_FILE"
+```
+
+On no, stop — don't attempt `--apply`. The `actions` in the stale plan would silently strand upstream files at locations Claude Code can't see.
+
+If `--migrate-layout` dies with "layout migration blocked: both .claude/<X>/ and <X>/ exist" — the user has a half-migrated tree. Surface the message, don't try to auto-reconcile; ask the user which copy they want to keep.
+
 ### 2. Show the plan to the user
 
 Summarize counts first, then drill into specifics:
