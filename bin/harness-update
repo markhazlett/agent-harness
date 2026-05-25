@@ -597,6 +597,38 @@ State:
 USAGE
 }
 
+# Self-exec guard (must run before arg parsing consumes "$@"). When --apply
+# rewrites bin/harness-update, `cp` truncates the file in-place (same inode,
+# new content). Bash holds the running script open by FD and keeps reading at
+# its byte offset — which now points at unrelated content — and exits
+# non-zero with a syntax error *after* the apply has already succeeded. To
+# avoid that, copy ourselves into a tempfile and re-exec from there before
+# touching anything on disk; the on-disk bin/harness-update is then free to
+# be replaced safely. The re-exec'd copy deletes itself on exit.
+#
+# Only --apply needs this guard; --plan and --migrate-layout don't rewrite
+# bin/harness-update. We detect --apply in the raw args (rather than after
+# parsing) so the exec re-passes the original argv intact.
+if [ "${HARNESS_UPDATE_REEXEC:-}" != "1" ]; then
+  want_apply=0
+  for arg in "$@"; do
+    [ "$arg" = "--apply" ] && want_apply=1
+  done
+  if [ "$want_apply" = "1" ]; then
+    reexec_self="$(mktemp -t harness-update-reexec.XXXXXX)" \
+      || die "self-exec guard: mktemp failed"
+    cp "$0" "$reexec_self" \
+      || { rm -f "$reexec_self"; die "self-exec guard: copy failed"; }
+    chmod +x "$reexec_self" \
+      || { rm -f "$reexec_self"; die "self-exec guard: chmod failed"; }
+    HARNESS_UPDATE_REEXEC=1 HARNESS_UPDATE_REEXEC_PATH="$reexec_self" \
+      exec "$reexec_self" "$@"
+  fi
+fi
+if [ "${HARNESS_UPDATE_REEXEC:-}" = "1" ] && [ -n "${HARNESS_UPDATE_REEXEC_PATH:-}" ]; then
+  trap 'rm -f "$HARNESS_UPDATE_REEXEC_PATH"' EXIT
+fi
+
 MODE=""
 RESOLVE_FILE=""
 PLAN_FILE=""
