@@ -312,6 +312,10 @@ else
   add_gitignore ".claude/transcripts/"
   add_gitignore ".claude/worktrees/"
 fi
+# /deep-review reports quote diff evidence verbatim — if a diff contains a leaked
+# secret, the report becomes a new exfil vector. Default to gitignored; teams that
+# want to commit reviews can remove this line.
+add_gitignore ".deep-review/"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Verify settings.json exists (Claude/Conductor only — Pi generates its own)

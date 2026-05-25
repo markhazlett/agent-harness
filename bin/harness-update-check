@@ -28,6 +28,7 @@ FETCH_TIMEOUT=5
 # TTLs in minutes
 TTL_UP_TO_DATE=60
 TTL_UPGRADE_AVAILABLE=720
+TTL_FETCH_FAILED=15  # short — retry soon, but don't hammer on every skill invocation
 
 # Find local VERSION file (walk up from .claude/bin to repo root)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,9 +45,12 @@ mkdir -p "$STATE_DIR"
 
 # ── Just-upgraded marker ──────────────────────────────────────────────────────
 
-if [ -f "$JUST_UPGRADED_FILE" ]; then
-  OLD_VERSION="$(cat "$JUST_UPGRADED_FILE" | tr -d '[:space:]')"
-  rm -f "$JUST_UPGRADED_FILE"
+# Atomic claim — only one racing process wins the mv, so the notice prints once
+# even if two skill invocations across workspaces share $HOME/.agent-harness.
+CLAIM_FILE="${JUST_UPGRADED_FILE}.claim.$$"
+if mv "$JUST_UPGRADED_FILE" "$CLAIM_FILE" 2>/dev/null; then
+  OLD_VERSION="$(cat "$CLAIM_FILE" | tr -d '[:space:]')"
+  rm -f "$CLAIM_FILE"
   echo "JUST_UPGRADED ${OLD_VERSION} ${LOCAL_VERSION}"
   exit 0
 fi
@@ -77,18 +81,25 @@ if [ -f "$CACHE_FILE" ]; then
     echo "UPGRADE_AVAILABLE ${LOCAL_VERSION} ${CACHE_REMOTE}"
     exit 0
   fi
+
+  if [[ "${CACHE_STATUS:-}" == "FETCH_FAILED" && "$CACHE_AGE" -lt "$TTL_FETCH_FAILED" ]]; then
+    exit 0  # Recent fetch failure — stay silent, retry on next TTL expiry
+  fi
 fi
 
 # ── Fetch remote version ──────────────────────────────────────────────────────
 
 REMOTE_VERSION="$(curl -fsSL --max-time "$FETCH_TIMEOUT" "$REMOTE_VERSION_URL" 2>/dev/null | tr -d '[:space:]')"
+NOW=$(date +%s)
 
 # Validate — reject HTML error pages, empty strings, etc.
+# Write a FETCH_FAILED breadcrumb so a maintainer can see why a stuck install
+# stopped showing prompts. Keep user-visible silence (exit 0) — UX choice is
+# "don't spam on flaky wifi."
 if [[ ! "$REMOTE_VERSION" =~ ^[0-9]+\.[0-9.]+$ ]]; then
-  exit 0  # Network issue or invalid response — assume up to date
+  echo "FETCH_FAILED||${NOW}" > "$CACHE_FILE"
+  exit 0
 fi
-
-NOW=$(date +%s)
 
 # ── Compare versions ──────────────────────────────────────────────────────────
 

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# bin/test-all — run every test under bin/tests/*.test.sh and report a summary.
+#
+# The harness ships bash-based regression tests as standalone *.test.sh files.
+# Without a runner, they silently rot (the validator-fixtures break that this
+# script's existence is partly intended to prevent was caused by exactly that).
+#
+# Usage:
+#   bin/test-all            run all tests, fail on first failure
+#   bin/test-all --keep-going   run all tests, report failures at end
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TESTS_DIR="$REPO_ROOT/bin/tests"
+
+if [ ! -d "$TESTS_DIR" ]; then
+  echo "FAIL: $TESTS_DIR does not exist" >&2
+  exit 1
+fi
+
+KEEP_GOING=0
+case "${1:-}" in
+  -k|--keep-going) KEEP_GOING=1 ;;
+  -h|--help)
+    echo "Usage: $0 [-k|--keep-going]"
+    echo "  Run all bin/tests/*.test.sh and report a summary."
+    exit 0
+    ;;
+  "") ;;
+  *) echo "Unknown arg: $1" >&2; exit 2 ;;
+esac
+
+pass=0
+fail=0
+failed_tests=()
+
+for t in "$TESTS_DIR"/*.test.sh; do
+  [ -f "$t" ] || continue
+  name="$(basename "$t")"
+  printf '%-50s ' "$name"
+  if bash "$t" >/tmp/test-all.$$.out 2>&1; then
+    echo "PASS"
+    pass=$((pass + 1))
+  else
+    echo "FAIL"
+    fail=$((fail + 1))
+    failed_tests+=("$name")
+    if [ "$KEEP_GOING" -eq 0 ]; then
+      echo
+      echo "── output of failing test ─────────────────────────────────────"
+      cat /tmp/test-all.$$.out
+      rm -f /tmp/test-all.$$.out
+      echo
+      echo "Use 'bin/test-all --keep-going' to run remaining tests anyway."
+      exit 1
+    fi
+  fi
+  rm -f /tmp/test-all.$$.out
+done
+
+echo
+echo "Summary: $pass passed, $fail failed"
+if [ "$fail" -gt 0 ]; then
+  echo "Failed tests:"
+  for n in "${failed_tests[@]}"; do echo "  - $n"; done
+  exit 1
+fi
+exit 0

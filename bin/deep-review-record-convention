@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# bin/deep-review-record-convention — persist a pattern-divergence decision
+# to CLAUDE.md's ## Conventions section.
+#
+# Called by /deep-review Stage 4.5 (DECIDE) after the user picks between
+# competing patterns surfaced by the dim subagents. The appended entry is
+# read by bin/deep-review-scan on every future run, so the next review
+# treats deviation as a HIGH-conviction finding automatically.
+#
+# Behavior:
+#   - If CLAUDE.md doesn't exist, create it with a minimal frame.
+#   - If a `## Conventions`, `## Coding conventions`, `## Patterns`, or
+#     `## Coding patterns` section exists, append the entry inside it
+#     (just before the next ## section or at EOF).
+#   - Otherwise, append a new `## Conventions` section at the end of the file.
+#   - Writes atomically via temp + rename.
+#
+# Usage:
+#   bin/deep-review-record-convention \
+#     --domain "<short label, e.g. 'error handling style'>" \
+#     --pattern "<the canonical choice, one line>" \
+#     --why "<one-line reason the user gave>" \
+#     [--evidence "<file:line, file:line>"]
+
+set -euo pipefail
+
+DOMAIN=""
+PATTERN=""
+WHY=""
+EVIDENCE=""
+
+usage() {
+  cat >&2 <<EOF
+Usage: $0 --domain X --pattern Y --why Z [--evidence "a:N, b:N"]
+
+  --domain    short label naming the pattern domain (e.g. "error handling style")
+  --pattern   the canonical choice the user picked, one line
+  --why       one-line reason for the choice
+  --evidence  optional comma-separated file:line citations (defaults to empty)
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --domain)   DOMAIN="${2:-}"; shift 2 ;;
+    --pattern)  PATTERN="${2:-}"; shift 2 ;;
+    --why)      WHY="${2:-}"; shift 2 ;;
+    --evidence) EVIDENCE="${2:-}"; shift 2 ;;
+    -h|--help)  usage; exit 0 ;;
+    *) echo "Unknown arg: $1" >&2; usage; exit 2 ;;
+  esac
+done
+
+[ -n "$DOMAIN" ]  || { echo "FAIL: --domain required" >&2; exit 1; }
+[ -n "$PATTERN" ] || { echo "FAIL: --pattern required" >&2; exit 1; }
+[ -n "$WHY" ]     || { echo "FAIL: --why required" >&2; exit 1; }
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" \
+  || { echo "FAIL: not in a git repo" >&2; exit 1; }
+
+CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+DATE="$(date +%Y-%m-%d)"
+
+ENTRY="- **${DOMAIN}**: ${PATTERN}. ${WHY}."
+if [ -n "$EVIDENCE" ]; then
+  ENTRY="${ENTRY} _(seen at: ${EVIDENCE}; recorded by /deep-review on ${DATE})_"
+else
+  ENTRY="${ENTRY} _(recorded by /deep-review on ${DATE})_"
+fi
+
+# No CLAUDE.md yet — create a minimal frame with the entry.
+if [ ! -f "$CLAUDE_MD" ]; then
+  cat > "$CLAUDE_MD" <<EOF
+# $(basename "$REPO_ROOT") — Working Notes
+
+## Conventions
+
+$ENTRY
+EOF
+  echo "Created CLAUDE.md with ## Conventions section and recorded: $DOMAIN → $PATTERN"
+  exit 0
+fi
+
+TMP="${CLAUDE_MD}.tmp.$$"
+trap 'rm -f "$TMP"' EXIT
+
+# The section header pattern matches all four variants the SCAN regex accepts:
+#   ## Conventions, ## Coding conventions, ## Patterns, ## Coding patterns
+SECTION_RE='^## *([Cc]oding +)?([Cc]onventions|[Pp]atterns)'
+
+if grep -qE "$SECTION_RE" "$CLAUDE_MD"; then
+  # Insert the entry just before the next ## header inside the existing section
+  # (or at EOF if the section is the last one in the file). Tracks `in_section`
+  # so we don't insert into an earlier or unrelated section that happens to
+  # share the regex (only the first match wins).
+  awk -v entry="$ENTRY" -v section_re="$SECTION_RE" '
+    BEGIN { in_section=0; inserted=0; seen_section=0 }
+    !seen_section && $0 ~ section_re { in_section=1; seen_section=1; print; next }
+    /^## / && in_section && !inserted {
+      print entry
+      print ""
+      inserted=1
+      in_section=0
+      print
+      next
+    }
+    { print }
+    END {
+      if (in_section && !inserted) {
+        print entry
+      }
+    }
+  ' "$CLAUDE_MD" > "$TMP"
+else
+  # No existing section — append a new ## Conventions section at the end.
+  {
+    cat "$CLAUDE_MD"
+    # Ensure a trailing blank line before our new section, even if the file
+    # already ends with one or none.
+    printf '\n## Conventions\n\n%s\n' "$ENTRY"
+  } > "$TMP"
+fi
+
+mv "$TMP" "$CLAUDE_MD"
+trap - EXIT
+echo "Recorded convention in CLAUDE.md: $DOMAIN → $PATTERN"

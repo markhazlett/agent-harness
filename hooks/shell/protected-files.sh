@@ -30,8 +30,12 @@ if [[ "$BASENAME" == ".env" || "$BASENAME" == .env.* ]]; then
   block "Editing $BASENAME is not allowed — environment files must be managed manually"
 fi
 
-# Block hook scripts (guard the guards)
-if [[ "$REL_PATH" == .claude/hooks/* ]]; then
+# Block hook scripts (guard the guards) — cover both the symlinked .claude/hooks/
+# surface and the canonical hooks/shell/, hooks/config.sh, hooks/pi/ paths.
+if [[ "$REL_PATH" == .claude/hooks/* \
+   || "$REL_PATH" == hooks/shell/* \
+   || "$REL_PATH" == hooks/config.sh \
+   || "$REL_PATH" == hooks/pi/* ]]; then
   block "Editing hook scripts is not allowed — they enforce quality gates"
 fi
 
