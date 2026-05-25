@@ -37,6 +37,16 @@ Legacy mapping: prior "Flag HIGH / MED / LOW / NIT" annotations in "What you fla
 - You do NOT flag error handling around the refactored code (`error-handling` owns try/catch coverage).
 - You do NOT flag dead code per se — `dead-code` owns unused exports and unreachable branches. But unused-by-design abstraction layers (a wrapper that's only called once) ARE structural — flag as wrapper churn.
 
+## Pattern divergence
+
+If you see ≥2 competing abstraction / file-layout / module-boundary styles in the diff (or in the exemplars) and CONVENTIONS is silent, emit a single `kind: question` with `divergence:` populated. See `agents/dim-investigator-deep.md` § "Pattern divergence" for the contract. Common domains for this dim:
+
+- **`abstraction style`** — function-level helpers vs class-based services vs module-as-namespace.
+- **`file organization`** — feature-folder (everything for X in one dir) vs layer-folder (controllers/services/models split).
+- **`shared-code placement`** — inline duplication vs `lib/` utilities vs a published package.
+
+Emit ONE finding per domain. List each competing pattern as a `divergence.options[]` entry with file:line evidence per option.
+
 ## FP calibration (MED-HIGH profile)
 
 You will see findings dismissed in triage if your conviction is below 0.45. Calibrate:

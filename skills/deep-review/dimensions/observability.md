@@ -36,6 +36,16 @@ Legacy mapping: prior "Flag CRITICAL / HIGH" (secrets / PII in logs) → `issue 
 - You do NOT flag accessibility of logs / dashboards (out of scope).
 - You do NOT flag the security of log infrastructure (`security` owns transport security of log shipping).
 
+## Pattern divergence
+
+If you see ≥2 competing logging / metrics / tracing patterns in the diff (or in the exemplars) and CONVENTIONS is silent, emit a single `kind: question` with `divergence:` populated. See `agents/dim-investigator-deep.md` § "Pattern divergence" for the contract. Common domains for this dim:
+
+- **`logging format`** — `console.log` strings vs structured JSON via a logger (pino, winston, bunyan) vs platform-native (`@logtail/node`, OTel).
+- **`metric naming convention`** — `snake_case` vs `dot.separated` vs `camelCase` for metric keys.
+- **`trace context propagation`** — header-based (`traceparent`), AsyncLocalStorage, explicit context arg threading.
+
+Emit ONE finding per domain. List each competing pattern as a `divergence.options[]` entry with file:line evidence per option.
+
 ## FP calibration (LOW profile)
 
 Calibrate to 0.6+ for triage to keep (LOW profile drops below 0.60 in stage 3). Patterns are mostly grepable, so confidence is usually high. Drop only when you can show the codebase has explicit no-log conventions for similar paths.

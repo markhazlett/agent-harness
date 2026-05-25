@@ -40,8 +40,26 @@ findings:
     why_it_matters: <one to three sentences, conversational; explain the cost of not addressing>
     suggested_fix: <minimal change; required for issue and suggestion, optional otherwise>
     conviction: 0.0–1.0
+    divergence:                     # OPTIONAL — only on kind: question
+      domain: <short label>
+      options:
+        - label: <one-line description of pattern A>
+          evidence: ["path/a:42", "path/a2:18"]
+        - label: <one-line description of pattern B>
+          evidence: ["path/b:14"]
 notes: <one-line per-dimension summary>
 ```
+
+## Pattern divergence (`divergence:` on a `question`)
+
+When you see **≥2 competing patterns** for the same thing in the diff (or in the exemplars), AND the CONVENTIONS string from the orchestrator is silent on which is canonical, AND you can't tell from the diff alone which the author prefers — emit a `kind: question` finding with `divergence:` populated.
+
+The orchestrator surfaces these to the user in Stage 4.5 and persists the decision to `CLAUDE.md ## Conventions`. The next `/deep-review` run reads that back automatically, so future deviations get treated as HIGH-conviction findings instead of bouncing back as questions every time. Emit **one finding per domain**, not one per occurrence — collapse all instances of "pattern A vs pattern B" into a single question with multiple file:line citations per option.
+
+Do NOT emit `divergence:` when:
+- CONVENTIONS already names a canonical pattern (you have your answer; flag deviation instead).
+- The two patterns serve different purposes (e.g., `throw` for programmer errors + `Result` for user-input errors — that's not divergence, that's a layered convention).
+- You're using it as a substitute for low conviction. If you can't decide whether something is a problem, emit a regular `question`, not a `divergence`.
 
 ## Kind vocabulary
 

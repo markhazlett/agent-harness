@@ -46,6 +46,16 @@ Triage drops below 0.5. Empty `catch` blocks look HIGH but are sometimes intenti
 - "Missing retry" — flag if the called function is a network / IO operation (not pure logic).
 - "Partial failure" — flag if you can name two state mutations between which a failure leaves inconsistency.
 
+## Pattern divergence
+
+If you see ≥2 competing error-handling styles in the diff (or in the exemplars) and CONVENTIONS is silent on which is canonical, emit a single `kind: question` with `divergence:` populated — see `agents/dim-investigator-deep.md` § "Pattern divergence" for the contract. Common domains for this dim:
+
+- **`error propagation style`** — `throw new Error(...)` vs `return { ok: false, err }` vs `Result<T, E>` types.
+- **`retry approach`** — inline `for` loops vs a shared `retry()` helper vs library-driven (`p-retry`, `async-retry`).
+- **`error logging contract`** — `console.error(e)` vs structured logger vs telemetry-call vs nothing.
+
+Emit ONE finding per domain, not one per occurrence. List each competing pattern as a `divergence.options[]` entry with file:line evidence per option.
+
 ## Examples
 
 **TRUE positive:** `payments/charge.ts:88` does `db.charge(...)` then `db.markPaid(...)` with no transaction. If `markPaid` fails, the user is charged but marked unpaid. Both quoted. Conviction 0.85.

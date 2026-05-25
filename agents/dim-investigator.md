@@ -38,6 +38,7 @@ Identical to dim-investigator-deep — single fenced block using the Conventiona
 - Use `nit` for trivial preference or style.
 - Use `praise` for a specific non-obvious good call (skip the section if nothing qualifies — generic praise reads as inflation).
 - Set `blocking: true` only on `issue` items, and only when shipping the diff worsens overall code health (see dim-investigator-deep.md § "The (blocking) bar").
+- Set `divergence:` on a `kind: question` when you see ≥2 competing patterns and CONVENTIONS is silent — see dim-investigator-deep.md § "Pattern divergence" for the full contract. The orchestrator records the user's decision back to CLAUDE.md.
 
 ## Tone discipline
 

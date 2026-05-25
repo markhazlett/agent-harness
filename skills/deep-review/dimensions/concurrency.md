@@ -35,6 +35,16 @@ Legacy mapping: prior "Flag CRITICAL" → `issue (blocking)`. "Flag HIGH" with n
 - You do NOT flag transaction-level safety in DB migrations (`db` owns CREATE INDEX CONCURRENTLY, locking).
 - You do NOT flag error handling around the race (`error-handling` owns try/catch and retry logic).
 
+## Pattern divergence
+
+If you see ≥2 competing concurrency / locking / serialization patterns in the diff (or in the exemplars) and CONVENTIONS is silent, emit a single `kind: question` with `divergence:` populated. See `agents/dim-investigator-deep.md` § "Pattern divergence" for the contract. Common domains for this dim:
+
+- **`mutual exclusion style`** — DB row locks (`SELECT ... FOR UPDATE`) vs application-layer mutex vs idempotency-key tokens vs CAS.
+- **`async coordination`** — `Promise.all` vs sequential `await` vs explicit queue/worker pool.
+- **`background work shape`** — in-process workers vs queue + consumer vs cron + scheduled job.
+
+Emit ONE finding per domain. List each competing pattern as a `divergence.options[]` entry with file:line evidence per option.
+
 ## FP calibration (HIGH profile)
 
 Static analysis on async code is notoriously noisy. Calibrate to 0.4+ for triage to keep (HIGH profile drops below 0.40 in stage 3). Conviction floors:

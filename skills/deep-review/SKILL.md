@@ -17,7 +17,7 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 > _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-The deepest pre-ship code review tier. Runs a 5-stage pipeline (SCAN → DISPATCH → TRIAGE → REVALIDATE → SYNTHESIZE) across 15 dimensions in parallel, then delivers the result as a code review — not a severity-graded incident report. Advisory only; does not auto-fire from `/ship` or `/pre-deploy`. Optimized for completeness over speed; typical mid-PR cost is $10–15 and 3–8 minutes wall-clock.
+The deepest pre-ship code review tier. Runs a 6-stage pipeline (SCAN → DISPATCH → TRIAGE → REVALIDATE → DECIDE → SYNTHESIZE) across 15 dimensions in parallel, then delivers the result as a code review — not a severity-graded incident report. Advisory only; does not auto-fire from `/ship` or `/pre-deploy`. Optimized for completeness over speed; typical mid-PR cost is $10–15 and 3–8 minutes wall-clock.
 
 ## How the review reads
 
@@ -38,7 +38,7 @@ No exceptions:
 - Spot-checking is not depth. The 15-dimension fan-out IS the audit.
 - N/A requires a one-line justification naming what the dimension would have caught and why this diff has no surface for it. "Probably doesn't apply" is not a verdict.
 - Subagent summaries are inputs to the orchestrator's judgment, not the verdict itself (harness §27 — "trust but verify"). The orchestrator reads at least one cited `file:line` per `(blocking)` finding directly.
-- Triage filters; revalidate confirms; synthesis ranks. Skipping any stage collapses depth into noise.
+- Triage filters; revalidate confirms; decide records; synthesis ranks. Skipping any stage collapses depth into noise. Stage 4.5 is skippable ONLY when no divergence findings survived — not because "we'll do it next time."
 
 ## Gate Sequence
 
@@ -48,7 +48,8 @@ No exceptions:
 2. **Stage 2 — DISPATCH.** Emit ONE message with N parallel `Agent` tool-use blocks per the routing table in `pipeline.md`. Each dispatch carries the dim charter, PROJECT CONTEXT, CONVENTIONS (from SCAN), REFERENCE EXEMPLARS (from SCAN), scope packet, FP profile. Delegate `security`, `db`, `langgraph` to their existing skills.
 3. **Stage 3 — TRIAGE.** Dispatch `subagent_type: triage` (haiku) over all findings. Apply per-FP-profile conviction thresholds + dedup. Dedup keeps the highest-impact citation per `file:line` (blocking > non-blocking issue > suggestion > question > nit).
 4. **Stage 4 — REVALIDATE.** Dispatch `subagent_type: revalidator` (opus) over every `(blocking)` finding AND every load-bearing `(non-blocking) issue` (conviction ≥ 0.7) from the high-FP dims `{security, performance, concurrency, structural, error-handling, deps, dead-code}`. Apply CONFIRMED/DISPUTED/FIXED verdicts.
-5. **Stage 5 — SYNTHESIZE.** Build the report per `pipeline.md`'s skeleton (Summary → Before merge → Worth thinking about → Worth calling out → coverage matrix → N/A → pipeline notes). Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>-<short-sha>.md` (short-sha keeps re-runs on the same date+branch from silently overwriting each other; same HEAD → same filename → idempotent). Run `bin/deep-review-validate` against it — must exit 0. Offer fixes via the `AskUserQuestion` tool.
+5. **Stage 4.5 — DECIDE.** For every surviving `kind: question` with `divergence:` set, call `AskUserQuestion` (one question per divergence, capped at 4 per run, options carry side-by-side `preview` of the file:line evidence). Persist each answer via `bin/deep-review-record-convention --domain X --pattern Y --why Z --evidence "a:N, b:N"` — this appends to `CLAUDE.md ## Conventions` so the next `/deep-review` run picks the rule up via SCAN. Skipped or beyond-cap divergences become `kind: chore` findings in the report. Skip the stage if no divergences survived.
+6. **Stage 5 — SYNTHESIZE.** Build the report per `pipeline.md`'s skeleton (Summary → Before merge → Worth thinking about → Worth calling out → Conventions recorded → coverage matrix → N/A → pipeline notes). Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>-<short-sha>.md` (short-sha keeps re-runs on the same date+branch from silently overwriting each other; same HEAD → same filename → idempotent). Run `bin/deep-review-validate` against it — must exit 0. Offer fixes via the `AskUserQuestion` tool.
 
 ## Red Flags — STOP
 
@@ -93,6 +94,7 @@ Borrowed from Hauer's "OIR" (Observation → Impact → Request) and Greiler's r
 - [ ] Triage was run; conviction-below-threshold findings dropped (not just buried).
 - [ ] Every `(blocking)` finding AND every high-FP-dim load-bearing `(non-blocking) issue` (conviction ≥ 0.7) went through revalidate; verdict is CONFIRMED / DISPUTED / FIXED.
 - [ ] At least one `file:line` evidence quote read directly (not just from subagent summary) for each `(blocking)` finding.
+- [ ] Every surviving `divergence` finding was either (a) decided via `AskUserQuestion` + `bin/deep-review-record-convention`, or (b) demoted to `kind: chore` for the report. Stage 4.5 did not skip a single one without classifying it.
 - [ ] Report saved to `.deep-review/<date>-<slug>-<sha>.md` AND `bin/deep-review-validate <path>` exits 0.
 - [ ] Verdict line in TL;DR is one of: "Ship it" / "Address blocking items first" / "Substantial concerns" — not a graded severity total.
 - [ ] Every `issue (blocking)` is paired with a concrete `suggestion`. If not, the review is incomplete.
