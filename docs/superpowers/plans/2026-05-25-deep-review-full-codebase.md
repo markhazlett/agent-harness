@@ -48,7 +48,7 @@ SCAN="$repo_root/bin/deep-review-scan"
 test -x "$SCAN" || { echo "FAIL: $SCAN not executable"; exit 1; }
 
 tmp=
-cleanup() { [ -n "${tmp:-}" ] && rm -rf "$tmp"; }
+cleanup() { [ -n "${tmp:-}" ] && rm -rf "$tmp"; return 0; }
 trap cleanup EXIT
 
 setup_repo() {
