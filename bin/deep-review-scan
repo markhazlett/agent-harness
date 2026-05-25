@@ -27,13 +27,21 @@ HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH:-false}"
 
 BASE="${1:-main}"
 
+# Fail loud on a typo'd ref — without this, a bad BASE produces an empty
+# manifest and the downstream /deep-review orchestrator reads it as
+# "nothing to review" and ships a false-positive green verdict.
+if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
+  echo '{"error":"unknown base ref: '"$BASE"'"}' >&2
+  exit 1
+fi
+
 files=()
 while IFS= read -r line; do
   [ -n "$line" ] && files+=("$line")
-done < <(git diff --name-only "$BASE"...HEAD 2>/dev/null || true)
+done < <(git diff --name-only "$BASE"...HEAD)
 
-added=$(git diff --shortstat "$BASE"...HEAD 2>/dev/null | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
-removed=$(git diff --shortstat "$BASE"...HEAD 2>/dev/null | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
+added=$(git diff --shortstat "$BASE"...HEAD | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo 0)
+removed=$(git diff --shortstat "$BASE"...HEAD | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
 added="${added:-0}"
 removed="${removed:-0}"
 

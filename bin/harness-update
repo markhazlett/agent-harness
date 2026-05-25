@@ -273,14 +273,18 @@ build_plan() {
 # ── Apply ───────────────────────────────────────────────────────────────────
 
 copy_file() {
-  # $1 = path relative to repo root (== path relative to upstream root)
+  # $1 = path relative to repo root (== path relative to upstream root).
+  # Fail loud on any step so apply_plan aborts before the manifest is written —
+  # without this, a partial copy leaves the on-disk state inconsistent with
+  # what the manifest claims, and the next --plan invocation mis-diagnoses
+  # every undelivered file as a user-pinned conflict.
   local src="${SOURCE_DIR}/$1"
   local dst="${REPO_ROOT}/$1"
-  mkdir -p "$(dirname "$dst")"
-  cp "$src" "$dst"
+  mkdir -p "$(dirname "$dst")" || die "copy_file: mkdir failed for $(dirname "$dst")"
+  cp "$src" "$dst" || die "copy_file: cp failed for $1"
   # Preserve executable bit for shell scripts and bin/.
   case "$1" in
-    bin/*|*.sh) chmod +x "$dst" ;;
+    bin/*|*.sh) chmod +x "$dst" || die "copy_file: chmod failed for $dst" ;;
   esac
 }
 
