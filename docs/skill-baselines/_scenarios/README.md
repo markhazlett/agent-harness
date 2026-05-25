@@ -13,6 +13,10 @@ mega-scenario.
 | [sunk-cost-rewrite](./sunk-cost-rewrite.md) | Sunk cost | `/tdd` specifically — "delete and start over" is the unique TDD demand |
 | [authority-deadline](./authority-deadline.md) | Authority + deadline | `/pre-deploy`, `/ship`, `/security-review`, `/db-review` — gate skills the user is being told to skip |
 | [exhaustion-near-end](./exhaustion-near-end.md) | End-of-task exhaustion | `/e2e-verify`, `/self-verify`, `/pre-deploy`, `/ship` — verification skills that fire at the end of a flow |
+| [deep-review-time-pressure](./deep-review-time-pressure.md) | Time + sunk cost | `/deep-review` — full 15-dim pipeline under PR-window pressure |
+| [deep-review-sunk-cost](./deep-review-sunk-cost.md) | Sunk cost (mid-pipeline) | `/deep-review` — synthesizing from partial dispatches |
+| [deep-review-authority](./deep-review-authority.md) | Authority deference | `/deep-review` — when a senior already reviewed it |
+| [deep-review-context-exhaustion](./deep-review-context-exhaustion.md) | Context exhaustion | `/deep-review` — synthesis when full quoting would overflow context |
 
 ## Selection guide
 
