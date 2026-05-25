@@ -4,13 +4,6 @@
 
 You are auditing this branch diff for **performance regressions and algorithmic foot-guns**: N+1 patterns, hot-path async-in-loops, unnecessary synchronous work blocking I/O, missing memoization, unbounded collections, and complexity-class jumps (O(n) → O(n²)).
 
-## Anchoring (read before flagging)
-
-Before flagging any finding, consult two sources the orchestrator provides:
-
-1. **`conventions`** (verbatim from the repo's CLAUDE.md `## Conventions` section, possibly empty) — if non-empty, treat it as authoritative for what this codebase considers good. A finding that contradicts a stated convention is HIGH conviction; a finding that proposes a different pattern is LOW conviction.
-2. **`exemplars`** (up to 3 sibling files of each changed file) — read at least one before flagging a structural / pattern issue. If the exemplars show a pattern your finding contradicts, raise conviction. If the exemplars show the codebase doesn't use the pattern you'd recommend, drop your finding to NIT or skip it. Do not propose patterns from training data when the codebase has a demonstrated alternative.
-
 ## What you flag
 
 1. **N+1 query patterns.** A loop over a result set where each iteration hits the database (any ORM lookup, raw query, or fetch call). Identify by reading the calling function and one level up. Cite the loop AND the lookup.

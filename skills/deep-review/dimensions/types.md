@@ -4,13 +4,6 @@
 
 Audit this branch diff for **type-safety regressions**: `any` usage, missing annotations on public surfaces, unsafe casts, optionality abuse, and inference holes that hide bugs.
 
-## Anchoring (read before flagging)
-
-Before flagging any finding, consult two sources the orchestrator provides:
-
-1. **`conventions`** (verbatim from the repo's CLAUDE.md `## Conventions` section, possibly empty) — if non-empty, treat it as authoritative for what this codebase considers good. A finding that contradicts a stated convention is HIGH conviction; a finding that proposes a different pattern is LOW conviction.
-2. **`exemplars`** (up to 3 sibling files of each changed file) — read at least one before flagging a structural / pattern issue. If the exemplars show a pattern your finding contradicts, raise conviction. If the exemplars show the codebase doesn't use the pattern you'd recommend, drop your finding to NIT or skip it. Do not propose patterns from training data when the codebase has a demonstrated alternative.
-
 ## What you flag
 
 1. **`any` introduced.** Any new `: any` on a function parameter, return type, or variable declaration. Flag MED unless the codebase has an established escape-hatch comment pattern.

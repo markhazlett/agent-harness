@@ -91,8 +91,8 @@ emit_conventions_json() {
   local body
   body=$(awk '
     BEGIN{flag=0}
-    /^## *[Cc]onventions *$/ {flag=1; next}
-    /^## *[Pp]atterns *$/ {flag=1; next}
+    /^## *([Cc]oding +)?[Cc]onventions/ {flag=1; next}
+    /^## *([Cc]oding +)?[Pp]atterns/ {flag=1; next}
     /^## / {if (flag) {flag=0}}
     flag {print}
   ' "$claude_md")
@@ -105,26 +105,35 @@ emit_conventions_json() {
   printf '"%s"' "$body"
 }
 
+# Membership check against the diff: O(1) bash pattern match on a single
+# string (cached at module level), instead of a per-candidate O(N) for-loop.
+# files_str is built once outside this function.
+is_in_diff() { [[ "$files_str" == *$'\n'"$1"$'\n'* ]]; }
+
 # Print up to 3 sibling files, one per line, no JSON wrapping.
 # Falls back to same-extension files elsewhere in the repo if under 3 in-dir siblings.
+#
+# Reads from the $all_files cache (git ls-files once at startup) — avoids
+# one git invocation per target. The previous O(N²) inner for-loop has been
+# replaced with the O(1) is_in_diff pattern match above.
 emit_exemplars_lines_for_file() {
   local target="$1"
   local dir; dir=$(dirname "$target")
   local ext="${target##*.}"
   local count=0
 
-  # In-dir siblings first
-  if [ -d "$dir" ]; then
+  # In-dir siblings first (anchored on $dir/ to match the original
+  # `git ls-files <dir>` scope; if dir is '.', skip directly to the fallback
+  # since the dir-scoped pass would be identical to it).
+  if [ "$dir" != "." ]; then
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       [ "$f" = "$target" ] && continue
-      local in_diff=0
-      for d in "${files[@]+"${files[@]}"}"; do
-        [ "$d" = "$f" ] && { in_diff=1; break; }
-      done
-      [ $in_diff -eq 0 ] && { echo "$f"; count=$((count+1)); }
+      is_in_diff "$f" && continue
+      echo "$f"
+      count=$((count+1))
       [ $count -ge 3 ] && return
-    done < <(git ls-files "$dir" 2>/dev/null | grep -E "\\.${ext}$" | sort)
+    done < <(printf '%s\n' "$all_files" | grep -E "^${dir}/.*\\.${ext}$" | sort)
   fi
 
   # Elsewhere-in-repo fallback if under 3
@@ -132,13 +141,11 @@ emit_exemplars_lines_for_file() {
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       [ "$f" = "$target" ] && continue
-      local in_diff=0
-      for d in "${files[@]+"${files[@]}"}"; do
-        [ "$d" = "$f" ] && { in_diff=1; break; }
-      done
-      [ $in_diff -eq 0 ] && { echo "$f"; count=$((count+1)); }
+      is_in_diff "$f" && continue
+      echo "$f"
+      count=$((count+1))
       [ $count -ge 3 ] && return
-    done < <(git ls-files 2>/dev/null | grep -E "\\.${ext}$" | sort)
+    done < <(printf '%s\n' "$all_files" | grep -E "\\.${ext}$" | sort)
   fi
 }
 
@@ -169,6 +176,15 @@ build_union_exemplars() {
   done
   printf ']'
 }
+
+# Cache once for the rest of the script:
+#   files_str — a $'\n'-delimited string of diff files, used by is_in_diff()
+#               for O(1) bash-native membership checks.
+#   all_files — the output of `git ls-files`, used by emit_exemplars_lines_for_file
+#               instead of one git invocation per target.
+files_str=$'\n'
+for _f in "${files[@]+"${files[@]}"}"; do files_str="${files_str}${_f}"$'\n'; done
+all_files=$(git ls-files 2>/dev/null || true)
 
 paths_json=$(emit_paths_json)
 conv_json=$(emit_conventions_json)

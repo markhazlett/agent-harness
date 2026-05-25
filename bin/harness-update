@@ -153,15 +153,25 @@ build_plan() {
   local upstream_files
   upstream_files="$(git -C "$SOURCE_DIR" ls-files)"
 
-  local install_arr='[]' update_arr='[]' skip_arr='[]' conflict_arr='[]'
-  local preserved_arr='[]'
+  # Per-category JSONL temp files. Each plan loop appends one line per entry
+  # via a single `jq -n` invocation; arrays are slurped into `jq -s '.'` once
+  # at the end. This replaces the previous `arr=$(jq ... <<<"$arr")` pattern
+  # which was O(N²) (each iteration re-parsed and re-serialized the growing
+  # array) and forked jq once per category per row.
+  local plan_tmp; plan_tmp=$(mktemp -d) || die "mktemp -d failed"
+  : > "$plan_tmp/install.jsonl"
+  : > "$plan_tmp/update.jsonl"
+  : > "$plan_tmp/skip.jsonl"
+  : > "$plan_tmp/conflict.jsonl"
+  : > "$plan_tmp/preserved.jsonl"
+  : > "$plan_tmp/local_only.jsonl"
 
   while IFS= read -r path; do
     [ -z "$path" ] && continue
     is_managed "$path" || continue
 
     if is_preserved "$path"; then
-      preserved_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$preserved_arr")"
+      jq -nc --arg p "$path" '$p' >> "$plan_tmp/preserved.jsonl"
       continue
     fi
 
@@ -179,52 +189,51 @@ build_plan() {
     IFS=$'\t' read -r man_up man_local < <(manifest_entry_for "$path")
 
     if [ -z "$local_hash" ]; then
-      install_arr="$(jq -c --arg p "$path" --arg u "$up_hash" \
-        '. + [{path:$p, upstream_hash:$u}]' <<<"$install_arr")"
+      jq -nc --arg p "$path" --arg u "$up_hash" \
+        '{path:$p, upstream_hash:$u}' >> "$plan_tmp/install.jsonl"
     elif [ "$local_hash" = "$up_hash" ]; then
-      skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
+      jq -nc --arg p "$path" '$p' >> "$plan_tmp/skip.jsonl"
     elif [ -z "$man_up" ] && [ -z "$man_local" ]; then
       # No provenance — could be local-only edits or a pre-existing file.
-      conflict_arr="$(jq -c \
+      jq -nc \
         --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
         --arg mu "" --arg ml "" \
         --arg r "no manifest record (first run or pre-existing local file)" \
-        '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
-        <<<"$conflict_arr")"
+        '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
+        >> "$plan_tmp/conflict.jsonl"
     elif [ "$man_up" = "$up_hash" ]; then
       # Upstream hasn't moved since last reconcile.
       if [ "$man_local" = "$local_hash" ]; then
         # User's previously pinned version is still in place — leave alone.
-        skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
+        jq -nc --arg p "$path" '$p' >> "$plan_tmp/skip.jsonl"
       else
         # User's pinned version has been edited since the last reconcile.
-        conflict_arr="$(jq -c \
+        jq -nc \
           --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
           --arg mu "$man_up" --arg ml "$man_local" \
           --arg r "local edits since last reconcile (upstream unchanged)" \
-          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
-          <<<"$conflict_arr")"
+          '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
+          >> "$plan_tmp/conflict.jsonl"
       fi
     else
       # Upstream advanced.
       if [ "$man_local" = "$local_hash" ]; then
         # Local untouched since last reconcile → safe to update.
-        update_arr="$(jq -c --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
-          '. + [{path:$p, upstream_hash:$u, local_hash:$l}]' <<<"$update_arr")"
+        jq -nc --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+          '{path:$p, upstream_hash:$u, local_hash:$l}' >> "$plan_tmp/update.jsonl"
       else
         # Both upstream and local advanced.
-        conflict_arr="$(jq -c \
+        jq -nc \
           --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
           --arg mu "$man_up" --arg ml "$man_local" \
           --arg r "local edits + upstream changes" \
-          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
-          <<<"$conflict_arr")"
+          '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
+          >> "$plan_tmp/conflict.jsonl"
       fi
     fi
   done <<<"$upstream_files"
 
   # Detect local-only files inside managed dirs (custom skills, agents, etc.).
-  local local_only_arr='[]'
   local upstream_set="$(printf '%s\n' "$upstream_files" | sort)"
   local managed_dirs=(
     "${REPO_ROOT}/skills"
@@ -241,9 +250,20 @@ build_plan() {
       is_preserved "$rel" && continue
       # Skip if upstream ships this exact path.
       if grep -qxF "$rel" <<<"$upstream_set"; then continue; fi
-      local_only_arr="$(jq -c --arg p "$rel" '. + [$p]' <<<"$local_only_arr")"
+      jq -nc --arg p "$rel" '$p' >> "$plan_tmp/local_only.jsonl"
     done < <(find "$dir" -type f 2>/dev/null)
   done
+
+  # Slurp each JSONL file into a JSON array — one jq invocation per category
+  # instead of one per row.
+  local install_arr update_arr skip_arr conflict_arr preserved_arr local_only_arr
+  install_arr="$(jq -cs '.' "$plan_tmp/install.jsonl")"
+  update_arr="$(jq -cs '.' "$plan_tmp/update.jsonl")"
+  skip_arr="$(jq -cs '.' "$plan_tmp/skip.jsonl")"
+  conflict_arr="$(jq -cs '.' "$plan_tmp/conflict.jsonl")"
+  preserved_arr="$(jq -cs '.' "$plan_tmp/preserved.jsonl")"
+  local_only_arr="$(jq -cs '.' "$plan_tmp/local_only.jsonl")"
+  rm -rf "$plan_tmp"
 
   jq -n \
     --arg lv "$LOCAL_VERSION" \
@@ -313,13 +333,18 @@ apply_plan() {
   # Build the new manifest. Each entry records {upstream_hash, local_hash}
   # at reconcile time, so a future plan can tell "user pinned a custom version"
   # apart from "user untouched since install".
-  local new_manifest='{}'
+  #
+  # Append one JSON object per record to a JSONL file; reduce into a single
+  # object once at the end via `jq -s 'add'`. Avoids the O(N²) cost of the
+  # prior pattern (`new_manifest=$(jq ... <<<"$new_manifest")` re-parsed and
+  # re-serialized the growing object every iteration).
+  local manifest_lines; manifest_lines=$(mktemp) || die "mktemp failed"
   local applied_count=0
 
   record() {
     # $1 = path, $2 = upstream_hash (current), $3 = local_hash to record
-    new_manifest="$(jq -c --arg p "$1" --arg u "$2" --arg l "$3" \
-      '. + {($p): {upstream_hash: $u, local_hash: $l}}' <<<"$new_manifest")"
+    jq -nc --arg p "$1" --arg u "$2" --arg l "$3" \
+      '{($p): {upstream_hash: $u, local_hash: $l}}' >> "$manifest_lines"
   }
 
   # 1. install
@@ -377,15 +402,26 @@ apply_plan() {
     fi
   done < <(jq -c '.actions.conflict[]' <<<"$plan_json")
 
-  # Write the new manifest.
+  # Reduce per-record JSONL objects into one files object.
+  local new_manifest
+  new_manifest="$(jq -cs 'add // {}' "$manifest_lines")"
+  rm -f "$manifest_lines"
+
+  # Write the new manifest atomically — tmp + rename. Without this, two
+  # concurrent /harness-update runs sharing $HOME/.agent-harness could leave
+  # the file half-written or last-writer-wins.
   local upstream_version
   upstream_version="$(jq -r '.upstream_version' <<<"$plan_json")"
+  local manifest_tmp="${MANIFEST_FILE}.tmp.$$"
   jq -n \
     --arg v "$upstream_version" \
     --arg t "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     --argjson files "$new_manifest" \
     '{version_when_installed: $v, installed_at: $t, files: $files}' \
-    > "$MANIFEST_FILE"
+    > "$manifest_tmp" \
+    || { rm -f "$manifest_tmp"; die "manifest jq failed"; }
+  mv "$manifest_tmp" "$MANIFEST_FILE" \
+    || { rm -f "$manifest_tmp"; die "manifest rename failed"; }
 
   # Mark just-upgraded so harness-update-check surfaces the JUST_UPGRADED
   # notice on the next skill invocation.

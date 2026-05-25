@@ -18,12 +18,10 @@ Reads `git diff main...HEAD`, detects gates from `.claude/hooks/config.sh`, mine
   "gates": { "db": bool, "langgraph": bool, "a11y": bool },
   "conventions": "<verbatim ## Conventions or ## Patterns body from CLAUDE.md, or empty string>",
   "scopes": {
-    "<dim>": { "paths": [...], "candidates": [...], "exemplars": [...] }
+    "<dim>": { "paths": [...], "exemplars": [...] }
   }
 }
 ```
-
-The `candidates` arrays are dim-specific regex hits from SCAN (e.g., raw-SQL strings for security pre-screen, `Promise.all` patterns for concurrency). They are pre-screening hints, not findings — the dispatched subagent decides whether each candidate is a true positive after reading the surrounding context.
 
 Gate logic:
 - `db` → `gates.db = true` if any path matches `$HARNESS_DB_MIGRATIONS_DIR` or `$HARNESS_DB_SCHEMA_PATH`
@@ -78,11 +76,15 @@ auth provider, API layer>
 
 CONVENTIONS (from this repo's CLAUDE.md ## Conventions section; may be empty):
 <verbatim conventions string from SCAN>
+A finding that contradicts a stated convention is HIGH conviction;
+a finding that proposes a different pattern is LOW conviction.
 
 REFERENCE EXEMPLARS (existing files in this codebase you should treat as
 authoritative for "good pattern"):
 <list of exemplar paths from SCAN — read at least one before flagging
-any pattern/structural finding>
+any pattern/structural finding. If the exemplars show a pattern your
+finding contradicts, raise conviction. If the exemplars show the codebase
+doesn't use the pattern you'd recommend, drop your finding to NIT or skip.>
 
 SCOPE PACKET:
 - Paths to read (from SCAN output for this dim):
@@ -184,7 +186,7 @@ Apply:
 
 ## Stage 5 — SYNTHESIZE (orchestrator)
 
-Build the final report. Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>.md` at the repo root. Branch slug = `git branch --show-current` with `/` replaced by `-`.
+Build the final report. Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>-<short-sha>.md` at the repo root. Branch slug = `git branch --show-current` with `/` replaced by `-`. Short-sha = `git rev-parse --short HEAD`. The short-sha suffix keeps re-runs on the same date+branch from silently overwriting each other while staying idempotent at the same HEAD.
 
 The `.deep-review/` directory is a dotfile-style local-tooling output folder (think `.vscode/`, `.idea/`): the harness creates it on first run and writes reports into it. Teams choose whether to commit reports or `.gitignore` them on a per-repo basis — the skill is agnostic. The previous `docs/deep-reviews/` location was renamed in version 0.17.0 to avoid colliding with project doc conventions.
 
@@ -192,7 +194,7 @@ Then:
 1. Run `bin/deep-review-validate <path>` — must exit 0.
 2. Print the report path in your final message.
 3. Call the `AskUserQuestion` tool with one single-select question: "Apply blocking fixes?" with options "Y (all)" / "S (step-by-step)" / "N (none — just review)". Wait for the user's answer.
-4. If Y or S: dispatch one implementation subagent per `(blocking)` finding with `suggested_fix` + `file:line` + `evidence`. After each fix, run `$HARNESS_TEST_CMD`. Step-by-step asks the user between findings.
+4. If Y or S: dispatch implementation subagents **sequentially** (one Agent block per message, not parallel) for each `(blocking)` finding with `suggested_fix` + `file:line` + `evidence`. The Stage 2 fan-out pattern does not apply here — two parallel Edit-permitted agents targeting the same file race, and blocking items in the same file are plausible. After each fix, run `$HARNESS_TEST_CMD`. Step-by-step asks the user between findings.
 
 ### Verdict line
 

@@ -32,38 +32,49 @@ fail=0
 total=0
 pass=0
 
-# Extract a frontmatter scalar value for `key:` from the first frontmatter
-# block in a SKILL.md. Returns empty string if absent. Strips surrounding
-# whitespace and matching outer quotes.
-extract_field() {
-  local file="$1" key="$2"
-  awk -v k="$key" '
-    BEGIN { in_fm=0; saw_open=0 }
-    /^---[[:space:]]*$/ {
-      if (in_fm) { exit }
-      if (!saw_open) { in_fm=1; saw_open=1; next }
-    }
-    in_fm {
-      line=$0
-      # Match `<key>:` followed by optional whitespace and a value.
-      if (match(line, "^[[:space:]]*" k "[[:space:]]*:")) {
-        val=substr(line, RSTART+RLENGTH)
-        sub(/^[[:space:]]+/, "", val)
-        sub(/[[:space:]]+$/, "", val)
-        # Strip a single pair of matching outer quotes.
-        if (val ~ /^".*"$/) { val=substr(val, 2, length(val)-2) }
-        else if (val ~ /^'\''.*'\''$/) { val=substr(val, 2, length(val)-2) }
-        print val
-        exit
-      }
-    }
-  ' "$file"
-}
-
-# Detect whether the file starts with frontmatter at all.
-has_frontmatter() {
+# Read the full frontmatter in one awk pass. Emits exactly 6 lines:
+#   line 1: yes | no  (was there frontmatter at all?)
+#   line 2: name
+#   line 3: description
+#   line 4: user-invocable
+#   line 5: tier
+#   line 6: kind
+# Missing keys produce an empty line. Replaces six previous awk forks per skill
+# (5 extract_field + 1 has_frontmatter) with one — the validator handles ~70
+# skills, so this is ~420 fewer subprocess starts per run.
+read_frontmatter() {
   local file="$1"
-  awk 'NR==1 { if ($0 ~ /^---[[:space:]]*$/) { print "yes"; exit } else { print "no"; exit } }' "$file"
+  awk '
+    function clean(v) {
+      sub(/^[[:space:]]+/, "", v)
+      sub(/[[:space:]]+$/, "", v)
+      if (v ~ /^".*"$/) v = substr(v, 2, length(v)-2)
+      else if (v ~ /^'\''.*'\''$/) v = substr(v, 2, length(v)-2)
+      return v
+    }
+    function getval(line, key,    pat, v) {
+      pat = "^[[:space:]]*" key "[[:space:]]*:"
+      if (match(line, pat)) {
+        v = substr(line, RSTART+RLENGTH)
+        return clean(v)
+      }
+      return ""
+    }
+    BEGIN { has_fm="no"; in_fm=0 }
+    NR==1 {
+      if ($0 ~ /^---[[:space:]]*$/) { has_fm="yes"; in_fm=1; next }
+      exit
+    }
+    in_fm && /^---[[:space:]]*$/ { in_fm=0; exit }
+    in_fm {
+      if (nm == "") { v=getval($0, "name");           if (v != "") nm=v }
+      if (ds == "") { v=getval($0, "description");    if (v != "") ds=v }
+      if (ui == "") { v=getval($0, "user-invocable"); if (v != "") ui=v }
+      if (tr == "") { v=getval($0, "tier");           if (v != "") tr=v }
+      if (kd == "") { v=getval($0, "kind");           if (v != "") kd=v }
+    }
+    END { print has_fm; print nm; print ds; print ui; print tr; print kd }
+  ' "$file"
 }
 
 for skill_md in "$skills_dir"/*/SKILL.md; do
@@ -71,19 +82,22 @@ for skill_md in "$skills_dir"/*/SKILL.md; do
   folder="$(basename "$(dirname "$skill_md")")"
   errs=()
 
-  if [ "$(has_frontmatter "$skill_md")" != "yes" ]; then
+  {
+    IFS= read -r has_fm
+    IFS= read -r name
+    IFS= read -r description
+    IFS= read -r user_invocable
+    IFS= read -r tier
+    IFS= read -r kind
+  } < <(read_frontmatter "$skill_md")
+
+  if [ "$has_fm" != "yes" ]; then
     errs+=("missing YAML frontmatter (must start with --- on line 1)")
     fail=$((fail + 1))
     echo "FAIL  $folder"
     for e in "${errs[@]}"; do echo "       - $e"; done
     continue
   fi
-
-  name="$(extract_field "$skill_md" name)"
-  description="$(extract_field "$skill_md" description)"
-  user_invocable="$(extract_field "$skill_md" user-invocable)"
-  tier="$(extract_field "$skill_md" tier)"
-  kind="$(extract_field "$skill_md" kind)"
 
   if [ -z "$name" ]; then
     errs+=("name: missing or empty")

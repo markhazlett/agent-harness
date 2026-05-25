@@ -84,6 +84,7 @@ Reserve `(blocking)` ruthlessly. If you cannot name what ships broken, mark `blo
 - Declare conviction 0.0–1.0 per finding. Calibrate to your FP profile:
   - HIGH FP profile: only flag at conviction ≥ 0.5 to clear triage.
   - MED-HIGH FP profile: only flag at conviction ≥ 0.4 to clear triage.
+  - These floors are deliberately higher than the triage-drop floors in `skills/deep-review/pipeline.md` (HIGH `< 0.40`, MED-HIGH `< 0.45`). The investigator floor is self-suppression — "don't bother emitting marginal findings." Triage is the catch-net for what does get emitted. Layered by design; not a contradiction.
 - Stay in your dimension. Anti-overlap rules in your charter are authoritative.
 - If your scope packet has no relevant paths, return `verdict: N/A` with a one-line justification under `notes:`.
 - Do not delegate. You are the worker, not a synthesizer.

@@ -4,13 +4,6 @@
 
 Audit this branch diff for **breaking changes to public contracts**: exported function signatures, public types, REST/GraphQL endpoint shapes, DB schema columns referenced by external consumers, event payloads, and CLI flags. Anything an external caller depends on is a contract; changing it without versioning / migration is a break.
 
-## Anchoring (read before flagging)
-
-Before flagging any finding, consult two sources the orchestrator provides:
-
-1. **`conventions`** (verbatim from the repo's CLAUDE.md `## Conventions` section, possibly empty) — if non-empty, treat it as authoritative for what this codebase considers good. A finding that contradicts a stated convention is HIGH conviction; a finding that proposes a different pattern is LOW conviction.
-2. **`exemplars`** (up to 3 sibling files of each changed file) — read at least one before flagging a structural / pattern issue. If the exemplars show a pattern your finding contradicts, raise conviction. If the exemplars show the codebase doesn't use the pattern you'd recommend, drop your finding to NIT or skip it. Do not propose patterns from training data when the codebase has a demonstrated alternative.
-
 ## What you flag
 
 1. **Exported signature change.** A function/method whose parameter list or return type changed, and the symbol is exported. Flag HIGH if external consumers exist (cross-package, public npm publish, etc.), MED for internal cross-module.
