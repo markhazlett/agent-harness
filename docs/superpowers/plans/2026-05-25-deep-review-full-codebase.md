@@ -6,7 +6,7 @@
 
 **Architecture:** SCAN gets a new flag that walks `git ls-files`, groups files by detected manifest (`package.json`, `pyproject.toml`, `setup.py`, `go.mod`, `Cargo.toml`, `Gemfile`), and emits a chunk-shaped manifest. The orchestrator (SKILL.md prose) detects a natural-language trigger in args, prints a cost estimate, calls `AskUserQuestion` for Proceed/Cancel, then loops the existing 5-stage pipeline once per chunk. Validator extended to accept the aggregate report shape. No new binaries.
 
-**Tech Stack:** Bash 4+ (associative arrays), Python 3 (for JSON assertions in tests), git CLI.
+**Tech Stack:** Bash 3.2+ (stock macOS — no associative arrays; use `$'\n'`-delimited strings + awk filters, matching the existing script's `files_str` / `is_in_diff` pattern), Python 3 (for JSON assertions in tests), git CLI.
 
 **Spec:** `docs/superpowers/specs/2026-05-25-deep-review-full-codebase-design.md`
 
@@ -285,9 +285,11 @@ After the helpers (`emit_paths_json`, `emit_conventions_json`, `is_in_diff`, `em
 
 ```bash
 if [ "$MODE" = "full-codebase" ]; then
-  # Walk every tracked file, assign to a chunk, then emit chunk-shaped manifest.
-  declare -A file_chunk
-  declare -A chunk_files
+  # ===== Bash-3.2 compatible chunk grouping =====
+  # No associative arrays (macOS ships bash 3.2). file_chunk_map is a
+  # \n-delimited string of "<file>\t<chunk>" lines — same trick the existing
+  # script uses for files_str / is_in_diff.
+  file_chunk_map=""
   has_any_manifest=false
 
   while IFS= read -r f; do
@@ -296,37 +298,34 @@ if [ "$MODE" = "full-codebase" ]; then
     if [ -n "$chunk" ]; then
       has_any_manifest=true
     fi
-    file_chunk["$f"]="$chunk"
+    file_chunk_map="${file_chunk_map}${f}"$'\t'"${chunk}"$'\n'
   done <<< "$all_files"
 
-  # Fallback: top-level dir grouping if no manifests found anywhere
-  if [ "$has_any_manifest" = "false" ]; then
-    for f in "${!file_chunk[@]}"; do
+  # Fallback to top-level dir if no manifests anywhere; else label empty → "misc".
+  new_map=""
+  while IFS=$'\t' read -r f c; do
+    [ -z "$f" ] && continue
+    if [ "$has_any_manifest" = "false" ]; then
       top="${f%%/*}"
       if [ "$top" = "$f" ]; then
-        file_chunk["$f"]="."
+        c="."
       else
-        file_chunk["$f"]="$top"
+        c="$top"
       fi
-    done
-  else
-    # Files under no detected module go to a 'misc' chunk
-    for f in "${!file_chunk[@]}"; do
-      [ -z "${file_chunk[$f]}" ] && file_chunk["$f"]="misc"
-    done
-  fi
-
-  # Group: chunk_name -> newline-joined files
-  for f in "${!file_chunk[@]}"; do
-    c="${file_chunk[$f]}"
-    if [ -n "${chunk_files[$c]:-}" ]; then
-      chunk_files["$c"]="${chunk_files[$c]}"$'\n'"$f"
     else
-      chunk_files["$c"]="$f"
+      [ -z "$c" ] && c="misc"
     fi
-  done
+    new_map="${new_map}${f}"$'\t'"${c}"$'\n'
+  done <<< "$file_chunk_map"
+  file_chunk_map="$new_map"
 
-  # Per-chunk JSON helpers
+  # Unique sorted chunk names + per-chunk file lookup
+  chunk_names_sorted=$(printf '%s' "$file_chunk_map" | awk -F'\t' 'NF>=2 && $2!="" {print $2}' | sort -u)
+
+  files_in_chunk() {
+    printf '%s' "$file_chunk_map" | awk -F'\t' -v c="$1" 'NF>=2 && $2==c {print $1}'
+  }
+
   emit_chunk_paths_json() {
     local first=1
     printf '['
@@ -340,7 +339,7 @@ if [ "$MODE" = "full-codebase" ]; then
   }
 
   emit_chunk_exemplars_json() {
-    # Reuses build_union_exemplars by overriding the files/files_str cache locally.
+    # Reuse build_union_exemplars by temporarily overriding files/files_str.
     local saved_files=("${files[@]+"${files[@]}"}")
     local saved_files_str="$files_str"
     files=()
@@ -355,7 +354,6 @@ if [ "$MODE" = "full-codebase" ]; then
     files_str="$saved_files_str"
   }
 
-  # Per-chunk gate detection
   chunk_gates() {
     local files_in="$1"
     local g_db=false g_lg=false g_a11y=false
@@ -378,20 +376,20 @@ if [ "$MODE" = "full-codebase" ]; then
   conv_json=$(emit_conventions_json)
   total_files=0
   total_lines=0
-  chunk_names_sorted=$(printf '%s\n' "${!chunk_files[@]}" | sort)
+  n_chunks=0
 
-  # Assemble chunks JSON
   chunks_json="["
   first_chunk=1
   while IFS= read -r cname; do
     [ -z "$cname" ] && continue
-    files_in="${chunk_files[$cname]}"
+    n_chunks=$((n_chunks + 1))
+    files_in=$(files_in_chunk "$cname")
     nfiles=$(printf '%s\n' "$files_in" | grep -c . || true)
     nlines=0
     while IFS= read -r f; do
       [ -z "$f" ] && continue
       [ -f "$f" ] || continue
-      flines=$(wc -l < "$f" 2>/dev/null || echo 0)
+      flines=$(wc -l < "$f" 2>/dev/null | tr -d ' ' || echo 0)
       nlines=$((nlines + flines))
     done <<< "$files_in"
     total_files=$((total_files + nfiles))
@@ -400,13 +398,16 @@ if [ "$MODE" = "full-codebase" ]; then
     paths_j=$(emit_chunk_paths_json "$files_in")
     exemplars_j=$(emit_chunk_exemplars_json "$files_in")
     gates_j=$(chunk_gates "$files_in")
+    g_db_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["db"]).lower())')
+    g_lg_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["langgraph"]).lower())')
+    g_a11y_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["a11y"]).lower())')
     cname_esc="${cname//\\/\\\\}"; cname_esc="${cname_esc//\"/\\\"}"
 
     if [ $first_chunk -eq 1 ]; then first_chunk=0; else chunks_json="${chunks_json},"; fi
     chunks_json="${chunks_json}{\"name\":\"${cname_esc}\",\"files\":${paths_j},\"stats\":{\"files\":${nfiles},\"lines\":${nlines}},\"gates\":${gates_j},\"scopes\":{"
     chunks_json="${chunks_json}\"security\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
-    chunks_json="${chunks_json}\"db\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["db"]).lower())')},"
-    chunks_json="${chunks_json}\"langgraph\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["langgraph"]).lower())')},"
+    chunks_json="${chunks_json}\"db\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_db_v}},"
+    chunks_json="${chunks_json}\"langgraph\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_lg_v}},"
     chunks_json="${chunks_json}\"structural\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
     chunks_json="${chunks_json}\"performance\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
     chunks_json="${chunks_json}\"concurrency\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
@@ -416,14 +417,12 @@ if [ "$MODE" = "full-codebase" ]; then
     chunks_json="${chunks_json}\"tests\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
     chunks_json="${chunks_json}\"api-drift\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
     chunks_json="${chunks_json}\"deps\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
-    chunks_json="${chunks_json}\"a11y\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["a11y"]).lower())')},"
+    chunks_json="${chunks_json}\"a11y\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_a11y_v}},"
     chunks_json="${chunks_json}\"dead-code\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
     chunks_json="${chunks_json}\"docs\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}}"
     chunks_json="${chunks_json}}}"
   done <<< "$chunk_names_sorted"
   chunks_json="${chunks_json}]"
-
-  n_chunks=$(printf '%s\n' "${!chunk_files[@]}" | grep -c . || echo 0)
 
   cat <<EOF2
 {
