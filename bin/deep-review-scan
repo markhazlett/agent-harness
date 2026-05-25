@@ -25,14 +25,55 @@ HARNESS_DB_MIGRATIONS_DIR="${HARNESS_DB_MIGRATIONS_DIR:-}"
 HARNESS_DB_SCHEMA_PATH="${HARNESS_DB_SCHEMA_PATH:-}"
 HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH:-false}"
 
-BASE="${1:-main}"
+# Walk up from a path looking for a module manifest. Echoes the manifest's
+# directory (relative to repo_root) or empty string if none found.
+detect_module_root() {
+  local dir
+  dir=$(dirname "$1")
+  while [ "$dir" != "." ] && [ "$dir" != "/" ] && [ -n "$dir" ]; do
+    for m in package.json pyproject.toml setup.py go.mod Cargo.toml Gemfile; do
+      if [ -f "$dir/$m" ]; then
+        echo "$dir"
+        return
+      fi
+    done
+    dir=$(dirname "$dir")
+  done
+  for m in package.json pyproject.toml setup.py go.mod Cargo.toml Gemfile; do
+    if [ -f "./$m" ]; then
+      echo "."
+      return
+    fi
+  done
+  echo ""
+}
+
+MODE="diff"
+BASE="main"
+positional=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --full-codebase) MODE="full-codebase" ;;
+    --) shift; while [ $# -gt 0 ]; do positional+=("$1"); shift; done; break ;;
+    -*) echo '{"error":"unknown flag: '"$1"'"}' >&2; exit 1 ;;
+    *) positional+=("$1") ;;
+  esac
+  shift
+done
+if [ "${#positional[@]}" -gt 0 ]; then
+  BASE="${positional[0]}"
+fi
 
 # Fail loud on a typo'd ref — without this, a bad BASE produces an empty
 # manifest and the downstream /deep-review orchestrator reads it as
 # "nothing to review" and ships a false-positive green verdict.
-if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
-  echo '{"error":"unknown base ref: '"$BASE"'"}' >&2
-  exit 1
+# Skip in full-codebase mode: no diff baseline needed, and a fresh repo
+# may not have a "main" branch yet.
+if [ "$MODE" = "diff" ]; then
+  if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
+    echo '{"error":"unknown base ref: '"$BASE"'"}' >&2
+    exit 1
+  fi
 fi
 
 files=()
@@ -185,6 +226,157 @@ build_union_exemplars() {
 files_str=$'\n'
 for _f in "${files[@]+"${files[@]}"}"; do files_str="${files_str}${_f}"$'\n'; done
 all_files=$(git ls-files 2>/dev/null || true)
+
+if [ "$MODE" = "full-codebase" ]; then
+  # ===== Bash-3.2 compatible chunk grouping =====
+  # No associative arrays (macOS ships bash 3.2). file_chunk_map is a
+  # \n-delimited string of "<file>\t<chunk>" lines — same trick the existing
+  # script uses for files_str / is_in_diff.
+  file_chunk_map=""
+  has_any_manifest=false
+
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    chunk=$(detect_module_root "$f")
+    if [ -n "$chunk" ]; then
+      has_any_manifest=true
+    fi
+    file_chunk_map="${file_chunk_map}${f}"$'\t'"${chunk}"$'\n'
+  done <<< "$all_files"
+
+  # Fallback to top-level dir if no manifests anywhere; else label empty → "misc".
+  new_map=""
+  while IFS=$'\t' read -r f c; do
+    [ -z "$f" ] && continue
+    if [ "$has_any_manifest" = "false" ]; then
+      top="${f%%/*}"
+      if [ "$top" = "$f" ]; then
+        c="."
+      else
+        c="$top"
+      fi
+    else
+      [ -z "$c" ] && c="misc"
+    fi
+    new_map="${new_map}${f}"$'\t'"${c}"$'\n'
+  done <<< "$file_chunk_map"
+  file_chunk_map="$new_map"
+
+  # Unique sorted chunk names + per-chunk file lookup
+  chunk_names_sorted=$(printf '%s' "$file_chunk_map" | awk -F'\t' 'NF>=2 && $2!="" {print $2}' | sort -u)
+
+  files_in_chunk() {
+    printf '%s' "$file_chunk_map" | awk -F'\t' -v c="$1" 'NF>=2 && $2==c {print $1}'
+  }
+
+  emit_chunk_paths_json() {
+    local first=1
+    printf '['
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      if [ $first -eq 1 ]; then first=0; else printf ','; fi
+      local esc="${f//\\/\\\\}"; esc="${esc//\"/\\\"}"
+      printf '"%s"' "$esc"
+    done <<< "$1"
+    printf ']'
+  }
+
+  emit_chunk_exemplars_json() {
+    # Reuse build_union_exemplars by temporarily overriding files/files_str.
+    local saved_files=("${files[@]+"${files[@]}"}")
+    local saved_files_str="$files_str"
+    files=()
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      files+=("$f")
+    done <<< "$1"
+    files_str=$'\n'
+    for _f in "${files[@]+"${files[@]}"}"; do files_str="${files_str}${_f}"$'\n'; done
+    build_union_exemplars
+    files=("${saved_files[@]+"${saved_files[@]}"}")
+    files_str="$saved_files_str"
+  }
+
+  chunk_gates() {
+    local files_in="$1"
+    local g_db=false g_lg=false g_a11y=false
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      if [ -n "$HARNESS_DB_MIGRATIONS_DIR" ] && [[ "$f" == "$HARNESS_DB_MIGRATIONS_DIR"* ]]; then
+        g_db=true
+      fi
+      if [ -n "$HARNESS_DB_SCHEMA_PATH" ] && [[ "$f" == "$HARNESS_DB_SCHEMA_PATH"* ]]; then
+        g_db=true
+      fi
+      if [ "$HARNESS_LANGGRAPH" = "true" ]; then
+        case "$f" in src/agents/*|agents/*) g_lg=true ;; esac
+      fi
+      case "$f" in *.tsx|*.jsx|*.vue|*.svelte|*.html) g_a11y=true ;; esac
+    done <<< "$files_in"
+    printf '{"db":%s,"langgraph":%s,"a11y":%s}' "$g_db" "$g_lg" "$g_a11y"
+  }
+
+  conv_json=$(emit_conventions_json)
+  total_files=0
+  total_lines=0
+  n_chunks=0
+
+  chunks_json="["
+  first_chunk=1
+  while IFS= read -r cname; do
+    [ -z "$cname" ] && continue
+    n_chunks=$((n_chunks + 1))
+    files_in=$(files_in_chunk "$cname")
+    nfiles=$(printf '%s\n' "$files_in" | grep -c . || true)
+    nlines=0
+    while IFS= read -r f; do
+      [ -z "$f" ] && continue
+      [ -f "$f" ] || continue
+      flines=$(wc -l < "$f" 2>/dev/null | tr -d ' ' || echo 0)
+      nlines=$((nlines + flines))
+    done <<< "$files_in"
+    total_files=$((total_files + nfiles))
+    total_lines=$((total_lines + nlines))
+
+    paths_j=$(emit_chunk_paths_json "$files_in")
+    exemplars_j=$(emit_chunk_exemplars_json "$files_in")
+    gates_j=$(chunk_gates "$files_in")
+    g_db_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["db"]).lower())')
+    g_lg_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["langgraph"]).lower())')
+    g_a11y_v=$(echo "$gates_j" | python3 -c 'import sys,json;print(str(json.load(sys.stdin)["a11y"]).lower())')
+    cname_esc="${cname//\\/\\\\}"; cname_esc="${cname_esc//\"/\\\"}"
+
+    if [ $first_chunk -eq 1 ]; then first_chunk=0; else chunks_json="${chunks_json},"; fi
+    chunks_json="${chunks_json}{\"name\":\"${cname_esc}\",\"files\":${paths_j},\"stats\":{\"files\":${nfiles},\"lines\":${nlines}},\"gates\":${gates_j},\"scopes\":{"
+    chunks_json="${chunks_json}\"security\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"db\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_db_v}},"
+    chunks_json="${chunks_json}\"langgraph\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_lg_v}},"
+    chunks_json="${chunks_json}\"structural\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"performance\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"concurrency\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"types\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"error-handling\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"observability\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"tests\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"api-drift\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"deps\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"a11y\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j},\"active\":${g_a11y_v}},"
+    chunks_json="${chunks_json}\"dead-code\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}},"
+    chunks_json="${chunks_json}\"docs\":{\"paths\":${paths_j},\"exemplars\":${exemplars_j}}"
+    chunks_json="${chunks_json}}}"
+  done <<< "$chunk_names_sorted"
+  chunks_json="${chunks_json}]"
+
+  cat <<EOF2
+{
+  "mode": "full-codebase",
+  "chunks": ${chunks_json},
+  "conventions": ${conv_json},
+  "totals": { "chunks": ${n_chunks}, "files": ${total_files}, "lines": ${total_lines} }
+}
+EOF2
+  exit 0
+fi
 
 paths_json=$(emit_paths_json)
 conv_json=$(emit_conventions_json)
