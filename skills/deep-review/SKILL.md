@@ -1,6 +1,6 @@
 ---
 name: deep-review
-description: Use when the user says "/deep-review", "deep review", "thorough review", or wants the deepest possible code review before pushing a branch.
+description: Use when the user says "/deep-review", "deep review", "thorough review", "deep-review the entire codebase", "deep-review the whole repo", or wants the deepest possible code review before pushing a branch. Includes a full-codebase mode triggered by NL phrases like "entire codebase" / "full codebase" / "whole repo" / "whole codebase" in args.
 user-invocable: true
 tier: rigid
 kind: verification
@@ -17,7 +17,7 @@ Run: `bash "$(git rev-parse --show-toplevel)/bin/harness-update-check"`
 
 > _Override: see `CLAUDE.md` § Instruction precedence. The user is principal; this skill is advisory._
 
-The deepest pre-ship code review tier. Runs a 6-stage pipeline (SCAN → DISPATCH → TRIAGE → REVALIDATE → DECIDE → SYNTHESIZE) across 15 dimensions in parallel, then delivers the result as a code review — not a severity-graded incident report. Advisory only; does not auto-fire from `/ship` or `/pre-deploy`. Optimized for completeness over speed; typical mid-PR cost is $10–15 and 3–8 minutes wall-clock.
+The deepest pre-ship code review tier. Runs a 6-stage pipeline (SCAN → DISPATCH → TRIAGE → REVALIDATE → DECIDE → SYNTHESIZE) across 15 dimensions in parallel, then delivers the result as a code review — not a severity-graded incident report. Advisory only; does not auto-fire from `/ship` or `/pre-deploy`. Optimized for completeness over speed; typical mid-PR cost is $10–15 and 3–8 minutes wall-clock. **Full-codebase mode** (triggered by NL phrases like "the entire codebase" / "the whole repo" in args) audits every tracked file chunk-by-chunk; cost scales ≈ `$10–15 × chunk-count` and wall-clock ≈ `3–8 min × chunk-count`. A cost-gate `AskUserQuestion` fires before any model dispatch.
 
 ## How the review reads
 
@@ -50,6 +50,35 @@ No exceptions:
 4. **Stage 4 — REVALIDATE.** Dispatch `subagent_type: revalidator` (opus) over every `(blocking)` finding AND every load-bearing `(non-blocking) issue` (conviction ≥ 0.7) from the high-FP dims `{security, performance, concurrency, structural, error-handling, deps, dead-code}`. Apply CONFIRMED/DISPUTED/FIXED verdicts.
 5. **Stage 4.5 — DECIDE.** For every surviving `kind: question` with `divergence:` set, call `AskUserQuestion` (one question per divergence, capped at 4 per run, options carry side-by-side `preview` of the file:line evidence). Persist each answer via `bin/deep-review-record-convention --domain X --pattern Y --why Z --evidence "a:N, b:N"` — this appends to `CLAUDE.md ## Conventions` so the next `/deep-review` run picks the rule up via SCAN. Skipped or beyond-cap divergences become `kind: chore` findings in the report. Skip the stage if no divergences survived.
 6. **Stage 5 — SYNTHESIZE.** Build the report per `pipeline.md`'s skeleton (Summary → Before merge → Worth thinking about → Worth calling out → Conventions recorded → coverage matrix → N/A → pipeline notes). Save to `.deep-review/<YYYY-MM-DD>-<branch-slug>-<short-sha>.md` (short-sha keeps re-runs on the same date+branch from silently overwriting each other; same HEAD → same filename → idempotent). Run `bin/deep-review-validate` against it — must exit 0. Offer fixes via the `AskUserQuestion` tool.
+
+## Full-codebase mode
+
+Triggered by NL phrases in the `/deep-review` args. Detect by substring match (case-insensitive) against the user's arg string:
+
+- `entire codebase`
+- `full codebase`
+- `whole codebase`
+- `whole repo`
+- `the whole repository`
+
+Any match → full-codebase mode. No match → default branch-diff mode (unchanged).
+
+**Stage 0.5 — cost gate (mandatory).** After SCAN returns the chunk manifest, BEFORE any Stage 2 dispatch, the orchestrator:
+
+1. Reads `totals.chunks` from the manifest.
+2. Computes `low = chunks × $10`, `high = chunks × $15`, `low_min = chunks × 3`, `high_min = chunks × 8`.
+3. Prints the chunk list (name, file count, line count) to the transcript.
+4. Calls `AskUserQuestion` with one single-select question:
+   - `question`: "Full-codebase /deep-review will run the 15-dim pipeline against N chunks. Proceed?"
+   - `header`: "Cost gate"
+   - `options`:
+     - `{label: "Proceed", description: "Estimated cost $<low>–$<high>, wall-clock ~<low_min>–<high_min> min."}`
+     - `{label: "Cancel", description: "Abort. No model calls made."}`
+5. If the user answers `Cancel`, exit cleanly with a one-line note and NO report written.
+
+**Per-chunk loop.** For each chunk in `manifest.chunks`, run Stages 2–5 exactly as documented in `pipeline.md` (parallel 15-dim fan-out within the chunk, sequential between chunks). Each chunk's scope packet uses the chunk's `paths` and `exemplars`. Stage 4.5 DECIDE cap raised from 4 to 8 per chunk.
+
+**Aggregate synthesis.** After all chunks complete, compose one report at `.deep-review/<YYYY-MM-DD>-full-codebase-<short-sha>.md`. Top-level verdict rolls up the worst per-chunk verdict (`Substantial concerns` > `Address blocking items first` > `Ship it`). See `pipeline.md` § Full-codebase mode for the report skeleton.
 
 ## Red Flags — STOP
 
@@ -96,12 +125,12 @@ Borrowed from Hauer's "OIR" (Observation → Impact → Request) and Greiler's r
 - [ ] Report saved to `.deep-review/<date>-<slug>-<sha>.md` AND `bin/deep-review-validate <path>` exits 0.
 - [ ] Verdict line in TL;DR is one of: "Ship it" / "Address blocking items first" / "Substantial concerns" — not a graded severity total.
 - [ ] Every `issue (blocking)` is paired with a concrete `suggestion`. If not, the review is incomplete.
+- [ ] If full-codebase mode: cost gate `AskUserQuestion` was acknowledged with `Proceed` before any Stage 2 dispatch; aggregate report includes the `## Chunks reviewed` table and per-chunk subsections.
 
 Cannot check all boxes? You skipped the skill. Start over from the missing stage.
 
 ## What this skill does NOT cover
 
 - **The cheap per-commit pass.** Use `/pre-deploy`, `/simplify`, or `/security-review` standalone for that. `/deep-review` is the deep tier.
-- **Full-repo / module-wide audits.** Scope is always `main..HEAD`. Repo-wide deepsec-style scans are a future feature.
 - **Penetration testing, threat modeling, runtime monitoring.** Same boundaries as `/security-review`.
 - **GitHub PR review comments.** Use the built-in `/review` for that. `/deep-review` produces a local markdown report.
