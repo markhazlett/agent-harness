@@ -135,4 +135,45 @@ EOF
 "$VAL" "$tmp/bogus-verdict.md" >/dev/null 2>&1 \
   && { echo "FAIL: validator accepted a non-approved Verdict phrase"; exit 1; }
 
+# 8. Full-codebase aggregate report — must pass
+cat > "$tmp/full-codebase-good.md" <<EOF
+# Code Review — full-codebase
+**Date:** 2026-05-25
+**Scope:** Full codebase (2 chunks, 5 files, 200 lines)
+
+**Verdict:** Ship it
+
+## Chunks reviewed
+| # | Chunk | Files | Lines | Verdict | (blocking) items |
+|---|-------|-------|-------|---------|-----------------|
+| 1 | web   | 3     | 120   | Ship it | 0                |
+| 2 | api   | 2     | 80    | Ship it | 0                |
+
+## Chunk: web
+
+$matrix
+
+## Chunk: api
+
+$matrix
+EOF
+
+"$VAL" "$tmp/full-codebase-good.md" >/dev/null \
+  || { echo "FAIL: validator rejected a complete full-codebase aggregate"; exit 1; }
+
+# 9. Full-codebase report missing the "## Chunks reviewed" section — must fail
+cat > "$tmp/full-codebase-no-chunks-table.md" <<EOF
+# Code Review — full-codebase
+**Scope:** Full codebase (1 chunk, 1 file, 10 lines)
+
+**Verdict:** Ship it
+
+## Chunk: web
+
+$matrix
+EOF
+
+"$VAL" "$tmp/full-codebase-no-chunks-table.md" >/dev/null 2>&1 \
+  && { echo "FAIL: validator accepted full-codebase report missing '## Chunks reviewed' table"; exit 1; }
+
 echo "PASS: bin/deep-review-validate smoke test"

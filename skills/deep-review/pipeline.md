@@ -343,3 +343,111 @@ counts surviving findings post-triage, post-dedup, post-revalidate.>
 - The verdict matrix is kept (it's the audit-trail receipt) but moved below the prose so the human-readable review leads.
 - The verdict line is one of three phrases, not a CRIT/H/M/L count.
 - Per-finding labels follow Conventional Comments, which gives the reader fast scannability without implying false severity precision.
+
+---
+
+## Full-codebase mode
+
+Triggered from `SKILL.md` § Full-codebase mode. This section documents the mechanics: manifest shape, cost gate, per-chunk loop, aggregate synthesis.
+
+### Stage 1 — SCAN (`bin/deep-review-scan --full-codebase`)
+
+Invoke `bin/deep-review-scan --full-codebase`. The scan walks `git ls-files` (honoring `.gitignore`), groups files by detected module manifest, and emits:
+
+```json
+{
+  "mode": "full-codebase",
+  "chunks": [
+    {
+      "name": "packages/web",
+      "files": ["packages/web/src/a.ts", ...],
+      "stats": {"files": 42, "lines": 8400},
+      "gates": {"db": false, "langgraph": false, "a11y": true},
+      "scopes": { "<dim>": { "paths": [...], "exemplars": [...] } }
+    },
+    ...
+  ],
+  "conventions": "<verbatim ## Conventions from CLAUDE.md>",
+  "totals": {"chunks": N, "files": M, "lines": K}
+}
+```
+
+Module detection walks each file's parent directories looking for `package.json`, `pyproject.toml`, `setup.py`, `go.mod`, `Cargo.toml`, or `Gemfile`. If no manifest is found anywhere in the repo, the scan falls back to top-level-directory grouping (one chunk per top-level dir, plus a `root` chunk for files at the repo root). Files under no detected module root go to a `misc` chunk.
+
+### Stage 0.5 — cost gate
+
+Mandatory before any Stage 2 dispatch in full-codebase mode. The orchestrator:
+
+1. Reads `manifest.totals.chunks` (call it `N`).
+2. Prints the chunk list to the transcript: `chunk-name (file-count files, line-count lines)`, sorted descending by line count.
+3. Calls `AskUserQuestion`:
+   - `question`: `"Full-codebase /deep-review will run the 15-dim pipeline against <N> chunks. Proceed?"`
+   - `header`: `"Cost gate"`
+   - `options`:
+     - `Proceed` — `description`: `"Estimated cost $<N×10>–$<N×15>, wall-clock ~<N×3>–<N×8> min."`
+     - `Cancel` — `description`: `"Abort. No model calls made."`
+4. `Cancel` → exit with `"/deep-review --full-codebase cancelled at cost gate."` and no report file. `Proceed` → continue to the per-chunk loop.
+
+### Stages 2–5 per chunk
+
+For each chunk in `manifest.chunks`:
+- **Stage 2 DISPATCH.** Emit one message with N parallel `Agent` calls (15 minus gated-skip count). The SCOPE PACKET section of each per-dim prompt drops the "Diff hunks" subsection and uses `"File contents:"` instead — subagents read whole files in the chunk's paths.
+- **Stage 3 TRIAGE.** Same conviction floors per FP profile.
+- **Stage 4 REVALIDATE.** Same trigger rules.
+- **Stage 4.5 DECIDE.** Cap raised from 4 to **8 per chunk** since full-codebase audits legitimately surface more pattern divergences.
+- **Stage 5 partial synthesis.** Build the per-chunk report fragment using today's report skeleton, with `**Diff:**` replaced by `**Scope:** <chunk-name> (<files> files, <lines> lines)`.
+
+Chunks run sequentially in the orchestrator's outer loop.
+
+### Stage 5.5 — aggregate synthesis
+
+Compose the aggregate report at `.deep-review/<YYYY-MM-DD>-full-codebase-<short-sha>.md`. Top-level verdict rolls up the worst per-chunk verdict: any chunk `Substantial concerns` → aggregate `Substantial concerns`; else any chunk `Address blocking items first` → aggregate `Address blocking items first`; else `Ship it`.
+
+Skeleton:
+
+```markdown
+# Code Review — full-codebase
+**Date:** <YYYY-MM-DD>
+**Scope:** Full codebase (<N> chunks, <M> files, <K> lines)
+**Commit:** <short-sha>
+**Reviewer:** /deep-review --full-codebase (<N> × (SCAN → 15 dim subagents → triage → revalidate → decide → synthesis))
+
+## Summary
+
+<one paragraph; aggregate framing>
+
+**Verdict:** Ship it | Address blocking items first | Substantial concerns
+
+## Chunks reviewed
+
+| # | Chunk | Files | Lines | Verdict | (blocking) items |
+|---|-------|-------|-------|---------|-----------------|
+| 1 | <name> | <N> | <L> | <verdict> | <count> |
+| ... | | | | | |
+
+## Chunk: <module-name>
+
+<the per-chunk report skeleton, as-is — with **Scope:** instead of **Diff:**>
+
+## Chunk: <next-module>
+
+<...>
+
+## Conventions recorded (aggregate)
+
+<merged from all chunks; same per-domain format>
+
+## Pipeline notes
+
+- Mode: full-codebase
+- Chunks: <N>
+- Total dispatches: <N × 15> (minus gated skips)
+- Cost (estimated): $<low>–$<high>
+- Wall-clock (actual): <recorded by orchestrator>
+```
+
+Run `bin/deep-review-validate <path>` — must exit 0. Apply-fixes prompt runs once at the aggregate level, listing all `(blocking)` findings across chunks.
+
+### Validator notes
+
+`bin/deep-review-validate` accepts both diff and aggregate shapes. For aggregate reports (detected by the `**Scope:** Full codebase` prefix), the validator additionally requires a `## Chunks reviewed` section. Per-chunk dimension matrices satisfy the existing matrix-row checks because each chunk's `## What I audited` table is grep-matched at file scope.
