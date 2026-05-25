@@ -21,13 +21,23 @@ Before flagging any finding, consult two sources the orchestrator provides:
 6. **Suspicious newcomer.** Brand-new package (< 30 days old) with no organizational provenance. Flag HIGH (harness security principle §51 — supply chain).
 7. **Replacing a stdlib feature.** New dep that wraps something the language stdlib already does (e.g., `is-array`). Flag MED.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — known-malicious package.
-- **HIGH** — abandonware in production, license risk, brand-new unknown package.
-- **MED** — unjustified add, pre-release in prod, stdlib-replacing dep.
-- **LOW** — version duplicates, minor bloat.
-- **NIT** — sub-major version pin style differences.
+`issue (blocking)` reserved for dep changes that ship a supply-chain or legal regression:
+- Known-malicious package (confirmed via advisory)
+- License incompatibility (GPL-family in a non-GPL project; AGPL/SSPL in a commercial product)
+- Brand-new unknown package (< 30 days old, no org provenance) added to runtime `dependencies`
+- Abandonware in `dependencies` (last publish > 18 months, archived repo, no active maintainers)
+
+Everything else from this dim:
+- Unjustified runtime add (no PR/commit/CHANGELOG explanation) → `question` (ask the author why)
+- Pre-release version (`alpha`/`beta`/`rc`, `^0.x.x`) pinned in production → `suggestion`
+- Stdlib-replacing dep (`is-array`) → `suggestion`
+- Supply-chain duplicate (transitive at different major) → `nit`
+- Sub-major version pin style → `nit`
+- Non-obvious good dep call (replacing a heavier dep with a lighter one, choosing a typed lib) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL / HIGH" with the malicious / license / abandonware evidence → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

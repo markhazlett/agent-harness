@@ -20,13 +20,21 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Race on file/IO/resource.** Creating + immediately reading a file without `fsync`; multiple workers writing to the same path with no locking.
 6. **Event ordering hazards.** Subscribing to events after the emitter may have already fired; missing `once` semantics where `on` would replay.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — race on a financial/auth-relevant state (balance, session token, role assignment).
-- **HIGH** — race on user-visible state with no compensating control (locking, idempotency, retries).
-- **MED** — race on transient state where the worst case is a recoverable error.
-- **LOW** — theoretical race with no realistic trigger.
-- **NIT** — stylistic issues around `Promise.all` shape.
+`issue (blocking)` reserved for races that ship a correctness regression on user-impacting state:
+- Race on financial / auth-relevant state (balance, session token, role assignment) with no compensating control
+- Read-modify-write race on storage with no `SELECT ... FOR UPDATE`, CAS, or transaction
+- `Promise.all` over operations that depend on each other (ordering hazard)
+
+Everything else from this dim:
+- Race on user-visible state with idempotency / retries already in place → `issue` (non-blocking)
+- Race on transient state where worst case is a recoverable error → `issue` (non-blocking) or `suggestion`
+- Theoretical race with no realistic trigger → `question` or `thought`
+- `Promise.all` style preference → `nit`
+- Non-obvious good concurrency call (correct CAS, well-placed lock) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL" → `issue (blocking)`. "Flag HIGH" with no compensating control → `issue (blocking)`. "Flag MED / LOW / NIT" → non-blocking forms.
 
 ## Anti-overlap
 

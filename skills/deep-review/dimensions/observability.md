@@ -21,13 +21,21 @@ Before flagging any finding, consult two sources the orchestrator provides:
 6. **Wrong log level.** `console.error` on expected branches (e.g., 404 in a lookup); `console.log` on actual failure. Flag LOW.
 7. **Excessive logging.** High-frequency code path with verbose `console.log` — log spam. Flag LOW unless clearly egregious.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — secrets (API key, password, raw token) in logs.
-- **HIGH** — PII in logs without obvious masking.
-- **MED** — missing log on decision/mutation, missing metric on user-impact path, broken trace propagation in a codebase with a propagation pattern.
-- **LOW** — wrong level, log spam.
-- **NIT** — log format style (structured vs. printf), log-call ordering.
+`issue (blocking)` reserved for observability harms that ship a privacy or security regression:
+- Secret (API key, password, raw token) in logs — quote the structure being logged
+- PII (email, phone, address, government-ID) in logs without obvious masking
+
+Everything else from this dim:
+- Missing log on decision boundary or critical-entity mutation → `suggestion`
+- Missing metric on user-impact path → `suggestion`
+- Broken trace propagation in a codebase with an established propagation pattern → `issue` (non-blocking)
+- Wrong log level (`console.error` on expected branch) → `nit`
+- Log spam in hot path → `suggestion`
+- Non-obvious good observability call (well-placed structured log with redaction) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL / HIGH" (secrets / PII in logs) → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

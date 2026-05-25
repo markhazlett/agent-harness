@@ -20,13 +20,22 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Missing CHANGELOG entry for user-visible changes.** If the codebase has a `CHANGELOG.md` and the diff touches user-visible behavior (CLI flags, API responses, UI), flag MED for the missing entry.
 6. **README claims that no longer match code.** README mentions a feature/CLI flag that this diff removed. Flag MED.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — never in this dim.
-- **HIGH** — never in this dim.
-- **MED** — missing public docstring, stale comment, missing CHANGELOG, README mismatch.
-- **LOW** — WHAT-comment, over-docstring on internal.
-- **NIT** — typos in comments, JSDoc tag style inconsistencies.
+`issue (blocking)` reserved for docs that ship a false claim about load-bearing system behavior:
+- `CLAUDE.md` / `AGENTS.md` / `CONTRIBUTING.md` / top-level `README.md` describes a hook, command, or convention that doesn't exist or doesn't work at HEAD (every contributor will read this and act on it)
+- API reference doc that mis-states a public contract this diff didn't change (and the diff is editing the doc)
+- Mass deletion of user-facing docs without preservation of the content (e.g., README → ARCHITECTURE.md migration that loses quickstart)
+
+Everything else from this dim:
+- Missing public docstring on exported symbol → `suggestion`
+- Stale comment referencing dead state / departed author → `chore`
+- WHAT-comment restating self-evident code → `nit`
+- Multi-paragraph docstring on internal helper (codebase has "WHY only" policy) → `nit`
+- Missing CHANGELOG entry for user-visible change → `chore`
+- Non-obvious good doc call (honest gap-disclosure, well-placed example, link to the canonical source) worth naming → `praise`
+
+Legacy mapping: prior "Flag MED" with load-bearing-doc evidence → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

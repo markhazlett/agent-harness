@@ -20,12 +20,23 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Skipped / `.only` / `.todo`.** `it.skip`, `test.skip`, `xit`, `.todo`, `.only` left in the diff. Flag HIGH on `.only` (breaks CI focus), MED on persistent skip.
 6. **Test added but not wired.** New test file in a path the runner doesn't pick up (check `jest.config.*`, `vitest.config.*`, framework-specific test glob).
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **HIGH** — new public exported surface untested; bug fix untested; `.only` in diff.
-- **MED** — internal helpers untested; implementation-coupled tests; trivial assertions; persistent skips.
-- **LOW** — test file naming inconsistencies; missing edge-case coverage on tested code.
-- **NIT** — test ordering, fixture cleanup style.
+`issue (blocking)` reserved for test changes that ship a correctness or CI regression:
+- `.only` left in diff (breaks CI focus — other tests silently skipped)
+- New public exported surface claimed-tested by accompanying test that doesn't actually exercise it
+- Test added but not registered with any runner (passes vacuously because it never runs)
+- Bug fix without a regression test that fails without the fix
+
+Everything else from this dim:
+- Internal helper untested → `suggestion`
+- Implementation-coupled test (mock assertions only, no behavioral check) → `suggestion`
+- Trivial assertion (`expect(result).toBeDefined()` on non-null return) → `suggestion`
+- Persistent skip without justification → `question` or `chore`
+- Test file naming / fixture cleanup → `nit`
+- Non-obvious good test (well-chosen edge case, fuzz seed, regression locking down a bug) worth naming → `praise`
+
+Legacy mapping: prior "Flag HIGH" with the CI-breaking or vacuous-pass evidence → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

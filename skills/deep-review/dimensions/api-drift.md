@@ -20,13 +20,23 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **CLI flag rename / removal** in a tool the user runs. Flag HIGH.
 6. **Public type definition change.** Exported `interface` / `type` / `class` with a public member removed/renamed/retyped. Flag HIGH.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — wire-format change to a public webhook / API with active external consumers.
-- **HIGH** — exported signature changes, endpoint changes, event schema changes.
-- **MED** — internal cross-package contract changes, DB column drops affecting other apps.
-- **LOW** — additive changes (new optional params) where the doc doesn't say so explicitly.
-- **NIT** — naming inconsistencies in additive changes; doc-only drift where types are unchanged.
+`issue (blocking)` reserved for contract changes that ship a breaking change without versioning or migration:
+- Wire-format change to a public webhook / API with active external consumers
+- Removed / renamed REST or GraphQL field; new required input without default
+- Renamed / dropped fields in event payloads sent to queues, websockets, webhooks
+- CLI flag renamed / removed in a tool users invoke
+- Public type definition with member removed / renamed / retyped, and the type is imported cross-package
+
+Everything else from this dim:
+- Exported signature change consumed only within the package → `issue` (non-blocking)
+- DB column drop where app code already migrated → `issue` (non-blocking)
+- Additive change (new optional param) → `note` or `suggestion` (mention the docs update)
+- Naming inconsistency in additive changes → `nit`
+- Non-obvious good contract evolution (proper deprecation, dual-write window) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL / HIGH" with active-consumer evidence quoted → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

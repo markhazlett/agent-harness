@@ -20,13 +20,22 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Commented-out code.** Blocks of code commented out with no explanation. Flag LOW.
 6. **`TODO`/`FIXME`/`XXX` comments added without an issue ref.** Flag LOW.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — never in this dim. Dead code is rarely a fire.
-- **HIGH** — never in this dim. Dead code is rarely a fire.
-- **MED** — unused export, unreachable branch, re-implemented helper, copy-paste.
-- **LOW** — commented-out code, unscoped TODOs.
-- **NIT** — one-line dead expressions, redundant return statements.
+`issue (blocking)` is rare for this dim. Reserve for:
+- Documented contract that references a function this diff deletes (dead reference in load-bearing docs)
+- Unreachable branch that swallows an error path the test suite exercises
+
+Everything else from this dim:
+- Unused export → `suggestion` (verify via grep; drop conviction if codebase uses dynamic imports)
+- Unreachable branch (code after `return`/`throw`) → `issue` (non-blocking)
+- Re-implemented helper that exists elsewhere → `suggestion` with both citations
+- Copy-paste block ≥ 10 lines → `suggestion`
+- Commented-out code without explanation → `nit`
+- `TODO` / `FIXME` without issue ref → `chore`
+- Non-obvious cleanup (deleting a now-unused old pattern in same PR as introducing replacement) worth naming → `praise`
+
+Legacy mapping: prior "Flag MED / LOW / NIT" → `suggestion` / `nit` / `chore` per the above. Almost nothing in this dim reaches `(blocking)`.
 
 ## Anti-overlap
 

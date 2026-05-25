@@ -20,13 +20,22 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Copy-pasted blocks.** Identical or near-identical hunks added to 2+ files. Even with small variations, flag as MED unless the variation is fundamentally different.
 6. **Code-judo opportunity missed.** A new feature implemented in 200 lines that could be expressed in 50 by deleting a branch / removing a layer / unifying with an existing path. Flag as HIGH.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — never, in this dimension. Structural issues are not security incidents.
-- **HIGH** — file-size explosion, layer violation, missed code-judo simplification > 100 lines saved.
-- **MED** — wrapper churn, copy-paste, modest simplification opportunities, new spaghetti.
-- **LOW** — minor restructuring suggestions, naming inconsistencies, near-duplicate blocks under 10 lines.
-- **NIT** — formatting, ordering, micro-style.
+`issue (blocking)` reserved for structural changes that ship a code-health regression the author would acknowledge once shown:
+- Layer violation that lands domain logic in load-bearing shared code (utility module, base class, framework adapter)
+- File-size explosion (< 1,000 → > 1,000 lines) that introduces clearly broken control flow inside the same function
+
+Everything else from this dim:
+- Real structural problem but not load-bearing → `issue` (no blocking decorator)
+- Better abstraction / simplification opportunity → `suggestion`
+- Wrapper churn / thin adapter → `suggestion`
+- Copy-paste blocks ≥ 10 lines → `suggestion`
+- Uncertain whether the author intended this shape → `question`
+- Naming inconsistency, minor restructuring → `nit`
+- Non-obvious good structural call worth naming → `praise`
+
+Legacy mapping: prior "Flag HIGH / MED / LOW / NIT" annotations in "What you flag" above translate per the above. Only the two cases under blocking warrant `(blocking)`.
 
 ## Anti-overlap
 

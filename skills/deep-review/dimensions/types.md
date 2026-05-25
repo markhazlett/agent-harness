@@ -20,12 +20,21 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **`Object`/`Function`/`{}` as types.** Same posture as `any` — flag MED.
 6. **Generic constraints missing.** `function f<T>(x: T)` accepting any shape when it actually requires structural properties — flag LOW.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **HIGH** — `any` on a public exported API surface; `@ts-ignore` on a known-buggy line.
-- **MED** — `any` in implementation; unsafe casts in business logic; missing public return types.
-- **LOW** — optionality chains masking missing fields; over-permissive generics.
-- **NIT** — local inference that could be explicit but isn't strictly wrong.
+`issue (blocking)` is rare for this dim. Reserve for:
+- `@ts-ignore` / `@ts-expect-error` on a line with documented type-checker-caught bugs in the codebase (i.e., suppressing a known correctness issue)
+- `any` introduced on a public exported API surface AND that public surface is consumed cross-package (load-bearing contract)
+
+Everything else from this dim:
+- `any` in implementation, unsafe cast in business logic → `issue` (non-blocking)
+- Missing return type on exported function → `suggestion`
+- Optionality chain masking required field → `question` (often a sign of unclear intent)
+- Over-permissive generic → `suggestion`
+- Local inference that could be explicit → `nit`
+- Non-obvious good typing (well-placed discriminated union, narrow type guard) worth naming → `praise`
+
+Legacy mapping: prior "Flag HIGH" rarely reaches `(blocking)` — only when the suppression hides a known bug. Everything else → non-blocking.
 
 ## Anti-overlap
 

@@ -44,7 +44,7 @@ These apply regardless of pressure stack and are derived directly from the skill
 |-----------------------------------|-------------------|
 | "Spot-checking is fine for this diff" | The 15-dim fan-out IS the audit. Spot-checking is the failure mode this skill exists to prevent. |
 | "N dimensions don't apply, I'll skip them" | Every dim either produces a verdict or N/A with a one-line justification. "Doesn't apply" is not a verdict. |
-| "Subagent says PASS, accept it" | Subagent summaries are inputs to YOUR judgment. Read at least one file:line per HIGH/CRITICAL finding directly. |
+| "Subagent says PASS, accept it" | Subagent summaries are inputs to YOUR judgment. Read at least one file:line per `(blocking)` finding directly. |
 | "Triage filtered, revalidate is overkill" | Triage handles conviction-floor + dedup. Revalidate handles context-expansion FPs (the security FP problem). Not the same job. |
 | "The report on disk can be brief — only the conversation matters" | The report on disk is the audit trail. `bin/deep-review-validate` will reject incomplete reports. |
 | "I'll just summarize the subagent outputs to save context" | The orchestrator must reason from structured per-finding data, not vibes-summaries. Quote evidence verbatim. |

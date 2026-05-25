@@ -21,13 +21,22 @@ Before flagging any finding, consult two sources the orchestrator provides:
 6. **Catch-and-rethrow without context.** `catch (e) { throw e }` adds no value. Flag LOW.
 7. **User-facing error message exposes internals.** Stack trace, raw DB error, internal class name in the response. Flag HIGH.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — partial-failure invariant break on financial / auth state.
-- **HIGH** — swallowed external error, missing retry on user-path, partial-failure invariant.
-- **MED** — swallowed internal error, propagation gaps, error-type unsoundness.
-- **LOW** — catch-and-rethrow patterns, minor stack-loss issues.
-- **NIT** — `console.error` vs structured logger (overlaps observability — defer to obs).
+`issue (blocking)` reserved for error-handling gaps that ship a correctness or trust regression:
+- Partial-failure invariant break on financial / auth state (no transaction, no compensating action, no idempotency)
+- Swallowed external error (API, DB, filesystem) on a user-path with no recovery
+- User-facing error message exposing internals (stack trace, raw DB error, internal class name)
+
+Everything else from this dim:
+- Swallowed internal error → `issue` (non-blocking) — quote the called function's documented failure modes
+- Missing retry on transient failure off the user path → `suggestion`
+- Error-type unsoundness (string throw when typed errors exist) → `suggestion`
+- Propagation gap (returns null on error, caller must remember to check) → `suggestion` or `question`
+- Catch-and-rethrow without context → `nit`
+- Non-obvious good error-handling call (idempotency key, well-placed transaction) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL / HIGH" with the partial-failure or exposure evidence → `issue (blocking)`. Everything else → non-blocking forms.
 
 ## Anti-overlap
 

@@ -20,13 +20,22 @@ Before flagging any finding, consult two sources the orchestrator provides:
 5. **Unbounded collections.** `.push()` into an array that has no eviction or paging. `Promise.all(huge.map(...))` where `huge` can exceed memory. Flag HIGH on user-influenced sizes.
 6. **Complexity jumps.** A new nested loop over the same collection (O(n²)) where a single pass would work. Big-O reasoning required.
 
-## Severity rubric
+## Blocking-ness rubric
 
-- **CRITICAL** — DoS-class on user input (catastrophic regex on form input, unbounded `Promise.all` on user-supplied list).
-- **HIGH** — N+1 on hot path, await-in-loop on independent ops, sync work blocking the event loop in a request handler.
-- **MED** — same patterns off the hot path, or with weak evidence of impact.
-- **LOW** — opportunity-cost: "this could be memoized" without strong evidence it matters.
-- **NIT** — micro-optimizations.
+`issue (blocking)` reserved for performance regressions that ship a code-health regression on user-facing or hot-path code:
+- DoS-class risk on user input (catastrophic regex on form input, unbounded `Promise.all` on user-supplied list)
+- N+1 query pattern on a request-handler hot path with quoted loop AND lookup
+- Sync work blocking the event loop in a route handler (multi-MB JSON parse, blocking crypto)
+
+Everything else from this dim:
+- Same patterns off the hot path → `issue` (non-blocking)
+- Missing memoization without strong evidence it matters → `suggestion`
+- Complexity jump O(n) → O(n²) on bounded input → `suggestion`
+- Uncertain whether the hot path is really hot → `question`
+- Micro-optimization opportunity → `nit`
+- Non-obvious good perf call (bounded channel, pre-computed lookup) worth naming → `praise`
+
+Legacy mapping: prior "Flag CRITICAL / HIGH" with the hot-path evidence quoted → `issue (blocking)`. "Flag HIGH" without hot-path evidence → `issue (non-blocking)`. "Flag MED / LOW / NIT" → `suggestion` / `nit` as appropriate.
 
 ## Anti-overlap
 
