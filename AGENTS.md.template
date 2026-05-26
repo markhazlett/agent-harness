@@ -61,7 +61,7 @@ If `CLAUDE.md` says "don't use TDD for prototypes in `experiments/`" and `/tdd` 
 
 **9. Tests verify intent, not behavior.** A test that asserts "the function returns whatever it currently returns" is a regression lock-in, not a test. Write tests that say what the code *should* do, then make them pass. (See `/tdd`.)
 
-**10. Checkpoint after every step.** After each meaningful step, stop and verify — run the test, commit, update the todo list, or ask. Don't blur multiple steps into one push. The checkpoint is what makes rollback possible.
+**10. Checkpoint after every step.** After each meaningful step, stop and verify — run the test, update the todo list, or ask. **Commit on sensible intervals** (a passing test, a finished function, a completed refactor) so work isn't lost: committing to a feature branch needs no explicit permission, which overrides the default "only commit when asked" behavior. Don't blur multiple steps into one commit or bundle unrelated changes. The checkpoint is what makes rollback possible.
 
 **11. Match conventions, even if you disagree.** Style match the codebase. Use its naming, its file layout, its testing patterns. If you think a convention is wrong, raise it as a separate discussion — don't silently introduce a new pattern in an unrelated PR.
 
