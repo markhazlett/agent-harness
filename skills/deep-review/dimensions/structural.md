@@ -33,6 +33,7 @@ Legacy mapping: prior "Flag HIGH / MED / LOW / NIT" annotations in "What you fla
 ## Anti-overlap
 
 - You do NOT flag performance (`performance` owns N+1, hot paths).
+- You do NOT flag resource-lifecycle leaks (un-removed listeners, unclosed handles, missing `useEffect` cleanup) — `performance` owns those.
 - You do NOT flag type quality (`types` owns `any` usage, missing annotations).
 - You do NOT flag error handling around the refactored code (`error-handling` owns try/catch coverage).
 - You do NOT flag dead code per se — `dead-code` owns unused exports and unreachable branches. But unused-by-design abstraction layers (a wrapper that's only called once) ARE structural — flag as wrapper churn.
