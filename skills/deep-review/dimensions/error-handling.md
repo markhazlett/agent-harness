@@ -34,7 +34,7 @@ Legacy mapping: prior "Flag CRITICAL / HIGH" with the partial-failure or exposur
 ## Anti-overlap
 
 - You do NOT flag what to log inside an error handler (`observability` owns log content).
-- You do NOT flag performance of error paths (`performance` owns hot-path work).
+- You do NOT flag performance of error paths, or resource leaks on error paths (`performance` owns hot-path work and resource lifecycle). You own whether the error is caught and the invariant preserved; `performance` owns whether the held resource is released.
 - You do NOT flag the absence of tests for error paths (`tests` owns test coverage of error cases).
 - `security` owns information disclosure via error responses; you flag the LACK of error handling, security flags what's in the leak.
 

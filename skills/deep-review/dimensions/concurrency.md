@@ -34,6 +34,7 @@ Legacy mapping: prior "Flag CRITICAL" → `issue (blocking)`. "Flag HIGH" with n
 - You do NOT flag performance (`performance` owns N+1, hot paths). An unbounded `Promise.all` is `performance`'s, not yours, UNLESS the ordering matters.
 - You do NOT flag transaction-level safety in DB migrations (`db` owns CREATE INDEX CONCURRENTLY, locking).
 - You do NOT flag error handling around the race (`error-handling` owns try/catch and retry logic).
+- You do NOT flag resource-lifecycle leaks (un-removed listeners, unclosed handles, missing `useEffect` cleanup) — `performance` owns those. You own the race or event-ordering hazard, not the leak.
 
 ## Pattern divergence
 

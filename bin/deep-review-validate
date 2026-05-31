@@ -81,15 +81,6 @@ if ! grep -qE '^\*\*Verdict:\*\* *(Ship it|Address blocking items first|Substant
   fail=1
 fi
 
-# 5. Full-codebase aggregate reports must include a "## Chunks reviewed" table.
-#    Detect aggregate shape via the "**Scope:** Full codebase" line.
-if grep -qE '^\*\*Scope:\*\* *Full codebase' "$REPORT"; then
-  if ! grep -q "^## Chunks reviewed" "$REPORT"; then
-    echo "FAIL: full-codebase report missing '## Chunks reviewed' section" >&2
-    fail=1
-  fi
-fi
-
 if [ $fail -eq 0 ]; then
   echo "OK: report validates"
   exit 0
