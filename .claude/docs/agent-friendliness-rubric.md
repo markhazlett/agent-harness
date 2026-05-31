@@ -109,7 +109,9 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 
 **Cost of leaving this alone.** Conservatively, a cold agent session burns 10–30k tokens (~$0.03–$0.09 at Sonnet input rates ~$3/M) just orienting itself before the first real edit. That's small. The bigger cost is degraded output: the agent runs `npm test` when you use `pnpm test`, treats the resulting error as a code issue rather than a tooling issue, and you spend 20 minutes reviewing a wrong-shaped PR. At 50 agent-assisted PRs/month, even a 10% rate of these mismatches costs you ~10 review-hours.
 
-**Signals.**
+**Presence is not the signal — *liveness* is.** A context doc that exists, is well-formatted, and is 18 months stale is *worse than nothing*: it misleads every session confidently. The signals below are split into **presence** (necessary, cheap to fake) and **liveness** (the part that actually predicts agent success). A dimension cannot score above C on presence alone — the liveness probes must pass. **Follow references:** if `CLAUDE.md`/`AGENTS.md` points at another file or folder (e.g. a `.ai/`, `docs/agent/`, or `.cursor/rules/` directory), the referenced content *is* the onboarding context and is graded here — including its freshness. Checking the pointer exists is not enough; read what it points to.
+
+**Presence signals (necessary, not sufficient).**
 
 | Signal | Measurement |
 |---|---|
@@ -121,9 +123,17 @@ Ten dimensions in v2 (was 8), weights sum to 100%. Each dimension has signals (w
 | README "Quickstart" ends in a runnable command in <10 lines | judgment + grep |
 | If the project ships an OpenAPI / GraphQL / protobuf contract, it is in the repo (not an external Confluence) | `find . -name 'openapi*.{yaml,yml,json}' -o -name '*.proto' -o -name 'schema.graphql'` |
 
+**Liveness probes (required to score above C — these are *run*, not assumed).**
+
+| Probe | Measurement |
+|---|---|
+| **Accuracy** — pull 3–5 concrete claims from the doc (a command, a directory path, a named helper/convention) and verify each against the repo | run the cited command (dry-run/`--help`); `test -e` the cited paths; grep the cited symbols. A doc where ≥1 of 3 sampled claims is false is *misleading*, not merely incomplete |
+| **Freshness** — context doc not materially staler than the code it describes | compare `git log -1 --format=%cr` on the context doc(s) (and followed references) against median commit age of the top-churn source dirs (`git log --since='6 months ago' --name-only`). Doc untouched while its subject churned heavily = stale |
+| **Feedback loop** — a mechanism exists to keep context current | look for a learnings dir (`docs/learnings/`, `.ai/learnings/`), dated entries in the context doc, a `/learn`-style capture skill, or "update this file when…" instructions. Absence means the doc will rot silently between grades |
+
 **Weight justification (13%, was 15%).** Still the highest-leverage single artifact for cold-start sessions, but we shaved 2 points to fund D9 (token economy) — Augment's [token-cost analysis](https://www.augmentcode.com/guides/ai-agent-loop-token-cost-context-constraints) shows that even a perfect AGENTS.md is wasted if the rest of the repo bloats the context window. Cross-vendor support: AGENTS.md is recognised by Claude Code, Codex, Cursor, Cline, Roo Code, Aider, Continue.dev, JetBrains Junie (via MCP context), and GitHub Spec Kit's 29 integrations.
 
-**Anti-signals.** A 100-page README. A wiki link with no content in the repo. Aspirational instructions ("we plan to add tests"). Generic AGENTS.md copy-pasted from a template with no project content (GitHub's analysis explicitly flags this as worse than nothing). Commands written as prose rather than code blocks. A `.cursorrules` / `CLAUDE.md` / `AGENTS.md` that contradicts one of its siblings.
+**Anti-signals.** A 100-page README. A wiki link with no content in the repo. Aspirational instructions ("we plan to add tests"). Generic AGENTS.md copy-pasted from a template with no project content (GitHub's analysis explicitly flags this as worse than nothing). Commands written as prose rather than code blocks. A `.cursorrules` / `CLAUDE.md` / `AGENTS.md` that contradicts one of its siblings. **A doc that references a folder of context (`.ai/`, `docs/agent/`) untouched for months while the code churned — present, plausible, and stale.** Cited commands that error or cite flags that no longer exist. No learnings/feedback mechanism, so nobody will notice when the doc drifts.
 
 ---
 
@@ -435,31 +445,33 @@ Each dimension is scored A/B/C/D/F. The overall grade is the *weighted* letter a
 **Roll-up.** Convert each dimension's letter to its midpoint (A=95, B=82, C=67, D=52, F=30). Weighted-average using dimension weights. Map back: ≥90 A, ≥75 B, ≥60 C, ≥45 D, else F.
 
 **Per-dimension scoring rubric.**
-- **A**: ≥80% of signals present and mechanical signals all pass. No anti-signals.
-- **B**: ≥60% of signals present. ≤1 minor anti-signal.
-- **C**: ≥40% of signals or critical mechanical signals fail. Anti-signals visible but not dominant.
+- **A**: ≥80% of presence signals **and all liveness probes pass** (where the dimension has them — §5). No anti-signals. Presence without verified liveness caps at C.
+- **B**: ≥60% of presence signals, liveness probes substantially pass. ≤1 minor anti-signal.
+- **C**: ≥40% of signals, *or* presence is strong but liveness is unverified/partially failing. Anti-signals visible but not dominant.
 - **D**: <40% of signals or a critical-path signal fails (e.g., no test command at all for D2).
 - **F**: Dimension materially absent (no AGENTS.md/CLAUDE.md *and* no README for D1; tests don't run for D2; no lockfile *and* no container for D6).
+
+**Present-but-misleading scores *below* absent.** A confidently-wrong artifact (a stale doc whose commands error, a test suite that's all-green because it asserts nothing, a lint config disabled in CI) is worse for an agent than the artifact being missing — absence makes the agent cautious; false confidence makes it act on bad information. When a liveness probe shows an artifact actively misleads, score the dimension **D or F, not C**, even if every presence signal passed. "It exists" is not partial credit when what exists lies.
+
+**Compounding-context cap.** D1 is not a normal 13% line item — misleading onboarding context poisons every downstream dimension (the agent runs the wrong commands, then "verifies" against them). Therefore **a D1 score of D or F caps the overall grade at C**, the same way a §6 anti-pattern does. A repo cannot be "A overall, F on context."
 
 **Empirical calibration footnote.** Weights remain expert-judgment; the v2 deepening pass did not change that. DORA 2024, METR's 19%-slowdown study, the SWE-Bench Pro public/commercial gap, and Augment's quadratic-cost evidence all *constrain* the weights (we'd have to argue with one of them to move D2, D3, or D9 substantially), but they don't pin them to a number. §8 retains this as a known weakness; a real empirical tune would require running a fixed task suite against representative repos at each grade and measuring success rate.
 
 ## 5. Mechanical vs. judgment signals
 
-The skill should automate the left column; it must ask the model for the right column.
+The left column detects *configuration* (cheap, fakeable). The right column is the **liveness probe** — it tests whether the configuration is *enforced, current, and honest*. The right column is not a soft "model vibe"; each row is an action the skill **must run**, because the left column alone produces the false-A this rubric exists to prevent (a repo full of present-but-dead artifacts).
 
-| Mechanical (run a command) | Judgment (model assesses) |
+| Mechanical — *is it configured?* (run a command) | Liveness probe — *is it enforced / current / honest?* (must be actively tested) |
 |---|---|
-| File existence (`AGENTS.md`, lockfile, `.env.example`, CI config, ADR folder) | Whether `AGENTS.md` is *useful* vs. a stub |
-| Command runtime (test, lint, build) | Whether error messages are *informative* |
-| Line counts, file counts, file size distribution, token-count proxy via `tokei` / `cloc` | Whether modules are *cohesive* |
-| Lockfile and runtime-version pinning | Whether names are *honest* |
-| Grep for anti-patterns (`from x import *`, bare `except:`, hardcoded keys) | Whether conventions are *consistent* |
-| `git log --shortstat` averages | Whether the canonical example is actually canonical |
-| Branch protection via forge CLI (`gh`/`glab`/`tea`) | Whether feature flags are *used*, not just *installed* |
-| Test suite exit code + wall time | Whether failure messages give enough context to act on |
-| `git log --all -- '*.env'` for committed secrets | Whether structured logging is *populated* with the right keys |
+| File existence (`AGENTS.md`, lockfile, `.env.example`, CI config, ADR folder) | **D1:** verify 3+ doc claims against the code; check doc freshness vs. code churn; is `AGENTS.md` *useful* vs. a stub? |
+| Test command exists; exit code + wall time | **D2:** does the suite *assert* anything? (grep for skipped/`todo`/empty tests; a fast green on a suite of `it.skip` is a fail, not an A) |
+| Lint / typecheck / format config present | **D4:** is the gate *required*? (CI job not `continue-on-error`; status check is a *required* check in branch protection, not just a defined workflow) |
+| Lockfile and runtime-version pinning present | **D6:** is the lockfile *in sync* with the manifest? does the container actually build? is `.env.example` complete vs. what the code reads? |
+| ADR folder / feature-flag library present | **D7:** are flags *used*, not just installed? are ADRs *current*, not reversed-and-never-updated? |
+| One "canonical example" file exists | **D8:** is it *actually* canonical, or contradicted by the real code the agent will pattern-match against? |
+| Structured-logging library in dependencies | **D10:** is it *populated* at error sites with useful keys, or imported and unused? |
 
-Where a judgment signal is unavoidable, it counts for at most 50% of a dimension's score.
+If a liveness probe cannot be run (no CLI, no network, no clean checkout), record **"not verified"** and cap that dimension at C — do **not** assume the configuration is live. "Unverified" is not "passing."
 
 ## 6. Anti-patterns / red flags (cap the grade at C or below)
 
@@ -479,6 +491,10 @@ Any one of these caps the *overall* grade at C, regardless of other dimensions. 
 12. **API keys committed to git history**, even if rotated. The repo is now a poisoned input for any agent that indexes history (DeepWiki and similar tools do).
 13. **Unbounded retry loops without a documented kill switch.** An agent reading the codebase as the canonical pattern will reproduce them.
 14. **Test fixtures pull live data from production** with no local stub. Agent can't reproduce failures offline.
+15. **Context docs materially stale or misleading.** A `CLAUDE.md`/`AGENTS.md`/`.ai/` whose sampled claims fail verification (commands error, cited paths don't exist), or that is untouched for months while its subject code churned. *Worse than no doc* — caps the grade, and the dimension itself scores below C (§4 present-but-misleading rule). This is the false-A guard.
+16. **Gate configured but not enforced.** A lint/typecheck/test job present in CI but `continue-on-error: true`, or behind a status check that branch protection doesn't *require*, or a formatter that's installed but never run in CI. The agent reads "we have gates" from the config and trusts a wall that isn't there.
+17. **Test suite present but trivial.** Tests exist and run green, but a meaningful fraction are `skip`/`todo`/`xfail` or assert nothing (`expect(true).toBe(true)`, no assertions in the body). A green that means nothing is more dangerous than a red — the agent ships on it.
+18. **Lockfile out of sync with the manifest.** `package.json`/`pyproject.toml`/`Cargo.toml` lists deps the lockfile doesn't pin (or vice versa). The "reproducible" environment isn't — the next clean install drifts.
 
 ## 7. Backlog generation hints
 
@@ -498,6 +514,7 @@ For each dimension, the kinds of tasks that move the grade up. The `/grade-codeb
 ## 8. Open questions / known weaknesses
 
 - **Eval gap (still open).** This rubric grades the *substrate* (the codebase), not the *outcome* (how well a given agent does in it). A rigorous validation would run a fixed set of well-scoped tasks against representative repos at each grade and measure success rate. Until then, the weights are informed but not empirically tuned. Hamel Husain's [coding-agent evals work](https://hamel.dev/blog/posts/evals-skills/) plus [SWE-Bench Pro](https://arxiv.org/abs/2509.16941) and METR's [productivity study](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) are the closest analogs and the natural future input.
+- **Calibration gap (presence-vs-liveness).** The rubric was caught awarding an A to a repo whose context lived in a stale `.ai/` folder that hadn't been touched in months — every D1 *presence* signal passed while the content was dead. The fix was the §5 liveness-probe layer and the §6 #15–18 "configured-but-dead" red flags, which force the skill to verify rather than detect. But the deeper lesson stands: **the rubric has no golden-fixture self-test**, so a regression in the probe logic wouldn't be caught automatically. The right calibration is a small set of deliberately-rigged fixture repos (one stale-doc, one empty-test-suite, one disabled-gate) that the skill must grade D/F; until those exist, the liveness probes are an interim guard validated only by manual spot-check.
 - **Domain bias.** The rubric tilts toward web/services repos (TypeScript, Python, Go). Embedded, ML-training, infra-as-code, and game-engine codebases have different ergonomics (a CUDA codebase's "test" is a benchmark; a Terraform module's "verification" is a `plan` diff). The skill should branch on detected stack.
 - **Conflict between agent and human ergonomics.** Mostly they align. Two exceptions we couldn't fully resolve: (a) **documentation volume** — humans want more, agents want less; (b) **abstraction depth** — humans tolerate dynamic dispatch and DI containers, agents lose track of them. We've sided with the agent in both cases. The deeper-pass research surfaced a third tension: (c) **vendored dependencies** — humans (and supply-chain security) sometimes want vendored copies; agents pay the token bill. We've sided with the agent (D9) but a security-conscious reviewer would push back.
 - **Source disagreement: indexing vs. plain reading.** Augment's [Context Engine](https://workos.com/blog/augment-code-context-is-the-new-compiler) and Sourcegraph's [Cody indexing](https://sourcegraph.com/blog/how-cody-understands-your-codebase) argue that strong external indexing makes codebase locality matter less (you index your way out of bad colocation). Anthropic's Claude Code and the [SWE-agent paper](https://arxiv.org/abs/2405.15793) take the opposite stance — that bounded, simple tools beat fancier indexing, and the codebase still needs to be navigable by `grep`/`find`. We sided with the read-first camp (D3 weights stayed high) on the grounds that not every agent will be paired with a sophisticated index, and indexers can be wrong. If a future where every agent has Augment-grade retrieval comes to pass, D3 weight could fall.

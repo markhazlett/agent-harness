@@ -72,12 +72,23 @@ Each section defends the score: why it matters for *this* codebase, what we foun
 **Most likely objection.** _"{{OBJECTION_VERBATIM}}"_ — {{OBJECTION_RESPONSE}}
 <!-- Pull from the rubric's "Common objections" table; pick the one most likely to apply to THIS codebase (not the textbook one). Concede the legitimate part of the objection before defending the dimension. -->
 
-**Signals measured:**
+**Configuration signals (presence):**
 
 | Signal | Result | Notes |
 |---|---|---|
 | {{SIGNAL_1}} | ✅/❌/⚠️/n.m. | {{SIGNAL_1_DETAIL}} |
 | {{SIGNAL_2}} | … | … |
+
+{{#HAS_LIVENESS_PROBE}}
+**Liveness probes (enforced / current / honest — *run*, not assumed):**
+
+| Probe | Result | Evidence |
+|---|---|---|
+| {{PROBE_1}} | ✅ live / ❌ dead / ⚠️ partial / `not verified` | {{PROBE_1_EVIDENCE}} |
+| {{PROBE_2}} | … | … |
+
+<!-- D1 MUST show: references followed (paths), ≥3 doc claims verified (claim → pass/fail + evidence), freshness (doc date vs. code churn), feedback-loop mechanism. A dimension scored above C with any probe row blank or `not verified` is a process error — see SKILL.md honesty rules. A `❌ dead` probe (misleading artifact) means the dimension scores D–F, not C. -->
+{{/HAS_LIVENESS_PROBE}}
 
 {{#JUDGMENT_SIGNAL}}
 *Judgment sample.* `{{SAMPLED_PATH}}` — {{JUDGMENT_VERDICT}}
