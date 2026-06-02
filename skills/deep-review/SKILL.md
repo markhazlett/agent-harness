@@ -83,9 +83,7 @@ Borrowed from Hauer's "OIR" (Observation → Impact → Request) and Greiler's r
 
 ## Common Rationalizations
 
-**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is harvested from `/skill-baseline` runs against the unaided subagent.
-
-> **Note:** `rationalizations.md` currently contains a placeholder structure (section headers + scenario references). A follow-up PR will populate it with verbatim rationalizations from real RED-phase baseline transcripts captured against scenarios in `docs/skill-baselines/_scenarios/deep-review-*.md`. Until then, the "Universal counters" rows at the bottom of that file are the load-bearing protection.
+**REQUIRED SUB-FILE:** Read `rationalizations.md` if you find yourself making excuses. The verbatim-excuse-to-reality table is harvested from `/skill-baseline` runs against the unaided subagent — see `docs/skill-baselines/deep-review-*-2026-05-25.md` for the source transcripts under four pressure scenarios (time-pressure, sunk-cost, authority, context-exhaustion).
 
 ## Self-Review Checklist
 
@@ -104,6 +102,5 @@ Cannot check all boxes? You skipped the skill. Start over from the missing stage
 ## What this skill does NOT cover
 
 - **The cheap per-commit pass.** Use `/pre-deploy`, `/simplify`, or `/security-review` standalone for that. `/deep-review` is the deep tier.
-- **Full-repo / module-wide audits.** Scope is always `main..HEAD`. Repo-wide deepsec-style scans are a future feature.
 - **Penetration testing, threat modeling, runtime monitoring.** Same boundaries as `/security-review`.
 - **GitHub PR review comments.** Use the built-in `/review` for that. `/deep-review` produces a local markdown report.

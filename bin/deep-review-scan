@@ -25,7 +25,19 @@ HARNESS_DB_MIGRATIONS_DIR="${HARNESS_DB_MIGRATIONS_DIR:-}"
 HARNESS_DB_SCHEMA_PATH="${HARNESS_DB_SCHEMA_PATH:-}"
 HARNESS_LANGGRAPH="${HARNESS_LANGGRAPH:-false}"
 
-BASE="${1:-main}"
+BASE="main"
+positional=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --) shift; while [ $# -gt 0 ]; do positional+=("$1"); shift; done; break ;;
+    -*) echo '{"error":"unknown flag: '"$1"'"}' >&2; exit 1 ;;
+    *) positional+=("$1") ;;
+  esac
+  shift
+done
+if [ "${#positional[@]}" -gt 0 ]; then
+  BASE="${positional[0]}"
+fi
 
 # Fail loud on a typo'd ref — without this, a bad BASE produces an empty
 # manifest and the downstream /deep-review orchestrator reads it as
@@ -36,6 +48,12 @@ if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
 fi
 
 files=()
+added=0
+removed=0
+gate_db=false
+gate_lg=false
+gate_a11y=false
+
 while IFS= read -r line; do
   [ -n "$line" ] && files+=("$line")
 done < <(git diff --name-only "$BASE"...HEAD)
@@ -44,10 +62,6 @@ added=$(git diff --shortstat "$BASE"...HEAD | grep -oE '[0-9]+ insertion' | grep
 removed=$(git diff --shortstat "$BASE"...HEAD | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo 0)
 added="${added:-0}"
 removed="${removed:-0}"
-
-gate_db=false
-gate_lg=false
-gate_a11y=false
 
 for f in "${files[@]+"${files[@]}"}"; do
   [ -z "$f" ] && continue
