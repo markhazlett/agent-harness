@@ -1,0 +1,218 @@
+#!/usr/bin/env bash
+# bin/deep-review-fixture — create a self-contained mini-repo seeded with
+# planted findings across multiple /deep-review dimensions, plus one finding
+# that is fixed in a later commit (exercises the revalidator's FIXED-IN-COMMIT
+# path).
+#
+# Usage:
+#   bin/deep-review-fixture                    # creates fixture in $(mktemp -d)
+#   bin/deep-review-fixture --out <path>       # creates fixture at <path>
+#                                              # (path must not exist or must be empty)
+#
+# The fixture is a fresh git repo with:
+#   - main branch with a clean baseline
+#   - feature branch with two commits:
+#       1) "feat: charge API + legacy shim" — introduces 5 planted findings
+#       2) "chore: remove legacy-shim-xyz"  — fixes 1 of them (FIXED-IN-COMMIT)
+#
+# Planted findings (and the dimension each tests):
+#   schema/migrations  — DROP COLUMN without a backfill         → FAIL/CRITICAL
+#   dependencies       — 0.x-caret dep with suspicious name     → HIGH (FIXED in commit 2)
+#   security           — hardcoded API-key-shaped literal       → FAIL/CRITICAL
+#   error-handling     — empty catch block swallowing errors    → MED
+#   tests              — new exported function with no test     → MED
+#   magic-values       — bare numeric literal in pricing logic  → LOW
+#
+# This is consumed by the smoke-test protocol documented in
+# docs/skill-baselines/deep-review-smoke-protocol.md. Re-run any time; the
+# script is fully self-contained (no model calls, no external network).
+
+set -euo pipefail
+
+OUT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out) OUT="$2"; shift 2 ;;
+    -h|--help)
+      sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) echo "Unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
+
+if [ -z "$OUT" ]; then
+  OUT="$(mktemp -d -t deep-review-fixture.XXXXXX)"
+else
+  if [ -e "$OUT" ] && [ -n "$(ls -A "$OUT" 2>/dev/null)" ]; then
+    echo "Refusing to overwrite non-empty path: $OUT" >&2
+    exit 1
+  fi
+  mkdir -p "$OUT"
+fi
+
+cd "$OUT"
+git init -q
+git config user.email "fixture@local"
+git config user.name  "deep-review-fixture"
+git symbolic-ref HEAD refs/heads/main
+
+# ─── Base state on main ────────────────────────────────────────────────────
+mkdir -p src db/migrations .claude/hooks
+
+# .claude/hooks/config.sh tells deep-review-scan where migrations live so the
+# db gate fires. Without this, gates.db stays false and the schema/migrations
+# dimension wouldn't be auto-activated — which would defeat the FIXED-IN-COMMIT
+# revalidator test (we need the db dim to flag the DROP COLUMN finding first).
+cat > .claude/hooks/config.sh <<'SH'
+# Minimal config for the deep-review fixture. Mirrors what a real harness
+# project's .claude/hooks/config.sh would export.
+export HARNESS_DB_MIGRATIONS_DIR="db/migrations"
+export HARNESS_DB_SCHEMA_PATH=""
+export HARNESS_LANGGRAPH="false"
+SH
+
+cat > package.json <<'JSON'
+{
+  "name": "charge-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo no tests yet"
+  },
+  "dependencies": {
+    "stripe": "^14.10.0"
+  }
+}
+JSON
+
+cat > src/config.ts <<'TS'
+// Configuration for the charge API. Real values are loaded from env at runtime.
+export const STRIPE_API_KEY = process.env.STRIPE_API_KEY ?? "";
+export const PRICING_TIER_CENTS = 1999;
+TS
+
+cat > src/index.ts <<'TS'
+import { PRICING_TIER_CENTS } from "./config.js";
+console.log("charge-api up, tier=", PRICING_TIER_CENTS);
+TS
+
+cat > README.md <<'MD'
+# charge-api
+
+Minimal Stripe charge wrapper. Used by `/deep-review`'s smoke-test fixture.
+MD
+
+git add . >/dev/null
+git commit -q -m "init: charge-api baseline"
+
+# ─── Feature branch: introduce 5 planted findings ──────────────────────────
+git checkout -q -b feature
+
+# 1) Schema: drop column with no backfill (CRITICAL — schema/migrations)
+cat > db/migrations/0001_drop_legacy_email.sql <<'SQL'
+-- Drop the legacy email field. Backfill scheduled for "later".
+-- TODO(@me): write the backfill before this ships.
+ALTER TABLE users DROP COLUMN email_legacy;
+SQL
+
+# 2) Dependencies: 0.x caret on a sketchy-named package (HIGH — fixed in commit 2)
+cat > package.json <<'JSON'
+{
+  "name": "charge-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo no tests yet"
+  },
+  "dependencies": {
+    "stripe": "^14.10.0",
+    "legacy-shim-xyz": "^0.3.1"
+  }
+}
+JSON
+
+# 3) Security: hardcoded API key shape (CRITICAL — security)
+# 4) Magic value: bare numeric literal (LOW — magic-values)
+cat > src/config.ts <<'TS'
+// Configuration for the charge API.
+export const STRIPE_API_KEY = "sk_live_PLANTED_FIXTURE_DO_NOT_USE_xxxx"; // pragma: planted
+export const PRICING_TIER_CENTS = 2999;
+TS
+
+# 5) Error handling: empty catch (MED — error-handling)
+# 6) Tests: new exported function, no corresponding test file (MED — tests)
+cat > src/charge.ts <<'TS'
+import Stripe from "legacy-shim-xyz";
+import { STRIPE_API_KEY } from "./config.js";
+
+const stripe = new Stripe(STRIPE_API_KEY);
+
+export async function chargeCard(amount: number) {
+  try {
+    return await stripe.charges.create({ amount, currency: "usd" });
+  } catch (e) {
+    // ignore — caller will retry
+  }
+}
+TS
+
+git add . >/dev/null
+git commit -q -m "feat: charge API + legacy shim"
+
+# ─── Follow-up commit: remove the legacy shim (FIXED-IN-COMMIT) ────────────
+# This commit removes `legacy-shim-xyz` from package.json and switches charge.ts
+# back to the canonical `stripe` import. The revalidator running against the
+# tip of `feature` should observe the dep WAS added (commit 1) but is no
+# longer present at tip — mark the dependencies finding as FIXED-IN-COMMIT.
+cat > package.json <<'JSON'
+{
+  "name": "charge-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo no tests yet"
+  },
+  "dependencies": {
+    "stripe": "^14.10.0"
+  }
+}
+JSON
+
+cat > src/charge.ts <<'TS'
+import Stripe from "stripe";
+import { STRIPE_API_KEY } from "./config.js";
+
+const stripe = new Stripe(STRIPE_API_KEY);
+
+export async function chargeCard(amount: number) {
+  try {
+    return await stripe.charges.create({ amount, currency: "usd" });
+  } catch (e) {
+    // ignore — caller will retry
+  }
+}
+TS
+
+git add . >/dev/null
+git commit -q -m "chore: remove legacy-shim-xyz, use canonical stripe import"
+
+# ─── Done ───────────────────────────────────────────────────────────────────
+echo
+echo "Fixture ready at: $OUT"
+echo
+echo "Branch state:"
+git --no-pager log --oneline main..feature
+echo
+echo "Planted findings on 'feature' relative to 'main':"
+echo "  schema/migrations    DROP COLUMN without backfill   (FAIL/CRITICAL)"
+echo "  dependencies         legacy-shim-xyz@^0.3.1         (HIGH — FIXED in commit 2)"
+echo "  security             hardcoded sk_live_* literal    (FAIL/CRITICAL)"
+echo "  error-handling       empty catch in chargeCard      (MED)"
+echo "  tests                chargeCard has no test         (MED)"
+echo "  magic-values         PRICING_TIER_CENTS = 2999      (LOW)"
+echo
+echo "Next: cd $OUT && claude  (then run /deep-review from a Claude Code session)"
+echo "See: docs/skill-baselines/deep-review-smoke-protocol.md for the full protocol."
