@@ -28,11 +28,11 @@ The `VERSION` file at the repo root is the source of truth that `bin/harness-upd
 
 **Bump `VERSION` in the same PR as any change that affects users**, including:
 
-- New skills under `.claude/skills/` (user-invocable or otherwise)
+- New skills under `skills/` (user-invocable or otherwise)
 - Changes to existing skill behavior, prompts, or workflow
 - New or changed hooks under `.claude/hooks/`
 - Changes to `setup.sh` or anything that affects install
-- New commands under `.claude/commands/`
+- New commands under `prompts/`
 
 Skip the bump for: docs-only edits that don't change skill content, internal refactors with no behavior change, fixes to this CLAUDE.md.
 
@@ -56,7 +56,7 @@ Adapted from Karpathy's CLAUDE.md ([forrestchang/andrej-karpathy-skills](https:/
 2. **Simplicity first.** No new abstractions for single-use code. No "flexibility" knobs nobody asked for. If you wrote 200 lines and 50 would do, rewrite. The harness's own design philosophy (`.claude/docs/harness-principles.md` §§55-63) is the anti-pattern list — read it before adding new structure.
 3. **Use the model only for judgment calls.** Anything mechanically enforceable belongs in a hook (`.claude/hooks/`), a validator (`bin/test-frontmatter`, `bin/harness-update-check`), or a shell script — not in a skill body. Skills are for the cases where the model needs to *decide*. Principle §24 (tools as forcing functions).
 4. **Surface conflicts, don't average them.** When `CLAUDE.md` says X and a skill says Y, follow `CLAUDE.md` (§ Instruction precedence) — but *name* the conflict in your response. Don't try to half-satisfy both. The user is principal; the resolution is theirs to make.
-5. **Match conventions, even if you disagree.** The harness has a frontmatter contract (`.claude/skills/CONVENTIONS.md`), a rigid-skill template, a `<update-check>` block pattern, and a VERSION bump rule. Follow them. If you think a convention is wrong, raise it as a separate discussion, not as a silent deviation in your edit.
+5. **Match conventions, even if you disagree.** The harness has a frontmatter contract (`skills/CONVENTIONS.md`), a rigid-skill template, a `<update-check>` block pattern, and a VERSION bump rule. Follow them. If you think a convention is wrong, raise it as a separate discussion, not as a silent deviation in your edit.
 6. **Fail loud.** Hooks, validators, and bin/ scripts should crash visibly on bad input — never swallow errors silently or return defaults that pretend nothing was wrong. `bin/test-frontmatter` failing 1/29 is more useful than passing 29/29 by skipping the broken one. The harness depends on these gates being honest.
 
 These rules apply to working on the harness itself. The shipped starter for consumer repos lives at `.claude/docs/claude-md-template.md` — a longer 12-rule contract scoped to user projects, not harness development.

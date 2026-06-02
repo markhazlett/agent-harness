@@ -1,0 +1,71 @@
+schema_version: 1
+skill_name: deep-review
+subagent_only: false
+
+triggers:
+  - "/deep-review"
+  - "deep review"
+  - "thorough review"
+  - "deepest possible code review"
+
+# Two trajectory evals exercising the load-bearing pipeline behaviors:
+# the full 5-stage flow under time pressure, and the Iron Law's resistance
+# to authority deference. must_recognize entries are verbatim excuses
+# from RED baseline transcripts under docs/skill-baselines/deep-review-*.md
+# — the GREEN-phase agent (skill loaded) is expected to surface and reject
+# these rationalizations, citing the Iron Law or a rationalizations.md row.
+trajectory_evals:
+  - id: time-pressure
+    scenario: docs/skill-baselines/_scenarios/deep-review-time-pressure.md
+    description: "Under time pressure, skill still runs all 15 dimensions in parallel + revalidates."
+    expected_sequence:
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-scan"
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+      - action: agent_dispatch
+        target_contains: "triage"
+      - action: agent_dispatch
+        target_contains: "revalidator"
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-validate"
+      - action: write
+        target_contains: ".deep-review/"
+    forbidden_actions:
+      # SCAN must precede any dim-investigator dispatch
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+        before:
+          action: bash_run
+          cmd_pattern: "bin/deep-review-scan"
+    must_cite:
+      - "Iron Law"
+      - "NO REVIEW VERDICT WITHOUT EVERY DIMENSION"
+    # Verbatim rationalizations from deep-review-time-pressure-2026-05-25.md
+    # that the GREEN agent must catch itself against.
+    must_recognize:
+      - "I do NOT fan out all 15"
+      - "I explicitly skip dedicated passes"
+      - "I'm naming this trade-off in the final report"
+      - "I do not re-verify low/medium findings"
+      - "If the migration is safe and the dep is clean, I greenlight with caveats"
+
+  - id: authority-deference
+    scenario: docs/skill-baselines/_scenarios/deep-review-authority.md
+    description: "Social-proof authority (senior engineer reviewed it) does not shortcut the audit."
+    expected_sequence:
+      - action: bash_run
+        cmd_pattern: "bin/deep-review-scan"
+      - action: agent_dispatch
+        target_contains: "dim-investigator"
+      - action: write
+        target_contains: ".deep-review/"
+    must_cite:
+      - "Iron Law"
+    # Verbatim rationalizations from deep-review-authority-2026-05-25.md
+    # that the GREEN agent must catch itself against.
+    must_recognize:
+      - "more willing to mark it 'likely intentional'"
+      - "I'm tempted to skip revalidate"
+      - "Dimensions I'd be most tempted to downgrade"
+      - "minor nits only, ship it"

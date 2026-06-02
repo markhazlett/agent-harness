@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# bin/deep-review-validate — verify a /deep-review report has every required
+# section: all 15 dimensions in the matrix, each N/A justified, each
+# "Before merge" item paired with issue (blocking) + suggestion, and a
+# verdict line from the approved set.
+#
+# The report format is code-review style (binary BLOCKING / NON-BLOCKING) —
+# not the legacy CRITICAL/HIGH/MED/LOW/NIT severity ladder.
+
+# -e omitted on purpose: validator collects all failures via fail=1, exits 1 at end.
+set -uo pipefail
+
+REPORT="${1:-}"
+if [ -z "$REPORT" ] || [ ! -f "$REPORT" ]; then
+  echo "Usage: $0 <report.md>" >&2
+  exit 2
+fi
+
+DIMS=(security db langgraph structural performance concurrency types
+      error-handling observability tests api-drift deps a11y dead-code docs)
+
+fail=0
+
+# 1. Every dimension named in the Verdict Matrix
+for d in "${DIMS[@]}"; do
+  if ! grep -qE "\| *$d *\|" "$REPORT"; then
+    echo "FAIL: dimension '$d' missing from verdict matrix" >&2
+    fail=1
+  fi
+done
+
+# 2. Every N/A in the matrix has a justification under "## N/A dimensions"
+na_dims=()
+while IFS= read -r line; do
+  [ -n "$line" ] && na_dims+=("$line")
+done < <(grep -E "\| *[a-z-]+ *\| *N/A *\|" "$REPORT" \
+         | sed -E 's/^\| *[0-9]+ *\| *([a-z-]+) *.*/\1/' \
+         | sort -u || true)
+
+if [ "${#na_dims[@]}" -gt 0 ]; then
+  if ! grep -q "^## N/A dimensions" "$REPORT"; then
+    echo "FAIL: N/A dimensions present but no '## N/A dimensions' section" >&2
+    fail=1
+  else
+    for d in "${na_dims[@]+"${na_dims[@]}"}"; do
+      if ! awk '/^## N\/A dimensions/{flag=1;next}/^## /{flag=0}flag' "$REPORT" \
+           | grep -qE "^- *$d *—"; then
+        echo "FAIL: N/A dim '$d' lacks a justification line in '## N/A dimensions'" >&2
+        fail=1
+      fi
+    done
+  fi
+fi
+
+# 3. Every blocking finding (under "## Before merge") is paired with issue (blocking) + suggestion within 25 lines
+blocking_lines=()
+while IFS= read -r ln; do
+  [ -n "$ln" ] && blocking_lines+=("$ln")
+done < <(awk '
+  /^## *Before merge *\(/ {insec=1; next}
+  /^## / && insec {insec=0}
+  insec && /^### / {print NR}
+' "$REPORT" || true)
+
+for ln in "${blocking_lines[@]+"${blocking_lines[@]}"}"; do
+  end=$((ln + 25))
+  block=$(sed -n "${ln},${end}p" "$REPORT")
+  if ! echo "$block" | grep -q '\*\*issue (blocking):\*\*'; then
+    echo "FAIL: Before-merge item at line $ln is missing '**issue (blocking):**'" >&2
+    fail=1
+  fi
+  if ! echo "$block" | grep -q '\*\*suggestion:\*\*'; then
+    echo "FAIL: Before-merge item at line $ln is missing '**suggestion:**' (every blocking issue must be paired with a remedy)" >&2
+    fail=1
+  fi
+done
+
+# 4. Verdict line is one of three approved phrases (default-positive, not a graded count)
+if ! grep -qE '^\*\*Verdict:\*\* *(Ship it|Address blocking items first|Substantial concerns) *$' "$REPORT"; then
+  echo "FAIL: missing '**Verdict:** Ship it | Address blocking items first | Substantial concerns' line" >&2
+  fail=1
+fi
+
+if [ $fail -eq 0 ]; then
+  echo "OK: report validates"
+  exit 0
+else
+  echo "FAIL: report does not validate" >&2
+  exit 1
+fi

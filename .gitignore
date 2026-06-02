@@ -22,6 +22,7 @@ out/
 .claude/handoff/
 .claude/transcripts/
 .claude/worktrees/
+.deep-review/
 
 # OS / editor
 .DS_Store
