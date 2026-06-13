@@ -1,4 +1,6 @@
 ---
+name: e2e-tester
+description: Browser testing agent that verifies features work in the browser by navigating the app, interacting with UI elements, and reporting results. Dispatched by /e2e-verify and /verify.
 model: sonnet
 ---
 

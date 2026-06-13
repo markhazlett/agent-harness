@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. force-push to a PR branch).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so base-ref diffs (e.g. deep-review-scan) resolve
+
+      # Several setup/* tests build temp git repos and commit; deep-review-scan
+      # inits a fixture repo and diffs against `main`. Fresh runners have no git
+      # identity and may not default the initial branch to main — set both.
+      - name: Configure git
+        run: |
+          git config --global user.email "ci@harness.test"
+          git config --global user.name "Harness CI"
+          git config --global init.defaultBranch main
+          git config --global --add safe.directory '*'
+
+      # ubuntu-latest ships jq, yq (mikefarah v4), node/npm, and python3 —
+      # the tools the bash suite exercises — so no install step is needed.
+      - name: Validate skill & agent frontmatter
+        run: bash bin/test-frontmatter
+
+      # No --keep-going: stop at the first failure and dump its output, so a
+      # red check shows *why* without re-running locally.
+      - name: Run harness test suite
+        run: bash bin/test-all

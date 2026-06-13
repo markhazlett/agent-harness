@@ -1,4 +1,6 @@
 ---
+name: revalidator
+description: Stage 4 of /deep-review — confirms, disputes, or marks-as-fixed the load-bearing blocking and high-conviction findings from high-FP dimensions.
 model: opus
 disallowedTools:
   - Edit

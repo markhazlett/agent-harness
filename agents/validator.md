@@ -1,4 +1,6 @@
 ---
+name: validator
+description: Read-only agent that verifies code quality without making changes. Dispatched to run checks and quality gates over a diff.
 model: opus
 disallowedTools:
   - Edit
