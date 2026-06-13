@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref (e.g. force-push to a PR branch).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ubuntu-latest ships jq, yq (mikefarah v4), node/npm, and python3 —
+      # the tools the bash suite exercises — so no install step is needed.
+      - name: Validate skill & agent frontmatter
+        run: bash bin/test-frontmatter
+
+      - name: Run harness test suite
+        run: bash bin/test-all --keep-going
