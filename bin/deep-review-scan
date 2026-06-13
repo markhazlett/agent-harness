@@ -169,14 +169,21 @@ build_union_exemplars() {
   local all=()
   for f in "${files[@]+"${files[@]}"}"; do
     [ -z "$f" ] && continue
+    # Break between files, never mid-stream: a `break 2` out of the process
+    # substitution below leaves the producer writing into a closed pipe, which
+    # raises SIGPIPE ("write error: Broken pipe") on its next echo. That stderr
+    # noise is timing-dependent (only surfaces on some hosts) and corrupts any
+    # 2>&1 capture of the JSON. Instead, drain the producer (it self-caps at 3)
+    # and stop appending once full.
+    [ "${#all[@]}" -ge 3 ] && break
     while IFS= read -r e; do
       [ -z "$e" ] && continue
+      [ "${#all[@]}" -ge 3 ] && continue
       local seen=0
       for a in "${all[@]+"${all[@]}"}"; do
         [ "$a" = "$e" ] && { seen=1; break; }
       done
       [ $seen -eq 0 ] && all+=("$e")
-      [ "${#all[@]}" -ge 3 ] && break 2
     done < <(emit_exemplars_lines_for_file "$f")
   done
   # Emit as JSON array
