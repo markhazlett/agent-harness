@@ -1,4 +1,6 @@
 ---
+name: dim-investigator
+description: Read-only stage-2 reviewer for /deep-review LOW/MED false-positive dimensions — types, observability, tests, api-drift, deps, a11y, dead-code, docs.
 model: sonnet
 disallowedTools:
   - Edit

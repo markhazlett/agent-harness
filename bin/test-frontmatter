@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# bin/test-frontmatter — validate every .claude/skills/*/SKILL.md frontmatter
+# bin/test-frontmatter — validate skill and agent frontmatter
 #
-# Contract enforced (see .claude/skills/CONVENTIONS.md):
+# Skill contract (.claude/skills/*/SKILL.md, see .claude/skills/CONVENTIONS.md):
 #   1. YAML frontmatter present (delimited by `---` lines).
 #   2. `name:` non-empty and equals the parent folder name.
 #   3. `description:` non-empty and starts with `Use when`.
@@ -10,7 +10,14 @@
 #   6. `kind:` is one of `process | implementation | verification`,
 #      or absent only when `tier: util`.
 #
-# Exits 0 on full pass, 1 on any non-conformance. Always prints a per-skill
+# Agent contract (.claude/agents/*.md):
+#   1. YAML frontmatter present (delimited by `---` lines).
+#   2. `name:` non-empty and equals the filename stem — this is the
+#      `subagent_type` skills dispatch by; without it the agent never
+#      registers and dispatch silently falls back to general-purpose.
+#   3. `description:` non-empty.
+#
+# Exits 0 on full pass, 1 on any non-conformance. Always prints a per-item
 # PASS/FAIL line and a final summary.
 
 set -u
@@ -149,6 +156,53 @@ for skill_md in "$skills_dir"/*/SKILL.md; do
     for e in "${errs[@]}"; do echo "       - $e"; done
   fi
 done
+
+# Agents: name must equal the filename stem (the subagent_type), description
+# non-empty. read_frontmatter emits 6 lines; agents only use the first three.
+agents_dir=".claude/agents"
+if [ -d "$agents_dir" ]; then
+  for agent_md in "$agents_dir"/*.md; do
+    [ -e "$agent_md" ] || continue
+    total=$((total + 1))
+    stem="$(basename "$agent_md" .md)"
+    errs=()
+
+    {
+      IFS= read -r has_fm
+      IFS= read -r name
+      IFS= read -r description
+      IFS= read -r _ui
+      IFS= read -r _tier
+      IFS= read -r _kind
+    } < <(read_frontmatter "$agent_md")
+
+    if [ "$has_fm" != "yes" ]; then
+      fail=$((fail + 1))
+      echo "FAIL  [agent] $stem"
+      echo "       - missing YAML frontmatter (must start with --- on line 1)"
+      continue
+    fi
+
+    if [ -z "$name" ]; then
+      errs+=("name: missing or empty (must equal filename stem '$stem')")
+    elif [ "$name" != "$stem" ]; then
+      errs+=("name: '$name' does not match filename stem '$stem'")
+    fi
+
+    if [ -z "$description" ]; then
+      errs+=("description: missing or empty")
+    fi
+
+    if [ ${#errs[@]} -eq 0 ]; then
+      pass=$((pass + 1))
+      echo "PASS  [agent] $stem"
+    else
+      fail=$((fail + 1))
+      echo "FAIL  [agent] $stem"
+      for e in "${errs[@]}"; do echo "       - $e"; done
+    fi
+  done
+fi
 
 echo
 echo "Frontmatter validation: $pass/$total passed, $fail failed."

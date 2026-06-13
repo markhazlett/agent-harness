@@ -1,4 +1,6 @@
 ---
+name: migration-validator
+description: Read-only agent that verifies database schema changes are complete and consistent — migrations are generated and the app can query new tables. Dispatched by /db-review.
 model: haiku
 disallowedTools:
   - Edit

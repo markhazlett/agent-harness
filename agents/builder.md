@@ -1,4 +1,6 @@
 ---
+name: builder
+description: Implements code changes following the project's conventions. Dispatched by /build (build-plan) to execute plan steps that write code.
 model: sonnet
 ---
 

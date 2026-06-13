@@ -1,4 +1,6 @@
 ---
+name: triage
+description: Stage 3 of /deep-review — applies a uniform false-positive filter and dedup across all stage-2 dimension findings.
 model: haiku
 disallowedTools:
   - Edit

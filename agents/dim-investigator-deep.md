@@ -1,4 +1,6 @@
 ---
+name: dim-investigator-deep
+description: Read-only stage-2 reviewer for /deep-review HIGH false-positive deep-thinking dimensions — structural, performance, concurrency, error-handling.
 model: opus
 disallowedTools:
   - Edit
