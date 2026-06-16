@@ -1062,6 +1062,68 @@ Use this as a starting point. Each item maps to one or more sections above.
 
 ---
 
+## Part XIII — Principles from External Harness Research
+
+These principles were mined from external production systems rather than from
+operating inside this harness. They clear the same quality bar — transferable,
+concrete, cited, non-duplicative — and are tagged with their source.
+
+### 64. Typed Event Ledger: Active Context Curation, Not Passive Accumulation
+
+**One-line claim.** Model your agent's context as a typed ledger of events and actively manage it — removing resolved errors, filtering sensitive data, choosing the serialization format — rather than letting the conversation history accumulate passively.
+
+**Why it works.** Standard role-based message arrays (system / user / assistant / tool) accumulate passively, without regard for what the model actually needs at a given step. A typed event ledger makes context a deliberate design decision: each category (user intent, tool call, tool result, error) can be serialized differently, resolved failures pruned, and sensitive fields redacted before reaching the model. The structure shifts control from "whatever the framework passes" to "exactly what we want the model to see." This compounds across long task runs, where passive accumulation silently degrades focus and accuracy.
+
+**Observed in.**
+- [humanlayer/12-factor-agents — Factor 3: Own Your Context Window](https://github.com/humanlayer/12-factor-agents/blob/main/content/factor-03-own-your-context-window.md): Defines a `Thread`/`Event` type system with `event_to_prompt` and `thread_to_prompt` helpers that serialize events to custom XML/YAML markup; explicitly calls out removing resolved errors and filtering sensitive data as context-management responsibilities, not framework concerns.
+
+**How it could apply here.** The harness manages context at the *tier* level — which sources load per turn (§5) — but not at the *event* level within a turn. A context-management layer that typed events (user instruction, skill invocation, tool call, tool result, memory lookup) and offered pruning hooks (drop resolved error chains, redact credentials before reaching the model) would address quality degradation in long automated sessions without altering skill architecture.
+
+**Confidence.** high
+
+---
+
+### 65. Serialization Granularity: Pause Between Tool Selection and Tool Execution
+
+**One-line claim.** Agent state must be serializable at the moment after a tool is *selected* but before it is *invoked* — not just between LLM turns — to support safe human-approval workflows.
+
+**Why it works.** Most agent frameworks serialize state between LLM calls (between turns). But the critical pause point for human approval is *within* a turn: the LLM has decided to call `delete_records` or `send_email`, and the human needs to approve before that call executes. Without sub-turn serialization, builders face three bad alternatives: (1) pause in memory and lose state on restart, (2) restrict agents to low-risk tools only, or (3) grant broad permissions and hope. Separating tool *selection* from tool *invocation* as a first-class distinction in control flow makes human-in-the-loop approval structurally possible rather than a best-effort workaround.
+
+**Observed in.**
+- [humanlayer/12-factor-agents — Factor 8: Own Your Control Flow](https://github.com/humanlayer/12-factor-agents/blob/main/content/factor-08-own-your-control-flow.md): "we need to be able to interrupt a working agent and resume later, ESPECIALLY between the moment of tool selection and the moment of tool invocation." Identifies three failure modes when this granularity is absent.
+- [humanlayer/12-factor-agents — Factor 6: Launch/Pause/Resume with Simple APIs](https://github.com/humanlayer/12-factor-agents/blob/main/content/factor-06-launch-pause-resume.md): Notes that most orchestrators allow pause/resume but "not between the moment of tool selection and tool execution," naming this as a structural gap in the field.
+
+**How it could apply here.** The harness's human-approval pattern currently lives in skill prose ("ask the user before proceeding" in high-risk operations). Elevating this to a tool-layer primitive — where the harness serializes pending state and suspends until user confirmation before dispatching any tool flagged as irreversible — would make approval enforceable rather than advisory. This is the forcing-function principle (§24) applied to dangerous tool invocations specifically.
+
+**Confidence.** high
+
+---
+
+### 66. Prompts as Versioned, Testable Code
+
+**One-line claim.** Treat prompts like source code: check them into version control, write evaluations that run them against known inputs and assert on outputs, and refuse to let frameworks hide the exact tokens reaching the model.
+
+**Why it works.** Framework abstractions that wrap prompts (e.g., `Agent(role=..., goal=..., personality=...)`) are convenient for reaching 70–80% quality, but are nearly impossible to tune past that threshold because you can't see or control the exact tokens sent to the model. Prompts in source control are diffable, reviewable, and testable. Evaluations for prompts catch regression the same way unit tests catch code regression: if a prompt change breaks on known inputs, you know before shipping. Once a prompt lives inside a framework abstraction, there is no systematic way to know whether a change improved or degraded behavior.
+
+**Observed in.**
+- [humanlayer/12-factor-agents — Factor 2: Own Your Prompts](https://github.com/humanlayer/12-factor-agents/blob/main/content/factor-02-own-your-prompts.md): "Don't outsource your prompt engineering to a framework." Recommends tools like BAML that make prompt templates explicit source files. "Your prompts are the primary interface between your application logic and the LLM." "Build evaluations for prompts like standard code."
+
+**How it could apply here.** The harness loads skill bodies as files (§7), which gives version control. The missing layer is *evaluation*: no current mechanism runs a skill body against structured test scenarios and asserts on outputs. The `/skill-eval` skill is the start of this; treating skill bodies as "prompts with a required eval suite" rather than "docs to be read" would complete the analogy, and would mean every new skill ships with a failing test before the body is written.
+
+**Confidence.** high
+
+---
+
+## Sources mined
+
+Entries accumulate across runs. A harness listed here will not be re-mined in a future run unless a materially new primary source becomes available.
+
+- **HumanLayer 12-factor-agents** (first mined: 2026-05-16): Dex Horthy's 12-factor framework for production LLM agents; principles 64–66 extracted from Factors 2, 3, 6, and 8 via primary GitHub source files.
+- **Cognition AI "Don't Build Multi-Agents"** (first mined: 2026-05-16): Published 2025-06-12 at `cognition.ai/blog/dont-build-multi-agents`; primary source returned HTTP 403 during this run, no principles extracted. Key themes identifiable from search: full trace sharing over thin message boundaries, context engineering as the primary engineering discipline, single-agent-with-tools over naive multi-agent coordination.
+- **Anthropic "Building Effective Agents"** (first mined: 2026-05-16): Published 2024-12-19 at `anthropic.com/research/building-effective-agents`; primary source returned HTTP 403 during this run, no principles extracted. Key themes from secondary sources: five named workflow patterns (prompt chaining, routing, parallelization, orchestrator-subagent, evaluator-optimizer), prefer simple composable patterns over complex frameworks.
+
+---
+
 ## Closing Thought
 
 The thing that makes a great harness feel magical is not any single rule.
