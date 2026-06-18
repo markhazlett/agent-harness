@@ -155,11 +155,6 @@ TAIL
 
   echo "Baseline captured at $OUT."
   echo "Open the file and fill in '## Rationalizations extracted' from the transcript."
-  echo
-  echo "⚠  The transcript is committed verbatim. Before staging, scan it for secrets"
-  echo "    (API keys, bearer tokens, customer emails, .env values). The scenarios are"
-  echo "    role-played, but if your --transcript came from a real session, real"
-  echo "    payloads can end up in git history. 'git diff $OUT' once before commit."
   exit 0
 fi
 

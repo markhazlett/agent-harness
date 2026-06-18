@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# bin/test-grade-fixtures — guard the /grade-codebase calibration fixtures.
+#
+# The fixtures under skills/grade-codebase/fixtures/ are deliberate
+# NEGATIVE cases: rigged mini-repos the grader must mark down (D/F). This
+# validator confirms each fixture *remains a valid negative* — i.e. the rigged
+# signal that the corresponding liveness probe relies on is still present.
+#
+# It does NOT run the model or grade anything. It guards the fixtures so a
+# later edit can't silently neuter one (which would make the calibration pass
+# vacuously). The model-graded check is the manual dogfood documented in each
+# fixture's EXPECTED.md and the fixtures README.
+#
+# Exit codes:
+#   0  every fixture is a valid negative case
+#   1  one or more fixtures no longer exhibit their failure mode
+#   2  usage error / repo or fixtures dir not found
+
+set -u
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+if [ -z "$repo_root" ]; then
+  echo "FAIL: not inside a git repo" >&2
+  exit 2
+fi
+cd "$repo_root" || exit 2
+
+fx="skills/grade-codebase/fixtures"
+if [ ! -d "$fx" ]; then
+  echo "FAIL: $fx not found" >&2
+  exit 2
+fi
+
+fail=0
+checked=0
+
+# Report a fixture result. $1=name $2=0|1 (0 ok) $3=reason-on-fail
+report() {
+  checked=$((checked + 1))
+  if [ "$2" -eq 0 ]; then
+    echo "PASS  $1 (valid negative)"
+  else
+    echo "FAIL  $1 — $3"
+    fail=$((fail + 1))
+  fi
+}
+
+# --- stale-context: doc cites paths/commands that don't exist -----------------
+# The fixture is misleading iff its CLAUDE.md claims are contradicted by the
+# tree. We assert the specific rigged contradictions still hold.
+check_stale_context() {
+  local d="$fx/stale-context"
+  [ -f "$d/CLAUDE.md" ] || { echo "missing CLAUDE.md"; return 1; }
+
+  # At least one cited PATH must be absent (misleading structure claim).
+  local path_lie=0
+  [ ! -e "$d/services" ] && path_lie=1
+  [ ! -e "$d/src/db/client.ts" ] && path_lie=1
+
+  # At least one cited COMMAND must have no backing target (misleading command).
+  # CLAUDE.md says `make test`, but there is no Makefile.
+  local cmd_lie=0
+  if grep -q 'make test' "$d/CLAUDE.md" && [ ! -e "$d/Makefile" ] && [ ! -e "$d/GNUmakefile" ]; then
+    cmd_lie=1
+  fi
+
+  if [ "$path_lie" -eq 1 ] && [ "$cmd_lie" -eq 1 ]; then
+    return 0
+  fi
+  echo "doc no longer misleading (path_lie=$path_lie cmd_lie=$cmd_lie) — fixture neutered"
+  return 1
+}
+
+# --- empty-suite: tests run green but assert nothing --------------------------
+check_empty_suite() {
+  local t="$fx/empty-suite/test/calc.test.js"
+  local src="$fx/empty-suite/src/calc.js"
+  [ -f "$t" ] || { echo "missing test/calc.test.js"; return 1; }
+  [ -f "$src" ] || { echo "missing src/calc.js"; return 1; }
+
+  # Must contain skipped/todo tests.
+  grep -Eq '\.(skip|todo)\b|it\.skip|it\.todo' "$t" || { echo "no skipped/todo tests — not trivial anymore"; return 1; }
+
+  # Must contain an assertion-free truthy assertion.
+  grep -Eq 'expect\(\s*true\s*\)' "$t" || { echo "no assertion-free expect(true) — not trivial anymore"; return 1; }
+
+  # Must NOT actually exercise the functions under test.
+  if grep -Eq '\b(add|applyInterest)\s*\(' "$t"; then
+    echo "test now calls the functions under test — fixture no longer empty"
+    return 1
+  fi
+  return 0
+}
+
+# --- disabled-gate: lint/typecheck in CI but not enforced ---------------------
+check_disabled_gate() {
+  local ci="$fx/disabled-gate/.github/workflows/ci.yml"
+  [ -f "$ci" ] || { echo "missing ci.yml"; return 1; }
+
+  # The gate is dead iff CI swallows a quality job's failure. Match only
+  # real YAML keys / run lines, never the same patterns inside a comment.
+  local coe=0 ortrue=0
+  grep -Eq '^[[:space:]]*continue-on-error:[[:space:]]*true' "$ci" && coe=1
+  grep -Eq '^[[:space:]]*-[[:space:]]+run:.*\|\|[[:space:]]*true' "$ci" && ortrue=1
+
+  if [ "$coe" -eq 1 ] || [ "$ortrue" -eq 1 ]; then
+    return 0
+  fi
+  echo "CI no longer swallows a quality job's exit code — gate is now enforced"
+  return 1
+}
+
+reason="$(check_stale_context)"; report "stale-context" "$?" "$reason"
+reason="$(check_empty_suite)";  report "empty-suite"  "$?" "$reason"
+reason="$(check_disabled_gate)"; report "disabled-gate" "$?" "$reason"
+
+echo
+echo "Fixture validation: $((checked - fail))/$checked fixtures are valid negatives."
+if [ "$fail" -ne 0 ]; then
+  echo "A failing fixture means the calibration set is compromised — a rigged repo"
+  echo "stopped exhibiting its failure mode. Restore the negative case before relying"
+  echo "on these fixtures to catch a grading regression."
+  exit 1
+fi
+exit 0

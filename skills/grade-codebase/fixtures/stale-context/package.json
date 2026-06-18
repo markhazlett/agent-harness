@@ -1,0 +1,13 @@
+{
+  "name": "acme-api",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "pg": "^8.11.0"
+  }
+}

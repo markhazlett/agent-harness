@@ -15,16 +15,18 @@
 #        ~/.agent-harness/just-upgraded-from (consumed by harness-update-check).
 #
 # Files this script manages (managed = read from upstream and copied to local):
-#   skills/<skill>/...    (canonical; .claude/skills is a symlink → here)
-#   agents/*.md           (canonical; .claude/agents is a symlink → here)
-#   prompts/*.md          (canonical; .claude/commands is a symlink → here)
-#   .claude/hooks/*.sh    (except config.sh — always preserved)
+#   .claude/skills/<skill>/...
+#   .claude/agents/*.md
+#   .claude/commands/*.md
+#   .claude/hooks/*.sh    (except harness.config.sh — always preserved)
+#   .claude/CONVENTIONS.md
+#   .claude/skills/CONVENTIONS.md
 #   bin/*                 (harness binaries; excludes this very script's caller)
 #   VERSION
 #   setup.sh
 #
 # Files this script NEVER touches:
-#   .claude/hooks/config.sh           (project config written by setup.sh)
+#   .claude/hooks/harness.config.sh   (project config)
 #   .claude/settings.json             (project hook wiring)
 #   anything outside the managed prefixes above
 #   any local-only file inside the managed prefixes (e.g. a custom skill dir
@@ -37,15 +39,11 @@ set -uo pipefail
 
 UPSTREAM_REPO="https://github.com/markhazlett/agent-harness.git"
 UPSTREAM_BRANCH="main"
-STATE_DIR="${HARNESS_STATE_DIR:-${HOME}/.agent-harness}"
-SOURCE_DIR="${HARNESS_SOURCE_DIR:-${STATE_DIR}/source}"
+STATE_DIR="${HOME}/.agent-harness"
+SOURCE_DIR="${STATE_DIR}/source"
 MANIFEST_FILE="${STATE_DIR}/installed-manifest.json"
 JUST_UPGRADED_FILE="${STATE_DIR}/just-upgraded-from"
 CACHE_FILE="${STATE_DIR}/last-update-check"
-
-# When HARNESS_SOURCE_DIR is set (tests), trust the caller-provided source tree
-# and skip the network fetch — the dir must already be a valid harness checkout.
-HARNESS_SKIP_SYNC="${HARNESS_SOURCE_DIR:+1}"
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -66,15 +64,12 @@ sha256() {
 
 is_managed() {
   # Return 0 if the upstream-relative path is one we install into a project.
-  # Upstream's .claude/skills, .claude/agents, .claude/commands are git symlinks
-  # to the canonical top-level skills/, agents/, prompts/ trees, so we manage
-  # those top-level paths directly — git ls-files won't descend into the
-  # symlinks themselves.
   case "$1" in
-    skills/*|\
-    agents/*|\
-    prompts/*|\
+    .claude/skills/*|\
+    .claude/agents/*|\
+    .claude/commands/*|\
     .claude/hooks/*|\
+    .claude/CONVENTIONS.md|\
     bin/*|\
     VERSION|\
     setup.sh) return 0 ;;
@@ -84,112 +79,10 @@ is_managed() {
 
 is_preserved() {
   # Return 0 if the path must NEVER be overwritten, even if upstream ships it.
-  # config.sh holds the user's setup.sh answers (test command, app name, etc.);
-  # the upstream-shipped copy is a placeholder we must not propagate.
   case "$1" in
-    .claude/hooks/config.sh) return 0 ;;
+    .claude/hooks/harness.config.sh) return 0 ;;
     *) return 1 ;;
   esac
-}
-
-# ── Layout migration ────────────────────────────────────────────────────────
-# Pre-flip installs have .claude/{skills,agents,commands} as real directories.
-# Post-flip upstream ships top-level skills/, agents/, prompts/ with .claude/*
-# as symlinks. Without an in-place migration, /harness-update would strand
-# every upstream skill at top-level where Claude Code can't see it.
-
-# Mapping: <.claude name>:<canonical top-level name>. Note commands → prompts.
-LAYOUT_MIGRATION_PAIRS=("skills:skills" "agents:agents" "commands:prompts")
-
-detect_old_layout() {
-  # Emit "<from>\t<to>" lines for each .claude/<X> that needs migration.
-  # A migration is needed when .claude/<X> is a real directory (not a symlink)
-  # AND the canonical top-level dir does not exist yet. If both exist we die
-  # loudly — that's a partial layout the user must reconcile manually.
-  for pair in "${LAYOUT_MIGRATION_PAIRS[@]}"; do
-    local cn="${pair%%:*}"
-    local tn="${pair##*:}"
-    local cp="${REPO_ROOT}/.claude/${cn}"
-    local tp="${REPO_ROOT}/${tn}"
-
-    # Already a symlink or missing — nothing to migrate for this entry.
-    [ -d "$cp" ] && [ ! -L "$cp" ] || continue
-
-    if [ -e "$tp" ]; then
-      die "layout migration blocked: both .claude/${cn}/ and ${tn}/ exist — please reconcile manually before re-running"
-    fi
-
-    printf '%s\t%s\n' ".claude/${cn}" "${tn}"
-  done
-}
-
-layout_migration_json() {
-  # Build a JSON array of {from, to} from detect_old_layout output.
-  local lines; lines="$(detect_old_layout)"
-  if [ -z "$lines" ]; then
-    echo "[]"
-    return 0
-  fi
-  jq -Rn '[inputs | split("\t") | {from: .[0], to: .[1]}]' <<<"$lines"
-}
-
-rewrite_manifest_for_migration() {
-  # Rewrite manifest keys whose prefix matches a just-migrated <from>/
-  # to the new <to>/. Only applied for prefixes we actually migrated, so
-  # unrelated entries (and entries for layouts we left alone) stay put.
-  # $@ = "<from>\t<to>" tab-separated pairs.
-  [ -f "$MANIFEST_FILE" ] || return 0
-  [ "$#" -gt 0 ] || return 0
-
-  # Build a jq object: { "<from>/": "<to>/", ... } and use it to rewrite keys.
-  local map_lines; map_lines=$(mktemp) || die "rewrite_manifest: mktemp failed"
-  for pair in "$@"; do
-    local from="${pair%%$'\t'*}"
-    local to="${pair##*$'\t'}"
-    jq -nc --arg f "${from}/" --arg t "${to}/" '{($f): $t}' >> "$map_lines"
-  done
-  local map; map="$(jq -cs 'add // {}' "$map_lines")"
-  rm -f "$map_lines"
-
-  local tmp="${MANIFEST_FILE}.tmp.$$"
-  jq --argjson map "$map" '
-    .files |= with_entries(
-      .key |= (. as $k
-        | ($map | to_entries | map(select(.key as $p | $k | startswith($p))) | first) as $hit
-        | if $hit == null then $k else ($hit.value + ($k | ltrimstr($hit.key))) end
-      )
-    )
-  ' "$MANIFEST_FILE" > "$tmp" \
-    || { rm -f "$tmp"; die "manifest rewrite jq failed"; }
-  mv "$tmp" "$MANIFEST_FILE" \
-    || { rm -f "$tmp"; die "manifest rewrite rename failed"; }
-}
-
-migrate_layout() {
-  local pairs; pairs="$(detect_old_layout)"
-  if [ -z "$pairs" ]; then
-    die "no layout migration needed (no real-directory .claude/{skills,agents,commands} found)"
-  fi
-
-  local applied=()
-  while IFS=$'\t' read -r from to; do
-    [ -z "$from" ] && continue
-    local from_path="${REPO_ROOT}/${from}"
-    local to_path="${REPO_ROOT}/${to}"
-
-    mv "$from_path" "$to_path" \
-      || die "migrate: mv ${from_path} → ${to_path} failed"
-    ln -s "../${to}" "$from_path" \
-      || die "migrate: symlink ${from_path} → ../${to} failed"
-
-    applied+=("${from}"$'\t'"${to}")
-    echo "  migrated: ${from} → ${to}/ (with symlink)" >&2
-  done <<<"$pairs"
-
-  if [ "${#applied[@]}" -gt 0 ]; then
-    rewrite_manifest_for_migration "${applied[@]}"
-    [ -f "$MANIFEST_FILE" ] && echo "  manifest paths rewritten" >&2
-  fi
 }
 
 # ── Setup ───────────────────────────────────────────────────────────────────
@@ -211,10 +104,6 @@ mkdir -p "$STATE_DIR"
 # ── Upstream sync ───────────────────────────────────────────────────────────
 
 sync_upstream() {
-  if [ -n "$HARNESS_SKIP_SYNC" ]; then
-    [ -d "$SOURCE_DIR" ] || die "HARNESS_SOURCE_DIR=${SOURCE_DIR} does not exist"
-    return 0
-  fi
   if [ -d "${SOURCE_DIR}/.git" ]; then
     git -C "$SOURCE_DIR" fetch --quiet origin "$UPSTREAM_BRANCH" \
       || die "failed to fetch upstream from ${UPSTREAM_REPO}"
@@ -253,25 +142,15 @@ build_plan() {
   local upstream_files
   upstream_files="$(git -C "$SOURCE_DIR" ls-files)"
 
-  # Per-category JSONL temp files. Each plan loop appends one line per entry
-  # via a single `jq -n` invocation; arrays are slurped into `jq -s '.'` once
-  # at the end. This replaces the previous `arr=$(jq ... <<<"$arr")` pattern
-  # which was O(N²) (each iteration re-parsed and re-serialized the growing
-  # array) and forked jq once per category per row.
-  local plan_tmp; plan_tmp=$(mktemp -d) || die "mktemp -d failed"
-  : > "$plan_tmp/install.jsonl"
-  : > "$plan_tmp/update.jsonl"
-  : > "$plan_tmp/skip.jsonl"
-  : > "$plan_tmp/conflict.jsonl"
-  : > "$plan_tmp/preserved.jsonl"
-  : > "$plan_tmp/local_only.jsonl"
+  local install_arr='[]' update_arr='[]' skip_arr='[]' conflict_arr='[]'
+  local preserved_arr='[]'
 
   while IFS= read -r path; do
     [ -z "$path" ] && continue
     is_managed "$path" || continue
 
     if is_preserved "$path"; then
-      jq -nc --arg p "$path" '$p' >> "$plan_tmp/preserved.jsonl"
+      preserved_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$preserved_arr")"
       continue
     fi
 
@@ -289,56 +168,57 @@ build_plan() {
     IFS=$'\t' read -r man_up man_local < <(manifest_entry_for "$path")
 
     if [ -z "$local_hash" ]; then
-      jq -nc --arg p "$path" --arg u "$up_hash" \
-        '{path:$p, upstream_hash:$u}' >> "$plan_tmp/install.jsonl"
+      install_arr="$(jq -c --arg p "$path" --arg u "$up_hash" \
+        '. + [{path:$p, upstream_hash:$u}]' <<<"$install_arr")"
     elif [ "$local_hash" = "$up_hash" ]; then
-      jq -nc --arg p "$path" '$p' >> "$plan_tmp/skip.jsonl"
+      skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
     elif [ -z "$man_up" ] && [ -z "$man_local" ]; then
       # No provenance — could be local-only edits or a pre-existing file.
-      jq -nc \
+      conflict_arr="$(jq -c \
         --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
         --arg mu "" --arg ml "" \
         --arg r "no manifest record (first run or pre-existing local file)" \
-        '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
-        >> "$plan_tmp/conflict.jsonl"
+        '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+        <<<"$conflict_arr")"
     elif [ "$man_up" = "$up_hash" ]; then
       # Upstream hasn't moved since last reconcile.
       if [ "$man_local" = "$local_hash" ]; then
         # User's previously pinned version is still in place — leave alone.
-        jq -nc --arg p "$path" '$p' >> "$plan_tmp/skip.jsonl"
+        skip_arr="$(jq -c --arg p "$path" '. + [$p]' <<<"$skip_arr")"
       else
         # User's pinned version has been edited since the last reconcile.
-        jq -nc \
+        conflict_arr="$(jq -c \
           --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
           --arg mu "$man_up" --arg ml "$man_local" \
           --arg r "local edits since last reconcile (upstream unchanged)" \
-          '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
-          >> "$plan_tmp/conflict.jsonl"
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+          <<<"$conflict_arr")"
       fi
     else
       # Upstream advanced.
       if [ "$man_local" = "$local_hash" ]; then
         # Local untouched since last reconcile → safe to update.
-        jq -nc --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
-          '{path:$p, upstream_hash:$u, local_hash:$l}' >> "$plan_tmp/update.jsonl"
+        update_arr="$(jq -c --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l}]' <<<"$update_arr")"
       else
         # Both upstream and local advanced.
-        jq -nc \
+        conflict_arr="$(jq -c \
           --arg p "$path" --arg u "$up_hash" --arg l "$local_hash" \
           --arg mu "$man_up" --arg ml "$man_local" \
           --arg r "local edits + upstream changes" \
-          '{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}' \
-          >> "$plan_tmp/conflict.jsonl"
+          '. + [{path:$p, upstream_hash:$u, local_hash:$l, manifest_upstream:$mu, manifest_local:$ml, reason:$r}]' \
+          <<<"$conflict_arr")"
       fi
     fi
   done <<<"$upstream_files"
 
   # Detect local-only files inside managed dirs (custom skills, agents, etc.).
+  local local_only_arr='[]'
   local upstream_set="$(printf '%s\n' "$upstream_files" | sort)"
   local managed_dirs=(
-    "${REPO_ROOT}/skills"
-    "${REPO_ROOT}/agents"
-    "${REPO_ROOT}/prompts"
+    "${REPO_ROOT}/.claude/skills"
+    "${REPO_ROOT}/.claude/agents"
+    "${REPO_ROOT}/.claude/commands"
     "${REPO_ROOT}/.claude/hooks"
     "${REPO_ROOT}/bin"
   )
@@ -350,22 +230,9 @@ build_plan() {
       is_preserved "$rel" && continue
       # Skip if upstream ships this exact path.
       if grep -qxF "$rel" <<<"$upstream_set"; then continue; fi
-      jq -nc --arg p "$rel" '$p' >> "$plan_tmp/local_only.jsonl"
+      local_only_arr="$(jq -c --arg p "$rel" '. + [$p]' <<<"$local_only_arr")"
     done < <(find "$dir" -type f 2>/dev/null)
   done
-
-  # Slurp each JSONL file into a JSON array — one jq invocation per category
-  # instead of one per row.
-  local install_arr update_arr skip_arr conflict_arr preserved_arr local_only_arr
-  install_arr="$(jq -cs '.' "$plan_tmp/install.jsonl")"
-  update_arr="$(jq -cs '.' "$plan_tmp/update.jsonl")"
-  skip_arr="$(jq -cs '.' "$plan_tmp/skip.jsonl")"
-  conflict_arr="$(jq -cs '.' "$plan_tmp/conflict.jsonl")"
-  preserved_arr="$(jq -cs '.' "$plan_tmp/preserved.jsonl")"
-  local_only_arr="$(jq -cs '.' "$plan_tmp/local_only.jsonl")"
-  rm -rf "$plan_tmp"
-
-  local migration_arr; migration_arr="$(layout_migration_json)"
 
   jq -n \
     --arg lv "$LOCAL_VERSION" \
@@ -377,12 +244,10 @@ build_plan() {
     --argjson conflict "$conflict_arr" \
     --argjson preserved "$preserved_arr" \
     --argjson local_only "$local_only_arr" \
-    --argjson migration "$migration_arr" \
     '{
       local_version: $lv,
       upstream_version: $uv,
       source_dir: $sd,
-      needs_layout_migration: $migration,
       actions: {
         install: $install,
         update_safe: $update,
@@ -397,18 +262,14 @@ build_plan() {
 # ── Apply ───────────────────────────────────────────────────────────────────
 
 copy_file() {
-  # $1 = path relative to repo root (== path relative to upstream root).
-  # Fail loud on any step so apply_plan aborts before the manifest is written —
-  # without this, a partial copy leaves the on-disk state inconsistent with
-  # what the manifest claims, and the next --plan invocation mis-diagnoses
-  # every undelivered file as a user-pinned conflict.
+  # $1 = path relative to repo root (== path relative to upstream root)
   local src="${SOURCE_DIR}/$1"
   local dst="${REPO_ROOT}/$1"
-  mkdir -p "$(dirname "$dst")" || die "copy_file: mkdir failed for $(dirname "$dst")"
-  cp "$src" "$dst" || die "copy_file: cp failed for $1"
+  mkdir -p "$(dirname "$dst")"
+  cp "$src" "$dst"
   # Preserve executable bit for shell scripts and bin/.
   case "$1" in
-    bin/*|*.sh) chmod +x "$dst" || die "copy_file: chmod failed for $dst" ;;
+    bin/*|*.sh) chmod +x "$dst" ;;
   esac
 }
 
@@ -417,27 +278,6 @@ apply_plan() {
   local resolution_file="$2"
 
   [ -f "$resolution_file" ] || die "resolution file not found: $resolution_file"
-
-  # Refuse to apply against an un-migrated old-layout install. Without this,
-  # files would be written to top-level skills/, agents/, prompts/ while
-  # Claude Code continues reading from the real .claude/<X>/ dirs that the
-  # plan compared against — invisible-but-installed is the worst failure
-  # mode. The skill routes through --migrate-layout; the guard exists for
-  # direct CLI use that bypasses the skill.
-  local pending_migration; pending_migration="$(detect_old_layout)"
-  if [ -n "$pending_migration" ]; then
-    {
-      echo "harness-update: refusing to --apply on an un-migrated old-layout install."
-      echo "The following directories are still real (not symlinks):"
-      while IFS=$'\t' read -r from to; do
-        [ -z "$from" ] && continue
-        echo "  ${from} → ${to}/"
-      done <<<"$pending_migration"
-      echo "Run: bin/harness-update --migrate-layout"
-      echo "Then re-run --plan and --apply against the fresh plan."
-    } >&2
-    exit 1
-  fi
 
   # Validate resolution: every conflict must have a decision.
   local conflicts
@@ -458,18 +298,13 @@ apply_plan() {
   # Build the new manifest. Each entry records {upstream_hash, local_hash}
   # at reconcile time, so a future plan can tell "user pinned a custom version"
   # apart from "user untouched since install".
-  #
-  # Append one JSON object per record to a JSONL file; reduce into a single
-  # object once at the end via `jq -s 'add'`. Avoids the O(N²) cost of the
-  # prior pattern (`new_manifest=$(jq ... <<<"$new_manifest")` re-parsed and
-  # re-serialized the growing object every iteration).
-  local manifest_lines; manifest_lines=$(mktemp) || die "mktemp failed"
+  local new_manifest='{}'
   local applied_count=0
 
   record() {
     # $1 = path, $2 = upstream_hash (current), $3 = local_hash to record
-    jq -nc --arg p "$1" --arg u "$2" --arg l "$3" \
-      '{($p): {upstream_hash: $u, local_hash: $l}}' >> "$manifest_lines"
+    new_manifest="$(jq -c --arg p "$1" --arg u "$2" --arg l "$3" \
+      '. + {($p): {upstream_hash: $u, local_hash: $l}}' <<<"$new_manifest")"
   }
 
   # 1. install
@@ -527,26 +362,15 @@ apply_plan() {
     fi
   done < <(jq -c '.actions.conflict[]' <<<"$plan_json")
 
-  # Reduce per-record JSONL objects into one files object.
-  local new_manifest
-  new_manifest="$(jq -cs 'add // {}' "$manifest_lines")"
-  rm -f "$manifest_lines"
-
-  # Write the new manifest atomically — tmp + rename. Without this, two
-  # concurrent /harness-update runs sharing $HOME/.agent-harness could leave
-  # the file half-written or last-writer-wins.
+  # Write the new manifest.
   local upstream_version
   upstream_version="$(jq -r '.upstream_version' <<<"$plan_json")"
-  local manifest_tmp="${MANIFEST_FILE}.tmp.$$"
   jq -n \
     --arg v "$upstream_version" \
     --arg t "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
     --argjson files "$new_manifest" \
     '{version_when_installed: $v, installed_at: $t, files: $files}' \
-    > "$manifest_tmp" \
-    || { rm -f "$manifest_tmp"; die "manifest jq failed"; }
-  mv "$manifest_tmp" "$MANIFEST_FILE" \
-    || { rm -f "$manifest_tmp"; die "manifest rename failed"; }
+    > "$MANIFEST_FILE"
 
   # Mark just-upgraded so harness-update-check surfaces the JUST_UPGRADED
   # notice on the next skill invocation.
@@ -567,22 +391,11 @@ usage() {
   cat <<USAGE
 Usage:
   harness-update --plan
-  harness-update --migrate-layout
   harness-update --apply --resolve <resolution.json> --from <plan.json>
 
 Phases:
   --plan
       Sync upstream and emit a JSON plan on stdout. No writes.
-      The plan includes a "needs_layout_migration" field listing any
-      .claude/{skills,agents,commands} that are still real directories
-      and need to be flipped to top-level dirs + symlinks before the
-      upstream copy can be applied cleanly.
-
-  --migrate-layout
-      Move .claude/skills, .claude/agents, .claude/commands (any that are
-      still real directories) to top-level skills/, agents/, prompts/, and
-      replace the originals with symlinks. Rewrites installed-manifest.json
-      paths in place. Run this once on old-layout installs before --apply.
 
   --apply --resolve <file> --from <file>
       Apply the supplied plan. <resolution.json> must decide every conflict
@@ -597,38 +410,6 @@ State:
 USAGE
 }
 
-# Self-exec guard (must run before arg parsing consumes "$@"). When --apply
-# rewrites bin/harness-update, `cp` truncates the file in-place (same inode,
-# new content). Bash holds the running script open by FD and keeps reading at
-# its byte offset — which now points at unrelated content — and exits
-# non-zero with a syntax error *after* the apply has already succeeded. To
-# avoid that, copy ourselves into a tempfile and re-exec from there before
-# touching anything on disk; the on-disk bin/harness-update is then free to
-# be replaced safely. The re-exec'd copy deletes itself on exit.
-#
-# Only --apply needs this guard; --plan and --migrate-layout don't rewrite
-# bin/harness-update. We detect --apply in the raw args (rather than after
-# parsing) so the exec re-passes the original argv intact.
-if [ "${HARNESS_UPDATE_REEXEC:-}" != "1" ]; then
-  want_apply=0
-  for arg in "$@"; do
-    [ "$arg" = "--apply" ] && want_apply=1
-  done
-  if [ "$want_apply" = "1" ]; then
-    reexec_self="$(mktemp -t harness-update-reexec.XXXXXX)" \
-      || die "self-exec guard: mktemp failed"
-    cp "$0" "$reexec_self" \
-      || { rm -f "$reexec_self"; die "self-exec guard: copy failed"; }
-    chmod +x "$reexec_self" \
-      || { rm -f "$reexec_self"; die "self-exec guard: chmod failed"; }
-    HARNESS_UPDATE_REEXEC=1 HARNESS_UPDATE_REEXEC_PATH="$reexec_self" \
-      exec "$reexec_self" "$@"
-  fi
-fi
-if [ "${HARNESS_UPDATE_REEXEC:-}" = "1" ] && [ -n "${HARNESS_UPDATE_REEXEC_PATH:-}" ]; then
-  trap 'rm -f "$HARNESS_UPDATE_REEXEC_PATH"' EXIT
-fi
-
 MODE=""
 RESOLVE_FILE=""
 PLAN_FILE=""
@@ -637,7 +418,6 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --plan) MODE="plan"; shift ;;
     --apply) MODE="apply"; shift ;;
-    --migrate-layout) MODE="migrate-layout"; shift ;;
     --resolve) RESOLVE_FILE="$2"; shift 2 ;;
     --from) PLAN_FILE="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -648,9 +428,6 @@ done
 case "$MODE" in
   plan)
     build_plan
-    ;;
-  migrate-layout)
-    migrate_layout
     ;;
   apply)
     [ -n "$RESOLVE_FILE" ] || { usage >&2; die "--apply requires --resolve <file>"; }
