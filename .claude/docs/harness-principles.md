@@ -996,6 +996,91 @@ liability. Sandbox by default; surface the sandbox boundary in the API.
 
 ---
 
+## Part XIII — Field Research: Principles from External Harnesses
+
+Principles below are mined from harnesses outside this codebase — production
+systems and published engineering writeups, not the Claude Code + superpowers
+baseline that Parts I–XI describe. Each cites a primary, fetched source.
+
+### 64. Bootstrap Once, Then Iterate Blind
+
+**One-line claim.** Split long-running work into a one-time Initializer session
+that writes bootstrap artifacts to disk, and repeated Coding-Agent sessions
+that resume purely from those artifacts — never from the initializer's own
+transcript — so progress survives context resets.
+
+**Why it works.** A single long session eventually runs out of context; a
+fresh session has no memory of the last one. The fix isn't a bigger context
+window, it's making the *first* session's job be writing durable state (a
+launch script, a progress log, a structured feature checklist) that fully
+substitutes for the missing transcript. Every later session's first move is
+reading that state, not re-deriving intent from scratch. It costs one
+dedicated bootstrap session before any feature work starts, and it only works
+if the artifacts are complete enough that a blind session can't misread them.
+
+**Observed in.**
+- [Anthropic Engineering — Effective harnesses for long-running agents, 2025-11-26](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents): an Initializer Agent writes `init.sh`, `claude-progress.txt`, and `feature_list.json`; each later Coding Agent session reads git log + progress file, works one feature at a time, and verifies via browser automation before marking it done.
+
+**How it could apply here.** `build-plan` / `deep-plan` could emit a durable, structured status file (beyond the plan doc itself) that a restarted builder subagent reads first, instead of reconstructing state from the conversation or the plan markdown alone — useful when a plan outlives one context window.
+
+**Confidence.** high
+
+### 65. Narrow the Write Surface of State You Verify Against
+
+**One-line claim.** When an agent updates a completion-tracking artifact,
+restrict it to one typed field per record (e.g. a boolean) instead of
+free-form prose, so quietly softening a requirement and marking it done can't
+happen in the same edit.
+
+**Why it works.** A free-form markdown checklist invites the same
+rationalizing edits that free-form prose invites everywhere else (§3) — an
+agent under pressure can reword a requirement and check it off in one
+plausible-looking diff. A JSON record with a single writable `passes` field
+makes that impossible without a visibly separate, out-of-band edit to
+`description` or `steps`. The cost is rigidity: legitimate requirement
+changes now need an explicit, auditable step instead of an inline edit.
+
+**Observed in.**
+- [Anthropic Engineering — Effective harnesses for long-running agents, 2025-11-26](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents): agents are instructed to modify only the `passes` field of `feature_list.json`; "it is unacceptable to remove or edit tests" is stated as a hard constraint, and JSON is chosen over Markdown specifically because it resists silent rewording.
+
+**How it could apply here.** `skill-eval` / `skill-baseline` result records could move from prose pass/fail notes to a structure where only a `result` field is writable by the eval-runner, so a criterion's wording can't be softened in the same pass that marks it green.
+
+**Confidence.** high
+
+### 66. Rank Codebase Context by Reference Graph, Not File Order
+
+**One-line claim.** When an agent needs a compact map of a large codebase,
+build it as a dependency graph — files as nodes, references as edges — and
+keep only the identifiers with the highest graph centrality, sized to a token
+budget.
+
+**Why it works.** Full-file inclusion doesn't scale past a small repo, and
+naive truncation (alphabetical, first-N-lines) surfaces whatever happens to
+sort first rather than what matters. Ranking symbols by how often they're
+referenced elsewhere in the repo approximates "what a senior engineer would
+point to first" without any semantic understanding — the graph structure
+alone carries most of the signal. It costs an upfront indexing pass and
+degrades on codebases with few explicit cross-file references.
+
+**Observed in.**
+- [Aider — Repository map documentation (GitHub)](https://github.com/Aider-AI/aider/blob/main/aider/website/docs/repomap.md): ranks a whole-repo dependency graph to surface the most-referenced identifiers, adaptively sized via a `--map-tokens` budget (default 1,000 tokens), expanding when no files are yet in the chat context.
+
+**How it could apply here.** The `Explore` agent or `/grade-codebase` could build and cache a one-time ranked symbol map for large target repos, supplementing Grep/Glob heuristics with a sense of which files are structurally central — touching the Explore agent definition and possibly a new `bin/` indexing script.
+
+**Confidence.** high
+
+## Sources mined
+
+- **Anthropic Engineering, "Effective harnesses for long-running agents"** (first mined: 2026-09-25): initializer/coding-agent split and single-field checklist design, published 2025-11-26.
+- **Aider (Aider-AI/aider)** (first mined: 2026-09-25): repo-map dependency-graph ranking for context selection; edit-format-per-model selection also researched but not added (narrower fit — no principle beyond existing tool-design coverage).
+- **Sierra (Agent OS)** — researched 2026-09-25, no principle added: primary sources (sierra.ai blog posts on release governance and defense-in-depth guardrails) were blocked by this session's network egress policy before verification; not mined from memory.
+- **Browser Use** — researched 2026-09-25, no principle added: GitHub README fetched but too shallow on mechanism to clear the bar; docs.browser-use.com and the browser-use.com blog were blocked by this session's network egress policy.
+- **METR (time-horizon evaluation methodology)** — researched 2026-09-25, no principle added: metr.org blocked by this session's network egress policy before verification.
+- **LangChain (Deep Agents context management)** — researched 2026-09-25, no principle added: langchain.com blocked by this session's network egress policy before verification.
+- **12-Factor Agents (HumanLayer)** and **Magentic-One (Microsoft Research)** — already mined by concurrent, unmerged branches (`harness-principles/2026-05-15-12factor-control-flow-state`, `harness-principles/2026-05-17-12factor-errors-hitl-compact`, `harness-principles/2026-05-18-magentic-one-dual-ledger`); not re-mined here to avoid duplication.
+
+---
+
 ## Part XII — A Practical Checklist for Building Your Own Harness
 
 Use this as a starting point. Each item maps to one or more sections above.
