@@ -675,6 +675,32 @@ without doing useful work. Event streaming notifies on actual change.
 by a notification primitive, not a sleep. Document the cost reasoning
 where the agent will encounter it.
 
+### 64. Condense the middle, never the ends
+
+**Condensation keeps a protected prefix and a recent tail verbatim, summarizes only the span between, and fires on hard or soft triggers.**
+
+**Why it works.** The prefix (system prompt plus the first few events that carry the task) and the recent tail are the parts the agent leans on most; the old middle is the cheapest thing to lose. Separating hard triggers (token cap, explicit request) from a soft trigger (event count) means the cap is always honored while count-based tidying can be skipped when little would be reclaimed. A minimum-progress guard refuses to condense when the forgotten span is too small to matter. It costs one extra LLM call, and it stops working if the task statement lives in the middle of the history.
+
+**Observed in.**
+- [OpenHands software-agent-sdk, LLMSummarizingCondenser, accessed 2026-10-09](https://github.com/OpenHands/software-agent-sdk/blob/main/openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py): `keep_first` events are never condensed; the tail is sized to about half the cap; token and request triggers are HARD, event count is SOFT; a `minimum_progress` guard raises instead of no-op condensing; the summary is recorded with an insertion offset and the forgotten event IDs.
+
+**How it could apply here.** Compaction itself is Claude Code's, but this harness's docs (Part VIII re-injection, #39) could name the same shape: anything that must survive compaction goes in the protected prefix (CLAUDE.md, plan header) or is re-injected, not left in the middle. Would touch docs and any plan-file templates under skills.
+
+**Confidence.** moderate (read from source code, not from a design write-up; defaults vary between the class and `default_condenser`)
+
+### 65. Nudge once per stuck streak
+
+**Detect repeated failure patterns in a bounded recent window, and send one corrective message per streak rather than on every repeat.**
+
+**Why it works.** Agents loop in recognizable shapes: same action with same observation, same action with same error, a monologue with no user turn, and A-B-A-B alternation. Looking only at events since the last user message, within a small window, avoids false positives from old history. Emitting the nudge once per error event stops the harness from adding noise when the agent's reply produces no new action. The cost is thresholds that need tuning; too low and legitimate retries get flagged.
+
+**Observed in.**
+- [OpenHands software-agent-sdk, stuck_detector.py, accessed 2026-10-09](https://github.com/OpenHands/software-agent-sdk/blob/main/openhands-sdk/openhands/sdk/conversation/stuck_detector.py): four active patterns checked over a 20-event window after the last user message; for action-error loops, a nudge says the same call has failed repeatedly and to change arguments or approach, fired once per streak.
+
+**How it could apply here.** `/debug` already says to stop after 3 failed fixes (#34), but only as prose. A PostToolUse hook could detect an identical failing command repeated N times and inject one reminder, per #3 and #24 (mechanical enforcement over skill text).
+
+**Confidence.** moderate (mechanism read from source; the actions taken on `is_stuck()` are not visible in that file)
+
 ---
 
 ## Part VIII — System Reminders and Re-injection
@@ -1077,3 +1103,10 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources mined
+
+- **OpenHands Software Agent SDK** (first mined: 2026-10-09): condenser trigger/keep structure and stuck-detector nudge, read from source (#64, #65). The arXiv paper and docs.openhands.dev were blocked by the egress proxy this run, so no claims rest on them.
+- **Manus context engineering** (first mined: 2026-10-09): researched, no principle added; the primary post (manus.im) was blocked by the egress proxy and secondary summaries were not used. Candidates for a later run: KV-cache-stable prefixes, tool masking over removal, todo recitation.
