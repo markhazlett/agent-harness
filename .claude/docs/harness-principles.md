@@ -1062,6 +1062,52 @@ Use this as a starting point. Each item maps to one or more sections above.
 
 ---
 
+## Part XIII — Field Research: Principles from External Harnesses
+
+Curated from published engineering material on production agents. Each
+entry cites its source and carries a confidence tag.
+
+### 64. Write Effort Budgets Into the Prompt
+
+**One-line claim.** Encode explicit "how much work is enough" rules by task complexity directly in the orchestrator prompt, because the model cannot judge effort on its own.
+
+**Why it works.** Without a budget, an orchestrator over-invests in trivial requests (spawning many workers for a simple lookup) and under-invests in hard ones. A small table of complexity tier → agent count → tool-call range gives the model a calibration it can pattern-match against. It costs a little prompt space and must be re-tuned as models improve; it stops helping when the tiers are too coarse to classify real requests.
+
+**Observed in.**
+- [Anthropic Engineering, "How we built our multi-agent research system", 2025-06-13](https://www.anthropic.com/engineering/multi-agent-research-system): early versions spawned excess subagents for simple queries; the fix was scaling rules in the prompt, e.g. "Simple fact-finding requires just 1 agent with 3-10 tool calls."
+
+**How it could apply here.** `/build-plan`, `/deep-review`, and `/deep-plan` all fan out to subagents. Each could carry a short effort table (diff size or plan complexity → number of dispatched agents and dimensions) so a three-line change doesn't get the full dimension sweep. Touches skills.
+
+**Confidence.** high
+
+### 65. Pass References, Not Relays
+
+**One-line claim.** Have subagents write bulky outputs to external storage and return only a lightweight reference to the coordinator, instead of relaying content through the coordinator's context.
+
+**Why it works.** Every hop through a coordinator's summary loses detail and spends its context window. A reference (file path, ID) lets the next stage read the full artifact directly and keeps the coordinator's context small. The cost is that the storage must outlive the subagent and the coordinator must verify the artifact exists; it adds little for short outputs that fit in a summary.
+
+**Observed in.**
+- [Anthropic Engineering, "How we built our multi-agent research system", 2025-06-13](https://www.anthropic.com/engineering/multi-agent-research-system): subagents "store essential information in external memory" and "pass lightweight references back to the coordinator" to reduce information loss; the lead agent also saves its plan to memory so it survives context truncation.
+
+**How it could apply here.** The `/deep-review` stages (dimension investigators → triage → revalidator) could write findings to a per-run file and pass paths between stages rather than inlining finding text in each agent's return. Touches skills and agents. Complements §36, which covers isolation but not how results travel back.
+
+**Confidence.** high
+
+### 66. Let an Agent Rewrite the Tool Descriptions
+
+**One-line claim.** When a tool keeps being misused, run a tool-testing agent that exercises the tool, observes the failures, and rewrites the description.
+
+**Why it works.** Tool descriptions are the highest-leverage prompt text (§8), but humans write them without watching the agent fail on them. A tester agent that uses the tool many times surfaces concrete ambiguities (missing nuances, misleading parameter names) and patches the text, closing the loop empirically. It needs a repeatable task set to judge the rewrite, and gains flatten once the description is clear.
+
+**Observed in.**
+- [Anthropic Engineering, "How we built our multi-agent research system", 2025-06-13](https://www.anthropic.com/engineering/multi-agent-research-system): "Bad tool descriptions can send agents down completely wrong paths"; a tool-testing agent rewrote flawed descriptions, which the authors report produced "a 40% decrease in task completion time" for later agents.
+
+**How it could apply here.** `/skill-baseline` already runs RED-phase subagents against skills. The same runner could target `bin/` tool docs and agent descriptions under `.claude/agents/`, harvesting where subagents misread them. Touches skills and docs; nothing to implement yet.
+
+**Confidence.** high
+
+---
+
 ## Closing Thought
 
 The thing that makes a great harness feel magical is not any single rule.
@@ -1077,3 +1123,11 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources mined
+
+- **Anthropic multi-agent research system** (first mined: 2026-10-16): orchestrator-worker research agent; contributed §64-§66. Delegation-spec and evaluation material overlapped existing §35 or was not novel enough; rainbow deployments noted but not added.
+- **12-Factor Agents** (first mined: 2026-10-16 in this branch): researched, no principle added; factors 6, 7, 9 are already proposed in open PRs #28, #30, #31 and re-mining would duplicate them.
+- **Cognition "Don't Build Multi-Agents"** (first mined: 2026-10-16): researched, no principle added; cognition.ai and cognition.com did not resolve from this environment.
