@@ -994,6 +994,21 @@ documented escape hatches.
 A security scanner without a sandbox isn't a security tool — it's a
 liability. Sandbox by default; surface the sandbox boundary in the API.
 
+### 64. Change the tool until the mistake is impossible
+
+**Fix a recurring tool-use error by redesigning the tool's interface so the mistake cannot be expressed, not by adding a warning to its description.**
+
+**Why it works.** Prose guidance (#8) relies on the model reading and obeying it every call; a schema constraint removes the failure path entirely. Anthropic's SWE-bench agent kept making errors after it changed directory, because relative file paths broke; requiring absolute paths eliminated the class of error. The same post advises choosing argument formats that are easy to write correctly (no line counting, no heavy string escaping) and giving the model room to think before it commits to output. The cost is a tool-design iteration loop: you only find these cases by running many example inputs and reading the failures. It stops working when the error is a judgment error rather than a format or addressing error.
+
+**Observed in.**
+- [Anthropic Engineering, "Building effective agents", 2024-12-19](https://www.anthropic.com/engineering/building-effective-agents): "poka-yoke" the tools; absolute-path requirement removed relative-path errors in the SWE-bench agent; prefer formats close to natural internet text; test tools on many example inputs.
+
+**How it could apply here.** When `/learn` or the failure log shows the same tool-argument mistake repeating, first ask whether a hook (`.claude/hooks/`) can reject or normalize the bad shape (for example, a PreToolUse check that rejects relative paths) before adding prose to a skill. Would touch hooks and the `/learn` guidance in docs.
+
+**Confidence.** high
+
+---
+
 ---
 
 ## Part XII — A Practical Checklist for Building Your Own Harness
@@ -1077,3 +1092,9 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources mined
+
+- **Anthropic "Building effective agents"** (first mined: 2026-10-30): contributed #64 (tool interfaces that make errors impossible). Workflow patterns (chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer) overlap existing #29, #31, #35.
