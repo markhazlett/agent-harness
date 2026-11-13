@@ -996,6 +996,54 @@ liability. Sandbox by default; surface the sandbox boundary in the API.
 
 ---
 
+### 64. Ranked Skeleton Map Under a Token Budget
+
+**Give the agent a map of the codebase made of signatures, not file bodies, ranked toward the current task and cut to a fixed token budget.**
+
+**Why it works.** Most edits need to know how nearby code is *called*, not how it is *implemented*. A parser pulls definitions and references out of every file, a graph ranks the symbols, and only the top-ranked signature lines go into the prompt. Aider builds a file graph from definition and reference edges and runs personalized PageRank. Files in the chat and identifiers the user mentioned get boosted, private names and names defined in many files get down-weighted, and a binary search keeps the map within about 15 percent of the budget (default 1k tokens). When no files are in focus, the budget grows (up to 8x) to show more of the repo. The map also works as an index: the model asks for the full files it needs. The costs are parser coverage per language and a ranking that can miss dynamic dispatch or code that is linked only by runtime config.
+
+**Observed in.**
+- [Aider, "Building a better repository map with tree sitter", 2023-10-22](https://github.com/Aider-AI/aider/blob/main/aider/website/_posts/2023-10-22-repomap.md): tree-sitter definitions and references, graph ranking over file dependencies, `--map-tokens` budget defaulting to 1k, and the model asks to see full files it finds in the map.
+- [Aider `repomap.py` (main, last changed 2026-02-10)](https://github.com/Aider-AI/aider/blob/main/aider/repomap.py): `nx.pagerank` with personalization toward chat and mentioned files, 10x weight for mentioned identifiers, 50x for references from chat files, a `map_mul_no_files=8` budget expansion, and a binary search to an `ok_err = 0.15` fit.
+
+**How it could apply here.** Skills that start cold on an unfamiliar repo (`/deep-plan`, `/grade-codebase`, `/deep-review` stage 1) currently explore by grep and file reads, which costs tokens and differs from run to run. A `bin/` script that emits a budgeted signature map (ctags or tree-sitter plus reference counts) could be loaded once at skill start in place of open-ended exploration. This touches `bin/` and the opening step of those skills.
+
+**Confidence.** high
+
+---
+
+### 65. Reason Free-Form, Then Format in a Second Pass
+
+**When output must match a strict machine-readable format, have one call solve the problem in whatever form comes naturally and a second call translate that solution into the format.**
+
+**Why it works.** In a single call the model splits its attention between solving the task and following the format, and strong reasoners are often weak at the format. Splitting the work lets each call do one job, and you can give the formatting step a cheaper, faster model that is good at the format. Aider's Architect/Editor split set a new top score on its editing benchmark, and it also raised the scores of several models paired *with themselves*. That shows the gain comes from the split, not only from mixing models. The cost is an extra round trip and the risk that the translator misreads the plan. The split pays off less when the format is trivial or when a tool schema already enforces it.
+
+**Observed in.**
+- [Aider, "Separating code reasoning and editing", 2024-09-26](https://github.com/Aider-AI/aider/blob/main/aider/website/_posts/2024-09-26-architect.md): the Architect describes the solution freely and the Editor turns it into edit-format output. o1-preview with DeepSeek or o1-mini as Editor scored 85% (SOTA), and Sonnet, GPT-4o and GPT-4o-mini each improved when paired with themselves.
+
+**How it could apply here.** `/deep-review` dimension agents and `/skill-eval` subagents must emit structured blocks (findings, `<trajectory-report>`) as part of the same turn in which they reason. Where those blocks come back malformed or thin, the skill could ask for free-form analysis first and then run a short, separate formatting step, either a second message or a small subagent with a cheaper model. This touches the prompts in those skills, not hooks.
+
+**Confidence.** high
+
+---
+
+### 66. Measure Reliability as pass^k Against End State
+
+**Score an agent by the chance that *all* k independent runs of a task succeed, and grade each run by comparing the final world state with a golden state, not by reading the transcript.**
+
+**Why it works.** Average success (pass@1, or "did it work when I tried it") hides inconsistency: an agent at 60% pass^1 can drop to about 40% when it must succeed four times in a row. Users see the pass^k number, not the average. τ-bench estimates pass^k per task as C(c,k)/C(n,k) from n trials with c successes, then averages across tasks. Grading is cheap and deterministic. The golden action sequence is replayed on a fresh database and the hash is compared with the agent's final database, plus substring checks on required outputs. Any path that reaches the right state counts. The cost is n times the eval spend and a need for tasks whose result is a checkable state. The approach stops working for tasks where the *process* matters (for example, "asked the user before deleting"), which still need trajectory checks.
+
+**Observed in.**
+- [sierra-research/tau-bench README](https://github.com/sierra-research/tau-bench/blob/main/README.md) (repo created 2024-06-06): leaderboard reported as Pass^1 to Pass^4, for example a retail score that falls from 0.692 to 0.462. The README cites the paper at arxiv.org/abs/2406.12045.
+- [tau-bench `tau_bench/run.py` (last changed 2025-01-10)](https://github.com/sierra-research/tau-bench/blob/main/tau_bench/run.py): `display_metrics` computes `comb(c, k) / comb(num_trials, k)` per task.
+- [tau-bench `tau_bench/envs/base.py` (last changed 2024-11-10)](https://github.com/sierra-research/tau-bench/blob/main/tau_bench/envs/base.py): `calculate_reward` replays the golden actions and compares data hashes, then checks the required outputs.
+
+**How it could apply here.** `/skill-eval` sends one subagent per trajectory eval and diffs its self-reported trajectory. Nothing in the skill repeats a scenario. Running each eval n times and reporting pass^k would show skills that pass only sometimes. Where a skill's result is a checkable artifact (a plan file, a commit, a frontmatter-valid `SKILL.md`), the result could be graded by inspecting that end state rather than trusting the self-report. This touches `skills/skill-eval` and `eval.yaml` schema docs.
+
+**Confidence.** high
+
+---
+
 ## Part XII — A Practical Checklist for Building Your Own Harness
 
 Use this as a starting point. Each item maps to one or more sections above.
@@ -1077,3 +1125,10 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources mined
+
+- **Aider** (first mined: 2026-11-13): contributed #64 (ranked skeleton repo map) and #65 (architect/editor split). Read from the posts' Markdown sources and `repomap.py` on GitHub, because aider.chat did not resolve from this environment.
+- **Sierra τ-bench** (first mined: 2026-11-13): contributed #66 (pass^k with end-state grading). Read from the repository's README and source, because sierra.ai and arxiv.org were blocked by the egress proxy, so no claims rest on the paper's text.
