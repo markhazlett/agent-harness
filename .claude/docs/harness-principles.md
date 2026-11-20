@@ -573,6 +573,16 @@ failure modes of the agent that wrote the doc.
 **Apply this:** Self-review steps must be checklist-based, not vibe-based.
 "Skim the doc once" is not self-review.
 
+**Limit.** Self-review catches gaps, not overconfidence. When the bar
+is "does this actually work", a separate evaluator is more reliable.
+Anthropic's long-running app harness found that out of the box Claude
+"is a poor QA agent" that talks itself into approving flawed work. Tuning
+a standalone evaluator to be skeptical "turns out to be far more
+tractable" than making the generator critical of its own output
+([Anthropic Engineering, 2026-03-24](https://www.anthropic.com/engineering/harness-design-long-running-apps)).
+Use checklist self-review for the author. Hand the pass/fail call to
+someone else.
+
 ### 32. User review gates between phases
 
 Even after self-review, brainstorming asks the user to review the spec
@@ -996,6 +1006,60 @@ liability. Sandbox by default; surface the sandbox boundary in the API.
 
 ---
 
+### 64. Reasoning-Blind Action Reviewer
+
+**An automated approver for risky agent actions should see what the user asked for and the action about to run, but not the agent's own explanations or the tool output it has read.**
+
+**Why it works.** The agent's prose is advocacy: an approver that reads it can be talked into approving. Tool results are where injected text gets in, so removing them keeps an injection from reaching the judge too. Claude Code's auto mode classifier sees only user messages and tool calls. Its authors call it "reasoning-blind by design", and in their tests this shorter transcript beat one that included assistant messages. A transcript of tool calls alone did worse, because it lost the user's intent. The design costs provenance: the reviewer can't tell whether an ID came from a query result or was made up. Supporting mechanics keep it cheap and safe:
+- A one-token first stage is told to err toward blocking. A chain-of-thought second stage runs only on flagged calls and reuses the same prompt, so it is mostly a cache hit.
+- A denial goes back to the agent as a tool result telling it to find a safer path.
+- After 3 denials in a row, or 20 in a session, the run escalates to a human.
+
+The published miss rate on real overeager actions is 17%. That makes the reviewer a layer of defense, not a replacement for a human reviewing high-stakes changes.
+
+**Observed in.**
+- [Anthropic Engineering, "How we built Claude Code auto mode", 2026-03-25](https://www.anthropic.com/engineering/claude-code-auto-mode): the classifier strips assistant prose and tool results. The post also covers the two-stage filter, the 3-consecutive / 20-total denial escalation, and a check when work is delegated to a subagent and again when its results come back. It reports 0.4% FPR on real traffic and 17% FNR on real overeager actions.
+
+**How it could apply here.** `.claude/hooks/bash-guard.sh` blocks commands by regex. That works for known patterns but cannot judge intent. A PreToolUse hook for the commands that need judgment could send a model only the user turns and the pending call, and would need a counter for escalating repeated denials. For hooks that call a model, the input-stripping rule is the part to copy. In `/deep-review`, `agents/revalidator.md` could get each finding's claim and `file:line` without the stage-2 investigator's argument. It would then check the code instead of the case made for the finding.
+
+**Confidence.** high
+
+---
+
+### 65. Every Scaffold Is a Dated Bet on a Model Weakness
+
+**Record which model weakness each harness component works around, and re-test removing it whenever the underlying model changes.**
+
+**Why it works.** In the post's words, "every component in a harness encodes an assumption about what the model can't do on its own", and those assumptions expire. Anthropic's app-building harness used context resets because Sonnet 4.5 showed "context anxiety". It dropped the resets for Opus 4.5. With Opus 4.6 it removed sprints and per-sprint evaluation, and the run went from 6 hours and $200 to under 4 hours and about $125. The test is ablation: remove one component at a time and rerun the same task. Some parts stay. The planner survived because without it the generator under-scoped the work. The cost is a full run per ablation, so this needs a repeatable task to measure against.
+
+**Observed in.**
+- [Anthropic Engineering, "Harness design for long-running application development", 2026-03-24](https://www.anthropic.com/engineering/harness-design-long-running-apps): the planner/generator/evaluator harness, with each component removed or kept as models changed from Sonnet 4.5 to Opus 4.5 to Opus 4.6. Run costs are reported.
+
+**How it could apply here.** §1 says each rule should trace to an observed failure. This adds that the failure was observed *on a specific model*. A rigid skill could record which model its RED baseline ran against, in `skills/_template-rigid` or its `rationalizations.md`. On a model upgrade, re-running `/skill-baseline` without the skill shows whether the rationalizations still happen. Skills whose baseline no longer fails are candidates to slim down or retire. This touches the skill template and `/skill-baseline` docs.
+
+**Confidence.** high
+
+---
+
+### 66. Shape Check Output for the Agent, Not the Human
+
+**Any check an agent runs in a loop should print a few summary lines with greppable error markers, write the details to a log file, and offer a deterministic sampled fast mode.**
+
+**Why it works.** Every line a test run prints lands in context and pushes out the task. The agent also can't tell how long the suite takes. In Carlini's words, Claude "will happily spend hours running tests instead of making progress." His harness for parallel agents printed at most a few lines and logged everything important to a file "so Claude can find it when needed." It also precomputed summary statistics and tagged errors so grep would find them. A default `--fast` flag ran a 1% or 10% sample, fixed per agent but random across VMs, so the fleet covered every test over time. Two limits:
+- A summary can hide the one detail that matters, so the log path must be in the output.
+- Sampling misses regressions. Later in the project new commits kept breaking existing features until a stricter CI gate was added.
+
+Above all, the verifier must be "nearly perfect, otherwise Claude will solve the wrong problem."
+
+**Observed in.**
+- [Anthropic Engineering, "Building a C compiler with a team of parallel Claudes", Nicholas Carlini, 2026-02-05](https://www.anthropic.com/engineering/building-c-compiler): the test harness was designed around context pollution and time blindness. Agents coordinated without an orchestrator, using lock files in `current_tasks/` pushed through a shared git remote. A CI gate was added once regressions appeared.
+
+**How it could apply here.** `/write-skill` has the agent run `bin/test-frontmatter` and `bin/skill-eval --validate` as gates. `bin/test-all` runs in CI, which was recently changed to print the first failure's full output in the log for human readers. An agent-facing mode could print one `FAIL:` line per failing test plus a log path. Skills would call that mode and CI would keep the verbose one. A sampled `--fast` mode matters less at the current test count. This touches `bin/` scripts and how skills invoke them.
+
+**Confidence.** high
+
+---
+
 ## Part XII — A Practical Checklist for Building Your Own Harness
 
 Use this as a starting point. Each item maps to one or more sections above.
@@ -1077,3 +1141,12 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Sources mined
+
+- **Claude Code auto mode** (first mined: 2026-11-20): contributed #64 (reasoning-blind action reviewer). Read from the Anthropic Engineering post of 2026-03-25.
+- **Anthropic long-running app harness** (planner / generator / evaluator) (first mined: 2026-11-20): contributed #65 (scaffolds as dated bets on model weakness) and the evaluator limit added to #31. Read from the Anthropic Engineering post of 2026-03-24.
+- **Anthropic parallel-Claude C compiler** (first mined: 2026-11-20): contributed #66 (agent-shaped check output). Lock-file coordination through git was noted, but it overlaps #37 too much to add. Read from the Anthropic Engineering post of 2026-02-05.
+- **Anthropic Managed Agents** (first mined: 2026-11-20): researched, no principle added. Its external session log overlaps "context as state" from 12-Factor Agents in open PR #28. Keeping credentials out of the sandbox behind a proxy is a candidate for a later security-focused run.
