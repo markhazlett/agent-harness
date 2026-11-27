@@ -1077,3 +1077,57 @@ that specific failure?" Build the harness as a sequence of answers to that
 second question. The result will feel magical for the same reason the
 best harnesses do: it's not smarter, it's *less prone to specific
 stupidity*.
+
+---
+
+## Part XIII — Principles Mined From the Field
+
+Principles taken from other production agent harnesses. Each one cites its
+primary source and carries a confidence tag.
+
+### 64. A Pass/Fail Ledger the Agent Can Only Flip
+
+**One-line claim.** Write the full scope as a structured ledger at the start of the work, and let later agent sessions change only each item's status field, never its wording.
+
+**Why it works.** Long-running agents have two typical failures. They declare victory once some of the work exists, and they quietly redefine an unfinished item until it counts as done. A ledger written up front, where every entry starts as failing, keeps "done" from being judged by feel. Keeping the definition of each item fixed blocks the second failure. JSON helps here, because models are less likely to rewrite structured data than prose. The cost is a large up-front spec. The ledger also stops working if nobody re-checks a flipped status against real behavior.
+
+**Observed in.**
+- [Anthropic, "Effective harnesses for long-running agents", 2025-11-26](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents): an initializer agent writes 200+ features as JSON entries with `steps` and `passes: false`. Coding agents may only change `passes`, and the prompt says "It is unacceptable to remove or edit tests". JSON was picked over Markdown because the model is less likely to overwrite it inappropriately.
+
+**How it could apply here.** `/plan-sprint` and `/deep-plan` already produce plan files, but their checkboxes are prose that `/build` can edit. A plan step could carry a machine-readable acceptance block, and a hook under `.claude/hooks/` could reject edits to anything in that block other than the status field. This sharpens §30 (bite-sized tasks) by making the finish line tamper-resistant, not just well-written.
+
+**Confidence.** high
+
+### 65. Boot Ritual: Orient, Then Smoke-Test Before New Work
+
+**One-line claim.** Every fresh session begins with the same fixed steps: read the progress log and git history, start the app with a checked-in script, and run one end-to-end check. Only after that does it pick the next item.
+
+**Why it works.** A new context window has no memory of the last one. Without a ritual, the agent spends tokens rediscovering how to run the project, or builds new work on top of a regression the previous session left behind. Smoke-testing *before* starting turns "the last session broke something" into a finding at minute one rather than at the end. The handoff only works if the previous session left the code clean and committed, with a progress note, so the ritual has a matching exit step. The cost is a few minutes per session, which is wasted when sessions are short.
+
+**Observed in.**
+- [Anthropic, "Effective harnesses for long-running agents", 2025-11-26](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents): each coding session runs `pwd`, reads `claude-progress.txt` and the git log, picks the highest-priority failing feature, runs `init.sh`, and runs a basic end-to-end test before new work. Sessions end with a commit and a progress update. Unit tests and `curl` checks let features be marked done while still broken, and browser-automation testing "dramatically improved performance."
+
+**How it could apply here.** The SessionStart hook already prints branch and recent commits. The missing pieces are a per-project start-and-smoke script that `/build` runs before its first step, and a rule that `/build` stops if that script fails. Unlike §39, which re-injects context from the harness side, this is the agent proving the baseline is green before adding to it. It would touch `skills/build-plan` and the `/dev-server` skill.
+
+**Confidence.** high
+
+### 66. Reserve the Tail of the Budget for Delivery
+
+**One-line claim.** Before the step or time budget runs out, switch the agent into a delivery-only turn. That turn exposes only the finish tools, refuses every other tool call with a short explanation, and requires an honest success flag along with a list of missing evidence.
+
+**Why it works.** An agent that runs until it is cut off ends with nothing to show, even if it gathered most of what was needed. Setting aside the last slice of the budget, and narrowing the tool surface so the only possible move is to deliver, turns a timeout into a partial result the caller can use. The refusal message has to be a tool result, not just a missing schema, because models sometimes call tools that were withheld. The cost is a slightly shorter working budget. A run that would have finished in that last slice now returns partial work instead.
+
+**Observed in.**
+- [Browser Use, `browser_use/agent/loop.py` on `main`, last changed 2026-11-26](https://github.com/browser-use/browser-use/blob/main/browser_use/agent/loop.py): `delivery_at()` starts the delivery-only turn at 90% of the time budget, or earlier on short budgets so delivery gets up to 30 s. The `DELIVER_NOW` prompt says "Do not perform more browser actions… If the task is not fully finished as requested, set success=false". Any other tool call returns `NOT_RUN` ("Call finish or finish_from_repl now with what you have"). A code comment notes that Claude still called the withheld tool in 2 of 2 runs, and one of those runs ended empty.
+
+**How it could apply here.** Scheduled routines and long `/build` or `/deep-review` runs have no hand-off phase before they hit turn or time limits. A skill-level rule (for example in `skills/build-plan`) could set aside the final step for a structured report of what is verified, what is unverified, and what remains. A hook could also block non-reporting tools once a run-budget marker is set. It would touch skills and hooks.
+
+**Confidence.** high
+
+---
+
+## Sources mined
+
+- **Claude Code + superpowers** (first mined: 2026-05-11): the original vantage point for §1–§63, distilled from operating inside the harness.
+- **Anthropic "Effective harnesses for long-running agents"** (first mined: 2026-11-27): contributed §64 (pass/fail ledger) and §65 (boot ritual). Its initializer/coding-agent split was not added, because it is a prompt-level variant of §29 staging.
+- **Browser Use** (first mined: 2026-11-27): read from `browser_use/agent/loop.py` and `judge.py` source. Contributed §66 (delivery-only tail turn). Two candidates were not added for this run: the post-run judge's capped "gotchas" overlaps §19 and §31, and batched image pruning to keep the prompt cache intact is noted for a later run.
